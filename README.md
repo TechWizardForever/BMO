@@ -20,6 +20,9 @@ He can also:
   through the middle". More in [docs/3D_PARTS.md](docs/3D_PARTS.md)
 - play GameCube games through Dolphin, with a controller or the keyboard. No games come with him. You bring your
   own, and he can import them off a USB stick
+- play your movies and shows from the Videos folder and handle them by voice: "play Adventure Time season 2
+  episode 3", "pause", "skip ahead 30 seconds", "next episode", "stop". A show picks up where you left off.
+  Like the games, no videos come with him
 - set timers and reminders, which still go off when he's asleep
 - remember things you tell him ("remember that my sister's birthday is May 3rd")
 - keep projects, check the weather, back himself up to a USB stick, and a bunch more. Everything he understands
@@ -73,6 +76,7 @@ for your room and your screen:
 Then some of the fun stuff:
 
 - "Hey BMO, what can you do on this computer?"
+- "Hey BMO, play Adventure Time season 1 episode 1" (once you've put some episodes in your Videos folder)
 - "Hey BMO, set a timer for 10 minutes"
 - "Hey BMO, make a 20 millimeter cube with an 8 millimeter hole through the middle"
 - "Hey BMO, check for updates"
