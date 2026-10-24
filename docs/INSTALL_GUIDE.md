@@ -5,7 +5,7 @@ BMO then sets himself up by talking to you.
 
 ## What you need
 
-- **A computer** with a 64-bit Intel or AMD processor, **at least 28 GB of memory** and **at least 100 GB
+- **A computer** with a 64-bit Intel or AMD processor, **32 GB of memory** and **at least 100 GB
   of free disk space**. Installing **erases everything on the disk you pick**.
 - **A USB stick of 16 GB or more.** Writing the installer erases everything on the stick, so use a spare one.
 - **A microphone** (a USB clip-on microphone works well) and **speakers**.

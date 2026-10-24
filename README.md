@@ -31,8 +31,8 @@ screensavers when nobody's using him. He also updates himself from this repo, bu
 ## What you need
 
 - Linux Mint 22.3 Xfce, 64-bit. Other Ubuntu-based systems might work, but I haven't tried them.
-- At least 28 GB of RAM and a CPU with AVX2 (8 threads or more is better). Everything runs on the CPU, so no
-  graphics card needed.
+- 32 GB of RAM and a CPU with AVX2 (8 threads or more is better). Everything runs on the CPU, so no graphics
+  card needed.
 - Around 100 GB of free space. The brains alone are about 78 GB.
 - A mic, speakers, and internet for the install.
 
@@ -57,8 +57,21 @@ A ready-made USB installer is on the way.
 
 ## Things to try first
 
-- "Hey BMO". The very first start takes about a minute while his brain loads.
-- "Hey BMO, learn my voice", so he wakes up for you and not for the TV
+Say "Hey BMO" to start him. The very first start takes about a minute while his brain loads. Then get him set up
+for your room and your screen:
+
+- "Hey BMO, learn my voice". You say "Hey BMO" a few times and talk for ten seconds, so he wakes up for you and
+  not for the TV.
+- "Hey BMO, calibrate the screen". A test pattern comes up and you just talk to it: "smaller", "bigger", "move
+  left", "the left side is cut off", "lower resolution", and "keep it" when it fits. Handy on a CRT or a TV
+  that cuts off the edges.
+- "Hey BMO, list screen resolutions", then "Hey BMO, test screen resolution 1280 by 720". He goes back on his
+  own unless you say "Hey BMO, approve display changes".
+- "Hey BMO, make the text bigger" or "Hey BMO, make the mouse pointer bigger" if things are hard to read from
+  the couch.
+
+Then some of the fun stuff:
+
 - "Hey BMO, what can you do on this computer?"
 - "Hey BMO, set a timer for 10 minutes"
 - "Hey BMO, make a 20 millimeter cube with an 8 millimeter hole through the middle"
