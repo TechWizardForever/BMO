@@ -1,0 +1,159 @@
+{"about": "The owner's real sentences to BMO (accepted, with Hey BMO), from the live-test logs 2026-10-18/19; no room speech. expect: switch:<profile> | file_question | app | other. Owner's OK to keep them as test data: 2026-10-19."}
+{"said": "A Bemo close volume control.", "expect": "other"}
+{"said": "A Bemo switched to the recording tab.", "expect": "app"}
+{"said": "a little quieter.", "expect": "other"}
+{"said": "are you being sarcastic right now?", "expect": "other"}
+{"said": "are you on the coding model right now?", "expect": "other"}
+{"said": "bar on the screen.", "expect": "other"}
+{"said": "Bright a Python Program for a Snake Game.", "expect": "other"}
+{"said": "Calibrate the Screen", "expect": "other"}
+{"said": "Cancel Computer Action", "expect": "other"}
+{"said": "can you click the Hello Bemo button in the Firefox tab?", "expect": "other"}
+{"said": "can you program a Python game that is like a snake game?", "expect": "other"}
+{"said": "close pulse audio.", "expect": "other"}
+{"said": "close terminal.", "expect": "other"}
+{"said": "close the calculator.", "expect": "other"}
+{"said": "close the text editor.", "expect": "other"}
+{"said": "close volume control.", "expect": "other"}
+{"said": "Confirm Computer Action", "expect": "other"}
+{"said": "Confirm Computer Action!", "expect": "other"}
+{"said": "Demon where's the file for the game?", "expect": "file_question"}
+{"said": "does he annoy you?", "expect": "other"}
+{"said": "does nectar have one arm or two arms?", "expect": "other"}
+{"said": "do you hate nepter from Adventure Time?", "expect": "other"}
+{"said": "exit out of pulse audio.", "expect": "other"}
+{"said": "He Bemo switched to coding.", "expect": "switch:coding"}
+{"said": "hide the panel.", "expect": "other"}
+{"said": "how does rain form?", "expect": "other"}
+{"said": "how's the weather?", "expect": "other"}
+{"said": "how's the weather today?", "expect": "other"}
+{"said": "I'm giving you access to the GUI. Can you please click recording tab?", "expect": "other"}
+{"said": "I'm really interested what would you like me to improve upon yourself?", "expect": "other"}
+{"said": "I'm thinking about building a small shelf for my workshop. It needs to hold tools and paint cans. What should I use and how thick should the shelves be?", "expect": "other"}
+{"said": "I'm thinking about building a small shelf for my workshop. It needs to hold tools and some paint cans. What wood should I use and how thick should the shelves be?", "expect": "other"}
+{"said": "I'm thinking about building a small shelf for my workshop. What wood should I use?", "expect": "other"}
+{"said": "in Firefox click the say goodbye button.", "expect": "other"}
+{"said": "in Firefox, click the say goodbye button.", "expect": "other"}
+{"said": "in Firefox, click the say hello button.", "expect": "other"}
+{"said": "in Firefox click the say hello button on the page", "expect": "other"}
+{"said": "in LibreOffice Writer, click the bold button.", "expect": "other"}
+{"said": "in the Firefox page. Can you click say goodbye?", "expect": "other"}
+{"said": "in the text editor, type Bemo was here, then close it without saving.", "expect": "other"}
+{"said": "in the text editor, type bmo was here, then close it without saving.", "expect": "other"}
+{"said": "in the text editor, type BMO was here, then close it without saving.", "expect": "other"}
+{"said": "is it going to rain tomorrow?", "expect": "other"}
+{"said": "it's in the Bemo code folder.", "expect": "other"}
+{"said": "I want the weather set for Salem, Oregon 97301", "expect": "other"}
+{"said": "I want the weather set for Salem, Oregon 97301.", "expect": "other"}
+{"said": "make the mouse pointer bigger.", "expect": "other"}
+{"said": "make the text bigger.", "expect": "other"}
+{"said": "make Thunar show hidden files.", "expect": "other"}
+{"said": "make thunder show hidden files.", "expect": "other"}
+{"said": "Mute", "expect": "other"}
+{"said": "Normal Text Size", "expect": "other"}
+{"said": "on the calculator, press 6, then press equals.", "expect": "other"}
+{"said": "on the Firefox page can you click the say hello button?", "expect": "other"}
+{"said": "Open Audio Control.", "expect": "other"}
+{"said": "open calculator.", "expect": "other"}
+{"said": "open files.", "expect": "other"}
+{"said": "open LibreOffice Rider.", "expect": "other"}
+{"said": "Open LibreOffice Writer.", "expect": "other"}
+{"said": "open Libre Rider!", "expect": "other"}
+{"said": "open login window.", "expect": "other"}
+{"said": "open pulse audio", "expect": "other"}
+{"said": "open sooner!", "expect": "other"}
+{"said": "open sooner.", "expect": "other"}
+{"said": "open soon R.", "expect": "other"}
+{"said": "open the calculator.", "expect": "other"}
+{"said": "open the center.", "expect": "other"}
+{"said": "open the pod bay doors.", "expect": "other"}
+{"said": "open the text editor", "expect": "other"}
+{"said": "open the text editor.", "expect": "other"}
+{"said": "open the web browser.", "expect": "other"}
+{"said": "open up Firefox!", "expect": "other"}
+{"said": "open volume control.", "expect": "other"}
+{"said": "Open Volume Control.", "expect": "other"}
+{"said": "press 6, then press equals.", "expect": "other"}
+{"said": "press 7.", "expect": "other"}
+{"said": "press 7 in calculator.", "expect": "other"}
+{"said": "press save in text editor.", "expect": "other"}
+{"said": "press times.", "expect": "other"}
+{"said": "press times, then 6, then equals.", "expect": "other"}
+{"said": "Read the text on the screen.", "expect": "other"}
+{"said": "set my weather location to Salem, Oregon.", "expect": "other"}
+{"said": "set my wether location to 97301", "expect": "other"}
+{"said": "set the weather to Bridgevale please.", "expect": "other"}
+{"said": "show me what's in my SSH key file.", "expect": "other"}
+{"said": "swap to coding.", "expect": "switch:coding"}
+{"said": "switched to coding.", "expect": "switch:coding"}
+{"said": "switched to Deep Vision", "expect": "switch:deep-vision"}
+{"said": "switched to main", "expect": "switch:normal"}
+{"said": "switched to main.", "expect": "switch:normal"}
+{"said": "switched to Maine.", "expect": "switch:normal"}
+{"said": "Switch Sound Back to Solo.", "expect": "other"}
+{"said": "switch sound back to the Scarlet", "expect": "other"}
+{"said": "Switch Sound to the Scarlet.", "expect": "other"}
+{"said": "Switch Sound to the TV.", "expect": "other"}
+{"said": "switch the coding", "expect": "switch:coding"}
+{"said": "switch the coding.", "expect": "switch:coding"}
+{"said": "switch to code aim.", "expect": "switch:coding"}
+{"said": "switch to codeine", "expect": "switch:coding"}
+{"said": "switch to coding", "expect": "switch:coding"}
+{"said": "switch to coding.", "expect": "switch:coding"}
+{"said": "Switch to coding", "expect": "switch:coding"}
+{"said": "Switch to Coding", "expect": "switch:coding"}
+{"said": "switch to coding brain.", "expect": "switch:coding"}
+{"said": "Switch to Coding Brain.", "expect": "switch:coding"}
+{"said": "switch to Cody!", "expect": "switch:coding"}
+{"said": "switch to deep vision.", "expect": "switch:deep-vision"}
+{"said": "switch to Deep Vision.", "expect": "switch:deep-vision"}
+{"said": "Switch to Deep Vision", "expect": "switch:deep-vision"}
+{"said": "switch to main", "expect": "switch:normal"}
+{"said": "switch to main.", "expect": "switch:normal"}
+{"said": "Switch to Main", "expect": "switch:normal"}
+{"said": "switch to main brain", "expect": "switch:normal"}
+{"said": "switch to main brain.", "expect": "switch:normal"}
+{"said": "Switch to main brain.", "expect": "switch:normal"}
+{"said": "Switch to Main Brain", "expect": "switch:normal"}
+{"said": "Switch to Maine", "expect": "switch:normal"}
+{"said": "switch to the calculator.", "expect": "app"}
+{"said": "switch to the recording tab.", "expect": "app"}
+{"said": "switch to the recording tab in volume control.", "expect": "app"}
+{"said": "take a screenshot and tell me what's on the screen.", "expect": "other"}
+{"said": "tell me what's on the screen.", "expect": "other"}
+{"said": "Turn Off Show Hidden Files in Thunar", "expect": "other"}
+{"said": "type hello in this window.", "expect": "other"}
+{"said": "Unmute", "expect": "other"}
+{"said": "volume down.", "expect": "other"}
+{"said": "what can you do?", "expect": "other"}
+{"said": "what can you do on this computer?", "expect": "other"}
+{"said": "what hardware am I on?", "expect": "other"}
+{"said": "what is the latest snake game file call?", "expect": "file_question"}
+{"said": "what kind of things can you code?", "expect": "other"}
+{"said": "what's 2 plus 2?", "expect": "other"}
+{"said": "what's on the screen?", "expect": "other"}
+{"said": "what's the date today?", "expect": "other"}
+{"said": "what's the volume?", "expect": "other"}
+{"said": "what's the weather in Springfield?", "expect": "other"}
+{"said": "what's the weather like today?", "expect": "other"}
+{"said": "what time is it?", "expect": "other"}
+{"said": "what time zone are you in?", "expect": "other"}
+{"said": "what town did I set for the weather?", "expect": "other"}
+{"said": "what town do you think I just set for the weather?", "expect": "other"}
+{"said": "where am I?", "expect": "other"}
+{"said": "where's the file for the game?", "expect": "file_question"}
+{"said": "which brain is this?", "expect": "other"}
+{"said": "who's your favorite person from Adventure Time?", "expect": "other"}
+{"said": "who's your second favorite person from Adventure Time?", "expect": "other"}
+{"said": "write a Python game for a snake program. Never mind, cancel that.", "expect": "other"}
+{"said": "write a Python program for a snake game", "expect": "other"}
+{"said": "write a Python program for a snake game.", "expect": "other"}
+{"said": "Write a Python program for a snake game.", "expect": "other"}
+{"said": "write a Python script that prints the time.", "expect": "other"}
+{"said": "yes!", "expect": "other"}
+{"said": "yes.", "expect": "other"}
+{"said": "Yes", "expect": "other"}
+{"said": "Yes, that's the one.", "expect": "other"}
+{"said": "you can access live weather. What's the weather like right now?", "expect": "other"}
+{"said": "you need to switch to coding brain.", "expect": "switch:coding"}
+{"said": "what time is it? What's the weather like? Where am I? What's the weather like in Springfeld, Oregon?", "expect": "other"}

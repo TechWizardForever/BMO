@@ -1,0 +1,56 @@
+{
+ "tiny.en hint=none": [
+  "",
+  "BMO. Hey BMO.",
+  "Hey BMO.",
+  "Hey, Bima.",
+  "",
+  "Hey, BMO.",
+  "",
+  "",
+  "Hey, beam out.",
+  "Hey, Beema."
+ ],
+ "tiny.en hint=Bemo": [
+  "",
+  "Bemo, hey Bemo.",
+  "Hey Bemo?",
+  "a Bemo",
+  "Hey Bemo !!!",
+  "Hey Bemo",
+  "A Bemo",
+  "A B-mount",
+  "Hey, Bemo.",
+  "Hey, Bemo."
+ ],
+ "base.en hint=none": [
+  "",
+  "b-mo. Hey, b-mo.",
+  "Hey, BMO.",
+  "A B-M-O.",
+  "Hey, BMO.",
+  "Hey, BMO!",
+  "Hey, Beem out.",
+  "Hey, B-mount.",
+  "Hey, Beemow!",
+  "Hey, Bima."
+ ],
+ "base.en hint=Bemo": [
+  "",
+  "Bemo Hey Bemo",
+  "Hey Bemo",
+  "Hey Bemo",
+  "Hey Bemo",
+  "Hey Bemo",
+  "Hey Bemo !!!",
+  "Hey, Bemo !!!",
+  "Hey, Bemo !!!",
+  "Hey, Bima!"
+ ],
+ "room_heard_as_bemo_tiny_hint": [
+  "Bemo",
+  "Bemo",
+  "Bemo",
+  "Bemo"
+ ]
+}

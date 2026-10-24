@@ -1,0 +1,27 @@
+{
+  "profiles": {
+    "teensy_telemetry": {
+      "transport": "serial",
+      "port": "/dev/ttyACM0",
+      "baud": 115200,
+      "queries": {
+        "latest_voltage": {
+          "passive": true,
+          "parse_regex": "voltage=([0-9.]+)",
+          "parse_group": 1,
+          "unit": "V"
+        }
+      }
+    },
+    "bench_scope": {
+      "transport": "scpi",
+      "resource": "USB0::0x0000::0x0000::SERIAL::INSTR",
+      "queries": {
+        "frequency": {
+          "command": "MEAS:FREQ?",
+          "unit": "Hz"
+        }
+      }
+    }
+  }
+}

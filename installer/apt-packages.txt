@@ -1,0 +1,7 @@
+# Linux packages BMO needs, installed by install.sh and built into the disk image (tools/image).
+python3-venv python3-dev portaudio19-dev libsndfile1 git curl ca-certificates
+xdg-utils xdotool scrot policykit-1 tesseract-ocr lm-sensors smartmontools
+wmctrl python3-pyatspi at-spi2-core zstd alsa-utils
+nvme-cli pciutils usbutils software-properties-common x11-xserver-utils dbus-x11 ffmpeg
+# 3D models from the Engineering brain (2026-10-20)
+openscad

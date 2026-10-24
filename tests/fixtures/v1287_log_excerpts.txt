@@ -1,0 +1,43 @@
+2026-10-18 10:20:30.803 | DEBUG    | systems.chat:listen:932 - Speech timing: capture=1.95s stt=1.77s total=3.72s candidate='Beemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey B'
+<function=computer_control>
+<parameter=action>
+type_text
+</parameter>
+<parameter=args>
+{"text": "Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey BMO Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey Bemo Hey B
+2026-10-18 10:22:10.496
+I can handle a wide range of coding tasks, from simple scripts to complex system architectures. Here are some examples:
+
+1. **Scripting & Automation**:
+   - Python, Bash, or PowerShell scripts for routine tasks.
+   - Automating file operations, data processing, or system maintenance.
+
+2. **Web Development**:
+   - Building full-stack web apps using frameworks like Flask, Django, React, or Vue.
+   - APIs, database integrations, and front-end interfaces.
+
+3. **System & DevOps**:
+   - Containerization with Docker.
+   - CI/CD pipelines (GitHub Actions, Jenkins).
+   - Infrastructure as Code (Terraform, Ansible).
+
+4. **Data Science & AI**:
+   - Machine learning models using TensorFlow, PyTorch, or scikit-learn.
+   - Data analysis and visualization with Pandas, NumPy, Matplotlib.
+
+5. **Embedded Systems & IoT**:
+   - Firmware for microcontrollers (Arduino, Raspberry Pi).
+   - Sensor integration and real-time data processing.
+
+6. **Performance Optimization**:
+   - Profiling and optimizing code for speed or memory usage.
+   - Debugging complex concurrency or lifecycle issues.
+
+7. **Project Architecture**:
+   - Designing scalable systems with proper separation of concerns.
+   - Implementing design patterns and ensuring maintainability.
+
+8. **Agentic Systems**:
+   - Multi-agent workflows, task delegation, and coordination logic.
+
+Let me know what

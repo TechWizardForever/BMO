@@ -1,0 +1,5 @@
+# Keys that may sign BMO releases (installer plan I5). BMO installs only a tag whose SSH signature
+# matches a line here, read from the version he is running. Format, one key per line:
+#   bmo-release namespaces="git" ssh-ed25519 AAAA... comment
+# The owner's release key, made 2026-10-20 (fingerprint SHA256:orWOG/sn9TI9ZRf4dcRw1n8JUcD4aGbPEIRRWc6BIkk).
+bmo-release namespaces="git" ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIENbd82nTHUWl9gP4fhmz2yBDd3LU6dy3M2jS4hRNlBG BMO release key

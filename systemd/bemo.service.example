@@ -1,0 +1,12 @@
+# Installed dynamically by autostart_cli.py so absolute paths are correct.
+# On Linux Mint 22.3 Xfce this unit is started by ~/.config/autostart/
+# bemo-supervisor.desktop after the desktop session environment is imported.
+[Unit]
+Description=Bemo standby Supervisor and Hey-Bemo wake listener
+
+[Service]
+Type=simple
+WorkingDirectory="/path/to/bemo-master"
+ExecStart=/bin/bash "/path/to/bemo-master/start.sh"
+Restart=always
+RestartSec=3

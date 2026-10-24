@@ -1,0 +1,45 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pygame = ">=2.5,<3"
+numpy = "==1.26.4"
+loguru = ">=0.7,<1"
+psutil = ">=5.9,<8"
+ollama = ">=0.6.3,<1"
+speechrecognition = {extras = ["audio"], version = ">=3.10,<4"}
+pyaudio = ">=0.2.14,<1"
+faster-whisper = "==1.2.1"
+chatterbox-tts = {git = "https://github.com/resemble-ai/chatterbox.git", ref = "master"}
+torch = "==2.6.0"
+torchaudio = "==2.6.0"
+soundfile = ">=0.12,<1"
+sympy = ">=1.12,<2"
+scipy = ">=1.12,<2"
+matplotlib = ">=3.8,<4"
+openpyxl = "==3.1.5"
+pypdf = ">=5,<7"
+trimesh = ">=4.4,<5"
+cadquery = "==2.4.0"
+cadquery-ocp = "==7.7.2"
+nlopt = "==2.7.1"
+casadi = "==3.6.7"
+ezdxf = "==1.3.4"
+multimethod = "==1.12"
+nptyping = "==2.0.1"
+path = "==17.0.0"
+typish = "==1.9.3"
+requests = ">=2.31,<3"
+beautifulsoup4 = ">=4.12,<5"
+pillow = ">=10,<12"
+pytesseract = ">=0.3.10,<1"
+pyserial = ">=3.5,<4"
+pyvisa = ">=1.14,<2"
+pyvisa-py = ">=0.7,<1"
+
+[dev-packages]
+
+[requires]
+python_version = "3.12"

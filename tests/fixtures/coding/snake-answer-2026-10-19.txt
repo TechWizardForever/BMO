@@ -1,0 +1,148 @@
+File: snake_game.py
+```python
+import pygame
+import random
+import sys
+
+# Initialize pygame
+pygame.init()
+
+# Constants
+WIDTH, HEIGHT = 800, 600
+GRID_SIZE = 20
+GRID_WIDTH = WIDTH // GRID_SIZE
+GRID_HEIGHT = HEIGHT // GRID_SIZE
+FPS = 10
+
+# Colors
+BLACK = (0, 0, 0)
+WHITE = (255, 255, 255)
+GREEN = (0, 255, 0)
+RED = (255, 0, 0)
+
+# Set up the display
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Snake Game")
+clock = pygame.time.Clock()
+
+# Font
+font = pygame.font.SysFont(None, 36)
+
+class Snake:
+    def __init__(self):
+        self.reset()
+        
+    def reset(self):
+        self.length = 3
+        self.positions = [(GRID_WIDTH // 2, GRID_HEIGHT // 2)]
+        self.direction = random.choice([(0, 1), (0, -1), (1, 0), (-1, 0)])
+        self.score = 0
+        self.grow = False
+        
+    def get_head_position(self):
+        return self.positions[0]
+    
+    def update(self):
+        head = self.get_head_position()
+        x, y = self.direction
+        new_position = (((head[0] + x) % GRID_WIDTH), ((head[1] + y) % GRID_HEIGHT))
+        
+        if new_position in self.positions[1:]:
+            return False  # Game over
+            
+        self.positions.insert(0, new_position)
+        
+        if not self.grow:
+            self.positions.pop()
+        else:
+            self.grow = False
+            self.length += 1
+            
+        return True  # Game continues
+    
+    def render(self, surface):
+        for i, pos in enumerate(self.positions):
+            color = GREEN if i == 0 else (0, 200, 0)  # Head is brighter green
+            rect = pygame.Rect(pos[0] * GRID_SIZE, pos[1] * GRID_SIZE, GRID_SIZE, GRID_SIZE)
+            pygame.draw.rect(surface, color, rect)
+            pygame.draw.rect(surface, BLACK, rect, 1)  # Border
+            
+    def change_direction(self, direction):
+        # Prevent 180-degree turns
+        if (direction[0] * -1, direction[1] * -1) != self.direction:
+            self.direction = direction
+
+class Food:
+    def __init__(self):
+        self.position = (0, 0)
+        self.randomize_position()
+        
+    def randomize_position(self):
+        self.position = (random.randint(0, GRID_WIDTH - 1), random.randint(0, GRID_HEIGHT - 1))
+        
+    def render(self, surface):
+        rect = pygame.Rect(self.position[0] * GRID_SIZE, self.position[1] * GRID_SIZE, GRID_SIZE, GRID_SIZE)
+        pygame.draw.rect(surface, RED, rect)
+        pygame.draw.rect(surface, BLACK, rect, 1)  # Border
+
+def draw_grid(surface):
+    for y in range(0, HEIGHT, GRID_SIZE):
+        for x in range(0, WIDTH, GRID_SIZE):
+            rect = pygame.Rect(x, y, GRID_SIZE, GRID_SIZE)
+            pygame.draw.rect(surface, (40, 40, 40), rect, 1)
+
+def main():
+    snake = Snake()
+    food = Food()
+    
+    # Main game loop
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_UP:
+                    snake.change_direction((0, -1))
+                elif event.key == pygame.K_DOWN:
+                    snake.change_direction((0, 1))
+                elif event.key == pygame.K_LEFT:
+                    snake.change_direction((-1, 0))
+                elif event.key == pygame.K_RIGHT:
+                    snake.change_direction((1, 0))
+                elif event.key == pygame.K_r:
+                    snake.reset()
+                    food.randomize_position()
+        
+        # Update game state
+        if not snake.update():
+            # Game over - reset the game
+            snake.reset()
+            food.randomize_position()
+            
+        # Check for food collision
+        if snake.get_head_position() == food.position:
+            snake.grow = True
+            snake.score += 10
+            food.randomize_position()
+            # Make sure food doesn't appear on snake
+            while food.position in snake.positions:
+                food.randomize_position()
+        
+        # Draw everything
+        screen.fill(BLACK)
+        draw_grid(screen)
+        snake.render(screen)
+        food.render(screen)
+        
+        # Draw score
+        score_text = font.render(f"Score: {snake.score}", True, WHITE)
+        screen.blit(score_text, (10, 10))
+        
+        pygame.display.flip()
+        clock.tick(FPS)
+
+if __name__ == "__main__":
+    main()
+```<tool_call>
+Here's a Python program for a snake game using Pygame. The game features a snake that grows when it eats food, with controls to change direction and restart the game.

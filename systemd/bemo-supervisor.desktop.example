@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Bemo Standby Supervisor
+Comment=Import the Xfce session environment and start Bemo standby
+Exec=/bin/bash "/path/to/bemo-master/bemo-session-start.sh"
+Terminal=false
+StartupNotify=false
+X-GNOME-Autostart-enabled=true
+OnlyShowIn=XFCE;
+NoDisplay=true

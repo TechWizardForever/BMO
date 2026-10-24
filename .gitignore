@@ -1,0 +1,13 @@
+# Rebuildable runtime state; never commit
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Personal material stays out of the repository
+docs/live-tests/
+*_terminal_log.txt
+
+# Private notes, never published
+BMO_Handoff_*.md

@@ -1,0 +1,14 @@
+[Unit]
+Description=BMO first boot: hand BMO to the new account
+# Only once, only on the installed PC (never in the live USB session), before the login screen.
+ConditionPathExists=!/var/lib/bemo/firstboot-done
+ConditionKernelCommandLine=!boot=casper
+After=local-fs.target
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/bemo/tools/image/firstboot.py
+
+[Install]
+WantedBy=multi-user.target

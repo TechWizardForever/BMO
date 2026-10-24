@@ -1,0 +1,10 @@
+{"heard": "Hit Bemo, switch to main.", "wake": true, "command": "switch to main.", "where": "live 2026-10-19 (missed then)"}
+{"heard": "He'd be most switched to Maine.", "wake": true, "command": "switched to Maine.", "where": "live 2026-10-19 (missed then)"}
+{"heard": "It'd be most switch to main brain.", "wake": true, "command": "switch to main brain.", "where": "live 2026-10-19 (missed then)"}
+{"heard": "Hey, B-mount. Detail Scan.", "wake": true, "command": "Detail Scan.", "where": "owner's recorded Hey BMO + command"}
+{"heard": "Hey, Bima! Yes!", "wake": true, "command": "Yes!", "where": "owner's recorded Hey BMO + command"}
+{"heard": "Hey Bemo, what's on the screen?", "wake": true, "command": "what's on the screen?", "where": "live 2026-10-19"}
+{"heard": "Bemo switched to main.", "wake": true, "command": "switched to main.", "where": "live 2026-10-19"}
+{"heard": "hit the ball", "wake": false, "where": "made up"}
+{"heard": "Hey Bob, it's me", "wake": false, "where": "made up"}
+{"heard": "Detailed scan.", "wake": false, "where": "live 2026-10-19: no name at all (needs Hey BMO or BMO's offer)"}

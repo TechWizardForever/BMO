@@ -1,0 +1,16 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>BMO vision test</title>
+<style>
+ body{font-family:sans-serif;background:#f4f1e8;margin:40px}
+ h1{font-size:40px;color:#335} #out{font-size:36px;margin-top:30px;color:#a33;min-height:50px}
+ button{font-size:26px;padding:14px 30px;margin:10px;border-radius:10px;border:2px solid #557;background:#dde}
+</style></head>
+<body>
+<h1>BMO vision test page</h1>
+<p>Nothing here is sent anywhere. Each button only changes the text below.</p>
+<button onclick="say('Hello from BMO!')">Say hello</button>
+<button onclick="say('Goodbye!')">Say goodbye</button>
+<button onclick="say('')">Clear</button>
+<div id="out"></div>
+<script>function say(t){document.getElementById('out').textContent=t}</script>
+</body></html>
