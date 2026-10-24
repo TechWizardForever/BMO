@@ -4,7 +4,7 @@ The platform part lives behind AccessibilityBackend (Linux: AT-SPI via
 systems/adapters/a11y_helper.py run with the system Python). Everything here is pure
 logic so it can be tested against recorded snapshots (tests/fixtures/gui/).
 
-Safety tiers (approved 2026-10-18, docs/GUI_CONTROLLER_PLAN.md):
+Safety tiers (approved 2026-10-18):
   0 look      read controls/values                       free
   1 navigate  tabs, opening menus/lists, selecting items  free, verified
   2 change    buttons, toggles, menu commands, typing      one spoken OK per task

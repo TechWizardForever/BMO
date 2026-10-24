@@ -6,7 +6,7 @@ started on first use and stopped after GUI_VISION_IDLE_SECONDS, and only on a
 PC with enough memory (GUI_VISION_MIN_TOTAL_GIB installed and
 GUI_VISION_MIN_AVAILABLE_GIB free at that moment). Everything stays local.
 
-Measured 2026-10-18 (docs/GUI_BENCHMARK_2026-10-18.md): 8-bit MAI-UI-2B hits
+Measured 2026-10-18: 8-bit MAI-UI-2B hits
 89-92% of targets, ~27 s for a new screenshot, ~2.9-4.2 GB resident.
 The point is a guess: the Supervisor clicks it only as a confirmed change and
 reports whether anything changed.

@@ -171,7 +171,7 @@ class LiveTestPhrases(VoiceTests):
         self.geo["result"] = self.SALEM
         for heard, place in (("set my wether location to 97301", "97301"),
                              ("I want the weather set for Salem, Oregon 97301", "Salem, Oregon 97301"),
-                             ("set the weather to Bridgevale please.", "Bridgevale"),
+                             ("set the weather to Brightvale please.", "Brightvale"),
                              ("Use Salem for the weather", "Salem")):
             self.geo["asked"] = []
             self.assertTrue(self.c._handle_weather_setup(heard), heard)

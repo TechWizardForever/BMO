@@ -82,7 +82,7 @@
 {"said": "Read the text on the screen.", "expect": "other"}
 {"said": "set my weather location to Salem, Oregon.", "expect": "other"}
 {"said": "set my wether location to 97301", "expect": "other"}
-{"said": "set the weather to Bridgevale please.", "expect": "other"}
+{"said": "set the weather to Brightvale please.", "expect": "other"}
 {"said": "show me what's in my SSH key file.", "expect": "other"}
 {"said": "swap to coding.", "expect": "switch:coding"}
 {"said": "switched to coding.", "expect": "switch:coding"}

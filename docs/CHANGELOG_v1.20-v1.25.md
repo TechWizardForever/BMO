@@ -1,6 +1,6 @@
 ### Voice (v1.28.71, 2026-10-19)
 
-Bemo speaks with Piper and his trained epoch-23 voice. Chatterbox, its voice cloning, `voice_setup.py` and the voice-import commands described in the V1.22–V1.23 notes below were removed (installer decision C, `docs/INSTALLER_PLAN.md`). Files already under `~/.bemo/voice/` are left alone.
+Bemo speaks with Piper and his trained epoch-23 voice. Chatterbox, its voice cloning, `voice_setup.py` and the voice-import commands described in the V1.22–V1.23 notes below were removed in v1.28.71. Files already under `~/.bemo/voice/` are left alone.
 
 ### V1.25.4 installer path initialization fix
 
