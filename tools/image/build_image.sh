@@ -166,6 +166,20 @@ if ! stage_done inside; then
   mark_done inside
 fi
 
+# Nothing that isn't ours to share goes out: no Windows screensavers (BMO fetches them on the installed PC), no
+# games, no videos (2026-10-24). Images built before then had the screensaver pack in the seed; it goes here.
+for leftover in "$ROOTFS/opt/bemo-seed/.bemo/screensavers" "$ROOTFS/opt/bemo-seed/.bemo/install-cache"; do
+  if [ -e "$leftover" ]; then
+    rm -rf "$leftover"
+    rm -f "$(done_marker squash)" "$(done_marker iso)"
+  fi
+done
+shipped="$(find "$ROOTFS/opt" "$ROOTFS/etc/skel" "$ROOTFS/root" "$ROOTFS/home" -type f \( -iname '*.scr' \
+  -o -iname '*.rvz' -o -iname '*.gcm' -o -iname '*.gcz' -o -iname '*.ciso' -o -iname '*.wia' -o -iname '*.wbfs' \
+  -o -iname '*.iso' -o -iname '*.mkv' -o -iname '*.mp4' -o -iname '*.avi' -o -iname '*.m4v' -o -iname '*.webm' \) \
+  2>/dev/null | head -5)"
+[ -z "$shipped" ] || fail "the image would carry files it mustn't share (screensavers, games or videos): $shipped"
+
 if ! stage_done squash; then
   say "4/6 Packing the system (squashfs; takes a while)..."
   chroot "$ROOTFS" dpkg-query -W --showformat='${Package} ${Version}\n' > "$TREE/casper/filesystem.manifest"

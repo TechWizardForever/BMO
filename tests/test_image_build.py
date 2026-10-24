@@ -144,5 +144,37 @@ class BuildScriptTests(unittest.TestCase):
             self.assertIn(piece, script)
 
 
+class NothingToShareTests(unittest.TestCase):
+    """2026-10-24: no Windows screensavers, games or videos in the image (an older seed had the screensaver pack)."""
+    def guard(self, rootfs):
+        script = (IMAGE / "build_image.sh").read_text()
+        start = script.index("for leftover in ")
+        end = script.index('[ -z "$shipped" ] ||')
+        end = script.index("\n", end) + 1
+        snippet = ('WORK="$1/work"; ROOTFS="$1/rootfs"; mkdir -p "$WORK"; touch "$WORK/.done-squash"\n'
+                   'done_marker() { echo "$WORK/.done-$1"; }\nfail() { echo "FAIL: $*"; exit 3; }\n'
+                   + script[start:end] + 'echo clean; [ -f "$WORK/.done-squash" ] && echo kept-squash || true\n')
+        return subprocess.run(["bash", "-c", snippet, "guard", str(rootfs)], capture_output=True, text=True)
+
+    def test_old_screensavers_are_removed_and_the_image_repacked(self):
+        root = Path(tempfile.mkdtemp())
+        saver = root / "rootfs" / "opt" / "bemo-seed" / ".bemo" / "screensavers" / "windows" / "Mystify.scr"
+        saver.parent.mkdir(parents=True)
+        saver.write_text("x")
+        done = self.guard(root)
+        self.assertEqual(done.stdout.split(), ["clean"], done.stdout + done.stderr)
+        self.assertFalse(saver.exists())
+
+    def test_a_game_or_video_stops_the_build(self):
+        root = Path(tempfile.mkdtemp())
+        for name in ("opt/bemo-seed/.bemo/games/roms/gamecube/Melee.rvz", "home/bemo/Videos/show.mkv"):
+            (root / "rootfs" / name).parent.mkdir(parents=True, exist_ok=True)
+            (root / "rootfs" / name).write_text("x")
+            done = self.guard(root)
+            self.assertEqual(done.returncode, 3, name)
+            self.assertIn("mustn't share", done.stdout)
+            (root / "rootfs" / name).unlink()
+
+
 if __name__ == "__main__":
     unittest.main()
