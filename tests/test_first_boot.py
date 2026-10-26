@@ -1,4 +1,5 @@
-"""BMO's spoken first boot, microphone and screen steps (installer plan I2), with fake audio and screens."""
+"""BMO's first boot, the install screen (rebuilt 2026-10-25): the order, going back to what failed, skipping,
+carrying on after a restart, Linux updates, and the microphone and screen steps, with fake audio and screens."""
 import io
 import json
 import os
@@ -12,6 +13,7 @@ import numpy as np
 
 ROOT = Path(os.environ.get("BEMO_TEST_CODE_ROOT", Path(__file__).resolve().parents[1]))
 sys.path.insert(0, str(ROOT))
+from systems import downloads as dl
 from systems import first_boot as fb
 from systems.first_boot import DONE, FAILED, PENDING, SKIPPED
 
@@ -29,12 +31,17 @@ def audio(voice=0.0, noise=200.0, seconds=5.0, seed=1):
 
 
 class FakeIO:
-    def __init__(self, inputs=(), recordings=(), heard=None, answers=()):
+    def __init__(self, inputs=(), recordings=(), heard=None, answers=(), keys=()):
         self.inputs = list(inputs)
         self.recordings = list(recordings)   # one {name: pcm} per prompt
         self.heard = heard or {}             # pcm -> transcript
         self.answers = list(answers)
-        self.said, self.default_set, self.calibrated = [], [], 0
+        self.said, self.default_set, self.calibrated, self.restarts = [], [], 0, 0
+        self.view = fb.SetupView(blocking=False)
+        self.view.active = True
+        for key in keys:
+            self.view.press(key)
+        self.downloads = dl.DownloadState(Path(tempfile.mkdtemp()) / "downloads.json")
 
     def say(self, text):
         self.said.append(text)
@@ -63,6 +70,16 @@ class FakeIO:
 
     def online(self):
         return True
+
+    def downloads_state(self):
+        return self.downloads
+
+    def restart_computer(self):
+        self.restarts += 1
+        return False
+
+    def pause(self, seconds):
+        pass
 
 
 def mic(name, desc, default=False):
@@ -95,40 +112,224 @@ class StateTests(unittest.TestCase):
         self.assertFalse(fb.FirstBootState(self.path).active())
 
 
-class RunnerTests(unittest.TestCase):
+class Step:
+    """A stand-in step: its outcomes in turn (the last one repeats), and the order the steps ran in."""
+    def __init__(self, name, *outcomes, ran=None):
+        self.name, self.ran = name, ran if ran is not None else []
+        self.phase = "listening" if name == "screen" else "before_listening"
+        self.outcomes = list(outcomes) or [fb.StepResult(DONE, {})]
+        self.options = {}
+
+    def run(self, io):
+        self.ran.append(self.name)
+        return self.outcomes.pop(0) if len(self.outcomes) > 1 else self.outcomes[0]
+
+
+def ok(**result):
+    return fb.StepResult(DONE, result)
+
+
+def bad(**result):
+    return fb.StepResult(FAILED, result)
+
+
+class SetupTests(unittest.TestCase):
     def setUp(self):
         self.state = fb.FirstBootState(Path(tempfile.mkdtemp()) / "first-boot.json")
-        self.state.begin(("microphone", "screen", "internet"))  # downloads: tests/test_downloads.py
+        self.state.begin()
+        self.ran = []
 
-    def test_each_phase_runs_its_steps_in_order(self):
-        clip_voice = audio(voice=6000)
-        io = FakeIO([CLIP], [{CLIP.name: clip_voice}], {clip_voice: "Hey BMO, hello."}, answers=["Yes."])
-        boot = fb.FirstBoot(self.state, io)
-        self.assertTrue(boot.run("before_listening"))
+    def steps(self, **outcomes):
+        return {name: Step(name, *outcomes.get(name, ()), ran=self.ran) for name in fb.STEP_ORDER}
+
+    def status(self):
+        return {s["name"]: s["status"] for s in self.state.steps()}
+
+    def test_internet_first_then_updates_and_downloads_then_the_person_steps(self):
+        io = FakeIO(keys=["enter"])
+        setup = fb.Setup(self.state, io, steps=self.steps())
+        self.assertTrue(setup.run("before_listening"))
+        self.assertEqual(self.ran, ["internet", "updates", "downloads", "microphone", "voice"])
         self.assertEqual(io.said[0], fb.GREETING)
-        self.assertEqual([s["status"] for s in self.state.steps()], [DONE, PENDING, PENDING])
-        self.assertTrue(boot.run("listening"))
-        self.assertIn("I'm connected to the internet.", io.said)
-        self.assertEqual(io.said.count(fb.GREETING), 1)
+        self.assertTrue(any("Press Enter when you're ready" in s for s in io.said))
+        self.assertEqual(io.view.status("brain"), fb.RUNNING)  # BMO loads his brain next
+        self.assertTrue(io.view.active)
+        setup.run("listening")
+        self.assertEqual(self.ran[-1], "screen")
         self.assertEqual(io.said[-1], fb.FINISHED)
         self.assertFalse(self.state.active())
+        self.assertFalse(io.view.active)  # the face takes over
 
-    def test_a_failed_step_is_tried_again_at_the_next_start(self):
-        io = FakeIO([])  # no microphone at all
-        self.assertFalse(fb.FirstBoot(self.state, io).run("before_listening"))
-        self.assertIn("can't find a microphone", io.said[-1])
-        self.assertEqual(self.state.steps()[0]["status"], FAILED)
-        voice = audio(voice=6000)
-        later = FakeIO([CLIP], [{CLIP.name: voice}], {voice: "hello"})
-        self.assertTrue(fb.FirstBoot(self.state, later).run("before_listening"))
-        self.assertEqual(self.state.steps()[0]["attempts"], 2)
-        self.assertNotIn(fb.GREETING, later.said)  # already greeted the first time
+    def test_a_failure_is_left_while_the_rest_go_on_then_tried_again_at_the_end(self):
+        io = FakeIO(keys=["enter"])
+        steps = self.steps(microphone=[bad(reason="not heard"), ok(description="ATR4650-USB Mono")],
+                           downloads=[bad(reason="download", failed={"qwen3-coder:30b": "the internet connection"}),
+                                      ok()])
+        fb.Setup(self.state, io, steps=steps).run("before_listening")
+        # The downloads failing didn't hold up the microphone; voice waited for the microphone; then back to both.
+        self.assertEqual(self.ran, ["internet", "updates", "downloads", "microphone", "downloads", "microphone",
+                                    "voice"])
+        self.assertTrue(any("Some of my downloads need another go" in s for s in io.said))
+        self.assertTrue(any(s.startswith("Let me go back to my downloads, the microphone and learning your voice")
+                            for s in io.said))
+        self.assertEqual(self.status()["voice"], DONE)
+        self.assertEqual(io.view.snapshot()["problems"], [])
 
-    def test_steps_not_built_yet_are_skipped(self):
-        self.state.begin(("microphone", "first_start"))
-        voice = audio(voice=6000)
-        fb.FirstBoot(self.state, FakeIO([CLIP], [{CLIP.name: voice}], {voice: "hello"})).run("before_listening")
-        self.assertEqual([s["status"] for s in self.state.steps()], [DONE, SKIPPED])
+    def test_what_still_fails_waits_for_the_person_enter_tries_again(self):
+        io = FakeIO(keys=["enter", "enter"])
+        steps = self.steps(microphone=[bad(reason="not heard"), bad(reason="not heard"), ok()])
+        setup = fb.Setup(self.state, io, steps=steps)
+        shown = []
+        original = io.view.show_problems
+        io.view.show_problems = lambda lines: (shown.append(list(lines)), original(lines))
+        setup.run("before_listening")
+        self.assertEqual(self.ran.count("microphone"), 3)
+        self.assertIn("Microphone: I couldn't hear you. Check it's plugged in, switched on and turned up.", shown[0])
+        self.assertIn("Learn your voice: it needs the microphone first.", shown[0])
+        self.assertTrue(any("Press Enter to try again, or S to skip it for now" in s for s in io.said))
+        self.assertEqual(self.status()["microphone"], DONE)
+        self.assertEqual(self.status()["voice"], DONE)
+
+    def test_s_skips_it_for_now_and_the_setup_finishes(self):
+        io = FakeIO(keys=["enter", "skip"])
+        steps = self.steps(microphone=[bad(reason="no microphone")])
+        setup = fb.Setup(self.state, io, steps=steps)
+        setup.run("before_listening")
+        self.assertEqual(self.status()["microphone"], SKIPPED)
+        self.assertEqual(self.status()["voice"], SKIPPED)
+        saved = next(s for s in self.state.steps() if s["name"] == "microphone")["result"]
+        self.assertEqual(saved, {"reason": "no microphone", "skipped": "for now"})  # remembered, with why
+        self.assertIn("Okay, I'll skip that for now.", io.said)
+        setup.run("listening")
+        self.assertFalse(self.state.active())
+
+    def test_a_restart_carries_on_where_it_was(self):
+        first = FakeIO(keys=["enter"])
+        steps = self.steps(microphone=[bad(reason="not heard")])
+        self.state.mark("internet", DONE, {"how": "already"})
+        self.state.mark("updates", DONE, {})
+        self.state.mark("downloads", DONE, {})
+        later = fb.Setup(fb.FirstBootState(self.state.path), first, steps=steps)
+        later.show()
+        rows = {row["key"]: row for row in first.view.snapshot()["rows"]}
+        self.assertEqual((rows["internet"]["status"], rows["updates"]["status"]), (DONE, DONE))  # ticked at once
+        first.view.press("skip")
+        later.run("before_listening")
+        self.assertNotIn("internet", self.ran)
+        self.assertNotIn("downloads", self.ran)
+        self.assertNotIn(fb.GREETING, first.said)  # greeted the first time already
+
+    def test_a_new_kernel_restarts_the_computer_once_the_step_is_saved(self):
+        io = FakeIO(keys=["enter"])
+        saved_first = []
+        io.restart_computer = lambda: (saved_first.append(dict((s["name"], s["status"]) for s in
+                                                               fb.FirstBootState(self.state.path).steps())), True)[1]
+        fb.Setup(self.state, io, steps=self.steps(updates=[ok(reboot=True)])).run("before_listening")
+        self.assertEqual(saved_first[0]["updates"], DONE)
+        self.assertEqual(saved_first[0]["downloads"], PENDING)  # the downloads come after the restart
+        self.assertTrue(any("restarting the computer" in s for s in io.said))
+
+    def test_an_older_first_boot_file_still_works(self):
+        self.state.begin(("microphone", "voice", "screen", "internet", "downloads", "first_start"))
+        io = FakeIO(keys=["enter"])
+        fb.Setup(self.state, io, steps=self.steps()).run("before_listening")
+        self.assertEqual(self.ran, ["internet", "downloads", "microphone", "voice"])
+        self.assertEqual(self.status()["first_start"], SKIPPED)
+
+    def test_nothing_waits_for_the_person_when_their_steps_are_done(self):
+        self.state.begin(("internet", "downloads"))
+        io = FakeIO()  # no keys: it must not ask for Enter
+        fb.Setup(self.state, io, steps=self.steps()).run("before_listening")
+        self.assertFalse(any("Press Enter" in s for s in io.said))
+        self.assertFalse(self.state.active())
+
+
+class ViewTests(unittest.TestCase):
+    def test_every_row_in_order_and_the_bar_follows_real_progress(self):
+        view = fb.SetupView(blocking=False)
+        view.open()
+        keys = [row["key"] for row in view.snapshot()["rows"]]
+        self.assertEqual(keys[:3], ["internet", "updates", "qwen3-main:30b"])
+        self.assertEqual(keys[3:5], ["game-player", "screensavers"])
+        self.assertEqual(keys[-5:], ["benchmark", "microphone", "voice", "brain", "screen"])
+        self.assertEqual(view.overall(), 0.0)
+        view.row("qwen3-main:30b", fb.RUNNING, "50%", 0.5)
+        half_main = view.overall()
+        view.row("internet", DONE)
+        self.assertGreater(half_main, view.overall() - half_main)  # 9.5 GB of brain counts more than the internet
+        for key in keys:
+            view.row(key, DONE)
+        self.assertEqual(view.overall(), 1.0)
+
+    def test_downloads_shown_from_the_saved_progress(self):
+        view = fb.SetupView(blocking=False)
+        view.open()
+        state = dl.DownloadState(Path(tempfile.mkdtemp()) / "d.json")
+        state.set("qwen3-main:30b", status=dl.DONE, already=True)
+        state.set("game-player", status=dl.DOWNLOADING, total=1000, completed=250, rate=5)
+        state.set("screensavers", status=dl.FAILED, error="Temporary failure in name resolution")
+        state.data["benchmark"] = {"running": True, "step": 2, "steps": 5, "label": "testing 4 threads"}
+        fb.show_downloads(view, state)
+        rows = {row["key"]: row for row in view.snapshot()["rows"]}
+        self.assertEqual((rows["qwen3-main:30b"]["status"], rows["qwen3-main:30b"]["detail"]), (DONE, "already here"))
+        self.assertEqual((rows["game-player"]["progress"], rows["game-player"]["detail"]), (0.25, "25%  2 min left"))
+        self.assertEqual((rows["screensavers"]["status"], rows["screensavers"]["detail"]),
+                         (FAILED, "the internet connection"))
+        self.assertEqual(rows["qwen3-coder:30b"]["detail"], "19 GB")
+        self.assertEqual((rows["benchmark"]["progress"], rows["benchmark"]["detail"]), (0.4, "testing 4 threads"))
+
+    def test_keys_only_while_the_screen_is_up(self):
+        view = fb.SetupView(blocking=False)
+        view.press("enter")
+        self.assertIsNone(view.key())
+        view.active = True
+        view.press("enter")
+        self.assertEqual(view.key(), "enter")
+
+
+class UpdateIO:
+    """The update service, faked: progress, then done (or failed)."""
+    def __init__(self, statuses, *, installed=True, starts=(True, "")):
+        self.statuses, self.installed, self.start = list(statuses), installed, starts
+        self.view = fb.SetupView(blocking=False)
+        self.view.open()
+        self.said, self.clock, self.started = [], 0.0, 0
+
+    def update_service_installed(self): return self.installed
+    def start_system_update(self): self.started += 1; return self.start
+    def system_update_status(self): return self.statuses.pop(0) if len(self.statuses) > 1 else self.statuses[0]
+    def system_update_running(self): return len(self.statuses) > 1
+    def say(self, text): self.said.append(text)
+    def now(self): return self.clock
+    def pause(self, seconds): self.clock += seconds
+
+
+class UpdatesStepTests(unittest.TestCase):
+    def test_follows_the_service_to_the_end(self):
+        io = UpdateIO([{"run": 3, "state": "done"},  # read before starting: an earlier run
+                       {"run": 3, "state": "done"},
+                       {"run": 4, "state": "running", "phase": "downloading", "percent": 30.0},
+                       {"run": 4, "state": "done", "percent": 100.0, "reboot_needed": True}])
+        outcome = fb.UpdatesStep().run(io)
+        self.assertEqual((outcome.status, outcome.result), (DONE, {"reboot": True}))
+        self.assertEqual(io.started, 1)
+        self.assertIn("Linux's own updates", io.said[0])
+
+    def test_without_the_service_it_is_the_owners_job(self):
+        outcome = fb.UpdatesStep().run(UpdateIO([{}], installed=False))
+        self.assertEqual(outcome.status, SKIPPED)
+        self.assertEqual(fb.describe("updates", outcome), "you do these yourself")
+
+    def test_not_allowed_or_failed_is_a_problem(self):
+        refused = fb.UpdatesStep().run(UpdateIO([{}], starts=(False, "Interactive authentication required.")))
+        self.assertEqual((refused.status, refused.result["reason"]), (FAILED, "not started"))
+        failed = fb.UpdatesStep().run(UpdateIO([{}, {"run": 1, "state": "failed", "error": "E: Could not get lock"}]))
+        self.assertEqual((failed.status, failed.result["error"]), (FAILED, "E: Could not get lock"))
+        self.assertEqual(fb.problem_lines("updates", failed.result), ["Linux updates: E: Could not get lock"])
+
+    def test_a_service_that_never_runs_is_not_waited_for_forever(self):
+        outcome = fb.UpdatesStep().run(UpdateIO([{"run": 2}]))
+        self.assertEqual((outcome.status, outcome.result["reason"]), (FAILED, "not started"))
 
 
 class MicrophoneTests(unittest.TestCase):

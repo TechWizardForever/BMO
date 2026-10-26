@@ -324,14 +324,14 @@ def confirmation(item: dict, now: datetime | None = None) -> str:
     return f"Okay, {at} I'll remind you {connector} {second_person(item['task'])}."
 
 
-def alert(item: dict, *, late_minutes: float = 0) -> str:
+def alert(item: dict, *, late_minutes: float = 0, now: datetime | None = None) -> str:
     """What BMO says when an item comes due."""
     if item["kind"] == TIMER:
         return f"Ding ding! Your {timer_name(item)} is done."
     task = second_person(item.get("task", ""))
     if late_minutes >= 2:
         when = datetime.fromtimestamp(item["due"])
-        return f"While I was off, you had a reminder at {spoken_clock(when, datetime.now())}: {task}."
+        return f"While I was off, you had a reminder at {spoken_clock(when, now or datetime.now())}: {task}."
     return f"Reminder: {task}."
 
 
@@ -418,7 +418,7 @@ class ReminderKeeper:
             if item["kind"] == REMINDER and late > MISSED_REMINDER_HOURS * 3600:
                 self.log.info("A reminder came due %.1f h ago, while BMO was off; not said", late / 3600)
                 continue
-            text = alert(item, late_minutes=late / 60)
+            text = alert(item, late_minutes=late / 60, now=datetime.fromtimestamp(now))
             self.log.info("%s came due; saying it", item["kind"].capitalize())
             try:
                 self._say(text)

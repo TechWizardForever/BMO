@@ -1,0 +1,10 @@
+// BMO's install screen may run Linux's updates without a password: only bemo-system-update.service, only
+// "start", and only for an administrator sitting at the computer. Nothing else changes (2026-10-25).
+polkit.addRule(function(action, subject) {
+    if (action.id == "org.freedesktop.systemd1.manage-units" &&
+        action.lookup("unit") == "bemo-system-update.service" &&
+        action.lookup("verb") == "start" &&
+        subject.local && subject.active && subject.isInGroup("sudo")) {
+        return polkit.Result.YES;
+    }
+});

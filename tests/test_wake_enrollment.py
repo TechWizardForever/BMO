@@ -65,14 +65,15 @@ class StepTests(unittest.TestCase):
         self.assertEqual(io.said.count("Again."), 5)
         self.assertIn("learnt how you say my name", io.said[-1])
 
-    def test_silence_is_asked_again_and_too_little_keeps_the_usual_settings(self):
+    def test_silence_is_asked_again_and_too_little_is_a_problem_to_come_back_to(self):
         silent = voice(loud=0)
         io = FakeIO([voice(1), silent, voice(2), silent, silent, silent])
         outcome = fb.VoiceStep().run(io)
-        self.assertEqual(outcome.result["enrolled"], False)
+        self.assertEqual((outcome.status, outcome.result["enrolled"]), (fb.FAILED, False))
         self.assertIsNone(io.enrolled)
-        self.assertIn("learn my voice", io.said[-1])
+        self.assertEqual(io.said[-1], "I couldn't hear enough.")
         self.assertEqual(io.said.count("I didn't hear that."), 4)
+        self.assertEqual(fb.problem_lines("voice", outcome.result), ["Learn your voice: I couldn't hear enough."])
 
     def test_a_voice_the_detector_hardly_knows_still_finishes_the_setup(self):
         io = FakeIO([voice(i) for i in range(7)], result=we.Enrollment(False, 0.7, False, 6, [0.1] * 6, "hardly"))
@@ -81,7 +82,7 @@ class StepTests(unittest.TestCase):
         self.assertIn("usual settings", io.said[-1])
 
     def test_it_comes_right_after_the_microphone(self):
-        self.assertEqual(fb.STEP_ORDER[:2], ("microphone", "voice"))
+        self.assertEqual(fb.STEP_ORDER.index("voice"), fb.STEP_ORDER.index("microphone") + 1)
         self.assertEqual(fb.VoiceStep.phase, "before_listening")
 
 

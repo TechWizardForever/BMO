@@ -444,10 +444,8 @@ MODEL_SWITCH_RETRO_PROGRESS = True
 MODEL_SWITCH_RETRO_PROGRESS_BLOCKS = 18
 MODEL_SWITCH_RETRO_PROGRESS_LIT_BLOCKS = 5
 MODEL_SWITCH_RETRO_PROGRESS_STEP_SECONDS = 0.11
-ENABLE_MODEL_SWITCH_MINIGAME = True
-MODEL_SWITCH_GAME_PACKET_INTERVAL_SECONDS = 0.38
-MODEL_SWITCH_GAME_PACKET_SPEED = 165.0
-MODEL_SWITCH_GAME_PADDLE_SPEED = 390.0
+ENABLE_MODEL_SWITCH_MINIGAME = True  # the runner game (systems/runner_game.py)
+RUNNER_SCORES_PATH = DATA_ROOT / "runner-game.json"  # its best score and level
 
 # Lip-sync sampling. The original sprite-driven animation structure is preserved.
 VALUES_PER_SECOND = 29
@@ -882,6 +880,16 @@ OLLAMA_NUM_THREAD = _auto_or(
     OLLAMA_THREAD_OVERRIDE,
     HARDWARE.ollama_threads if AUTO_TUNE_CPU else LEGACY_CPU_THREADS,
 )
+
+
+def refresh_ollama_threads():
+    """The speed test can finish after BMO and the Supervisor started (the install screen runs it): use
+    its thread count from now on, without a restart."""
+    global HARDWARE, OLLAMA_NUM_THREAD
+    if OLLAMA_THREAD_OVERRIDE is None and AUTO_TUNE_CPU:
+        HARDWARE = detect_hardware()
+        OLLAMA_NUM_THREAD = HARDWARE.ollama_threads
+    return OLLAMA_NUM_THREAD
 
 # Compatibility aliases for older code/config references.
 CHAT_MODEL = MODEL_PROFILES[DEFAULT_MODEL_PROFILE]["model"]

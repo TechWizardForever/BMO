@@ -58,9 +58,16 @@ class OrderAndDownloadTests(Temp):
         self.assertEqual(sizes, sorted(sizes))
 
     def test_everything_in_order_then_the_benchmark(self):
-        fake = FakeOllama()
-        ok = dl.run_all(self.state, fake, benchmark=lambda: {"ok": True, "threads": 8}, already=lambda a: False)
+        fake, seen = FakeOllama(), []
+
+        def benchmark(progress):
+            progress(2, 5, "testing 6 threads")
+            seen.append(dict(json.loads(self.state.path.read_text())["benchmark"]))  # the screen's bar
+            return {"ok": True, "threads": 8}
+
+        ok = dl.run_all(self.state, fake, benchmark=benchmark, already=lambda a: False)
         self.assertTrue(ok)
+        self.assertEqual(seen, [{"running": True, "step": 2, "steps": 5, "label": "testing 6 threads"}])
         self.assertEqual(fake.pulled, [m.source for m in dl.roster()])
         self.assertIn(("qwen3:30b-a3b-instruct-2507-q4_K_M", "qwen3-main:30b"), fake.copied)
         self.assertTrue(self.state.finished())
@@ -118,16 +125,41 @@ class OrderAndDownloadTests(Temp):
         dl.run_all(self.state, fake, benchmark=None, already=lambda a: a != "qwen3-coder:30b")
         self.assertEqual(fake.pulled, ["qwen3-coder:30b-a3b-q4_K_M"])
 
-    def test_a_broken_connection_is_retried_then_left_for_the_next_start(self):
-        waits = []
-        ok = dl.run_all(self.state, FakeOllama(failures=2), benchmark=None, already=lambda a: False, sleep=waits.append)
+    def test_a_failure_is_tried_twice_left_while_the_rest_carry_on_then_tried_once_more(self):
+        # 2026-10-25: one stuck download used to stop everything after it.
+        waits, fake = [], FakeOllama(failures=2)
+        ok = dl.run_all(self.state, fake, benchmark=None, already=lambda a: False, sleep=waits.append)
         self.assertTrue(ok)
-        self.assertEqual(waits, [10, 20])
+        self.assertEqual(waits, [10, 10])  # between its two tries, then before going back to it
+        sources = [m.source for m in dl.roster()]
+        self.assertEqual(fake.pulled, sources[1:] + sources[:1])  # Main came last, on the way back
         stubborn = dl.DownloadState(self.dir / "other.json")
-        self.assertFalse(dl.run_all(stubborn, FakeOllama(failures=99), retries=3, sleep=lambda s: None,
-                                    already=lambda a: False))
-        self.assertEqual(stubborn.model("qwen3-main:30b")["status"], dl.FAILED)
+        self.assertFalse(dl.run_all(stubborn, FakeOllama(failures=99), sleep=lambda s: None, already=lambda a: False))
+        self.assertTrue(all(stubborn.model(m.alias)["status"] == dl.FAILED for m in dl.roster()))  # each one tried
         self.assertFalse(stubborn.finished())
+
+    def test_no_internet_waits_instead_of_using_up_the_tries_then_stops(self):
+        waits, fake = [], FakeOllama()
+        answers = iter([False, False, True])
+        self.assertTrue(dl.run_all(self.state, fake, already=lambda a: False, sleep=waits.append,
+                                   online=lambda: next(answers, True)))
+        self.assertEqual(waits, [5, 5])
+        gone = dl.DownloadState(self.dir / "offline.json")
+        self.assertFalse(dl.run_all(gone, fake, already=lambda a: False, sleep=lambda s: None,
+                                    online=lambda: False, offline_wait=30))
+        self.assertEqual(gone.model("qwen3-main:30b")["error"], dl.NO_INTERNET)
+        self.assertEqual(gone.model("qwen3-coder:30b"), {})  # it stopped: nothing can download
+
+    def test_the_benchmark_gets_a_second_go_and_runs_again_after_a_restart(self):
+        results = [{"ok": False, "error": "busy"}, {"ok": True, "threads": 6}]
+        dl.run_all(self.state, FakeOllama(), already=lambda a: True, benchmark=lambda progress: results.pop(0))
+        self.assertEqual(self.state.data["benchmark"], {"ok": True, "threads": 6})
+        cut_off = dl.DownloadState(self.dir / "cut.json")
+        cut_off.data["benchmark"] = {"running": True, "step": 3, "steps": 5}  # a restart in the middle of it
+        self.assertTrue(dl.benchmark_needed(cut_off))
+        dl.run_all(cut_off, FakeOllama(), already=lambda a: True, benchmark=lambda progress: {"ok": True, "threads": 4})
+        self.assertEqual(cut_off.data["benchmark"]["threads"], 4)
+        self.assertFalse(dl.benchmark_needed(cut_off))
 
     def test_one_downloader_at_a_time(self):
         lock = self.dir / "downloads.lock"
@@ -198,64 +230,120 @@ class BackgroundTests(Temp):
 
 
 class StepIO:
-    """BMO's side of the downloads step; each listen moves the fake download along."""
-    def __init__(self, state, *, free=500.0, installed=(), heard=(), progress=(), downloader=True):
+    """BMO's side of the downloads step. Each pause moves the fake downloader along `script`: a dict of
+    download state to set, or "stop" (the downloader exits)."""
+    def __init__(self, state, *, free=500.0, installed=(), script=(), online=True):
         self.state, self.free, self.installed = state, free, set(installed)
-        self.heard, self.progress, self.downloader = list(heard), list(progress), downloader
-        self.said, self.starts, self.prepared, self.clock = [], 0, 0, 0.0
+        self.script, self._online = list(script), online
+        self.said, self.starts, self.clock, self.running = [], 0, 0.0, False
+        self.view = fb.SetupView(blocking=False)
+        self.view.open()
 
     def say(self, text): self.said.append(text)
     def downloads_state(self): return self.state
     def model_installed(self, alias): return alias in self.installed
     def free_gb(self): return self.free
-    def start_downloads(self): self.starts += 1
-    def downloader_running(self): return self.downloader
+    def downloader_running(self): return self.running
     def now(self): return self.clock
-    def pause(self, seconds): self.clock += seconds
-    def prepare_main(self): self.prepared += 1
+    def online(self): return self._online
 
-    def hear(self):
-        self.clock += 10
-        if self.progress:
-            self.state.set("qwen3-main:30b", **self.progress.pop(0))
-        return self.heard.pop(0) if self.heard else None
+    def start_downloads(self):
+        self.starts += 1
+        self.running = True
+
+    def pause(self, seconds):
+        self.clock += seconds
+        if self.script:
+            step = self.script.pop(0)
+            if not step:
+                pass
+            elif step == "stop":
+                self.running = False
+            elif step == "online":
+                self._online = True
+            elif "finished_at" in step or "benchmark" in step:
+                self.state.data.update(step)
+                self.state.save()
+            else:
+                alias, fields = step
+                self.state.set(alias, **fields)
+
+
+class FakeInternet:
+    def __init__(self, io):
+        self.io, self.waited = io, 0
+
+    def wait(self, io, lost=False):
+        self.waited += 1
+        io._online = True
+        return fb.StepResult(fb.DONE, {"online": True})
 
 
 class DownloadsStepTests(Temp):
-    def test_waits_for_main_answers_questions_then_loads_it(self):
-        io = StepIO(self.state, heard=["how much longer?", None, "what's on TV"],
-                    progress=[dict(status=dl.DOWNLOADING, total=19e9, completed=9.5e9, rate=20e6), {},
-                              dict(status=dl.DONE)])
+    def step(self, io=None):
+        step = fb.DownloadsStep()
+        step.internet = FakeInternet(io)
+        return step
+
+    def test_follows_the_downloader_with_the_bars_until_everything_is_in(self):
+        io = StepIO(self.state, script=[("qwen3-main:30b", dict(status=dl.DOWNLOADING, total=19e9, completed=9.5e9,
+                                                                 rate=20e6)),
+                                        ("qwen3-main:30b", dict(status=dl.DONE)),
+                                        {"benchmark": {"ok": True, "threads": 6}, "finished_at": 1}])
+        shown = []
+        original = io.view.row
+        io.view.row = lambda key, *a: (shown.append((key,) + a), original(key, *a))
         outcome = fb.DownloadsStep().run(io)
-        self.assertEqual((outcome.status, outcome.result), (fb.DONE, {"main": "downloaded"}))
-        self.assertIn("50 percent", io.said[1])
-        self.assertEqual(len(io.said), 3)  # the TV talk got no answer
-        self.assertEqual(io.prepared, 1)
-        self.assertIn("we can talk now", io.said[-1])
+        self.assertEqual((outcome.status, outcome.result), (fb.DONE, {"threads": 6}))
+        self.assertIn(("qwen3-main:30b", fb.RUNNING, "50%  8 min left", 0.5), shown)
+        self.assertIn("you don't need to stay", io.said[0])
+        self.assertTrue(self.state.data["announced"])  # no spoken report at the next start
 
     def test_not_enough_disk_says_how_much(self):
         io = StepIO(self.state, free=40)
         outcome = fb.DownloadsStep().run(io)
-        self.assertEqual(outcome.status, fb.FAILED)
-        self.assertIn("free disk space", io.said[0])
+        self.assertEqual((outcome.status, outcome.result["reason"]), (fb.FAILED, "disk"))
+        self.assertIn("more gigabytes of free disk space", io.said[0])
         self.assertEqual(io.starts, 0)
+        self.assertEqual(fb.problem_lines("downloads", outcome.result),
+                         [f"Brains: I need about {outcome.result['need_gb'] - 40} GB more free disk space."])
 
-    def test_main_already_here_goes_on_at_once(self):
-        io = StepIO(self.state, installed={"qwen3-main:30b"})
+    def test_everything_already_here_goes_on_at_once(self):
+        self.state.data.update(finished_at=1, benchmark={"ok": True, "threads": 6})
+        self.state.save()
+        io = StepIO(self.state)
         outcome = fb.DownloadsStep().run(io)
-        self.assertEqual(outcome.result["main"], "already there")
-        self.assertEqual(io.starts, 1)
-        self.assertIn("in the background", io.said[0])
-        everything = StepIO(dl.DownloadState(self.dir / "x.json"), installed={m.alias for m in dl.roster()})
-        fb.DownloadsStep().run(everything)
-        self.assertEqual(everything.said, [])  # nothing to say on a PC that has every brain
+        self.assertEqual(outcome.status, fb.DONE)
+        self.assertEqual((io.starts, io.said), (0, []))
 
-    def test_a_stopped_downloader_is_restarted_then_given_up(self):
-        io = StepIO(self.state, downloader=False)
+    def test_a_download_that_kept_failing_is_a_problem_not_a_hold_up(self):
+        io = StepIO(self.state, script=[("qwen3-coder:30b", dict(status=dl.FAILED, error="connection reset by peer"))]
+                    + ["stop"] + [{}] * 40)
         outcome = fb.DownloadsStep().run(io)
         self.assertEqual(outcome.status, fb.FAILED)
-        self.assertEqual(io.starts, 4)
-        self.assertIn("next time I start", io.said[-1])
+        self.assertEqual(outcome.result, {"reason": "download", "failed": {"qwen3-coder:30b": "the internet connection"}})
+        self.assertEqual(fb.problem_lines("downloads", outcome.result), ["Coding brain: the internet connection."])
+
+    def test_lost_internet_waits_for_it_then_starts_the_downloader_again(self):
+        io = StepIO(self.state, online=False, script=["stop"] + [{}] * 35 +
+                    [{"benchmark": {"ok": True, "threads": 4}, "finished_at": 1}])
+        step = self.step(io)
+        outcome = step.run(io)
+        self.assertEqual(outcome.status, fb.DONE)
+        self.assertEqual((step.internet.waited, io.starts), (1, 2))
+        self.assertIn("I lost the internet. I'll carry on as soon as it's back.", io.said)
+
+    def test_a_speed_test_that_failed_is_run_again(self):
+        self.state.data.update(finished_at=1, benchmark={"ok": False, "error": "busy"})
+        self.state.save()
+        io = StepIO(self.state, installed={m.alias for m in dl.roster()},
+                    script=[{"benchmark": {"ok": True, "threads": 6}, "finished_at": 2}])
+        outcome = fb.DownloadsStep().run(io)
+        self.assertEqual((outcome.status, io.starts), (fb.DONE, 1))
+        failed = StepIO(dl.DownloadState(self.dir / "f.json"),
+                        script=[{"benchmark": {"ok": False, "error": "busy"}, "finished_at": 1}])
+        outcome = fb.DownloadsStep().run(failed)
+        self.assertEqual((outcome.status, outcome.result["reason"]), (fb.FAILED, "speed test"))
 
 
 class WiringTests(unittest.TestCase):
@@ -264,7 +352,8 @@ class WiringTests(unittest.TestCase):
         self.assertIn("if self._handle_downloads_question(command):", chat)
         self.assertLess(chat.index('self._first_boot("listening")'), chat.index("self._announce_downloads_finished()"))
         self.assertIn("resume_if_unfinished()", (ROOT / "supervisor.py").read_text())
-        self.assertEqual(fb.STEP_ORDER[-1], "downloads")
+        self.assertEqual(fb.STEP_ORDER[:3], ("internet", "updates", "downloads"))  # downloads before the person
+        self.assertIn("online=online", (ROOT / "downloads_cli.py").read_text())
 
 
 if __name__ == "__main__":

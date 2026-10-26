@@ -539,6 +539,7 @@ class SupervisorService:
         # separate from self.lock so 2-second renderer status polling, ping, and
         # other lightweight supervisor requests stay responsive during startup.
         with self.model_lock:
+            config.refresh_ollama_threads()  # a speed test that finished after this Supervisor started
             # Enforce one configured Bemo brain resident at a time.  Unload the
             # tracked model first, then make a best-effort pass over other known
             # Bemo profiles in case a previous crash left one loaded.

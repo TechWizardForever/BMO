@@ -13,6 +13,12 @@ from systems.display import DisplayManager
 from systems.render import FaceRenderer
 
 
+# The install screen's keys (systems/first_boot.py). Space works as Enter for a one-handed setup.
+SETUP_KEYS = {pygame.K_RETURN: "enter", pygame.K_KP_ENTER: "enter", pygame.K_SPACE: "enter", pygame.K_s: "skip",
+              pygame.K_y: "yes", pygame.K_n: "no", pygame.K_UP: "up", pygame.K_DOWN: "down",
+              **{getattr(pygame, f"K_{n}"): str(n) for n in range(1, 10)}}
+
+
 class App:
     def __init__(self, screen_width, screen_height):
         self._running = True
@@ -26,6 +32,7 @@ class App:
         self.viewport_rect = pygame.Rect(0, 0, self.SCREEN_WIDTH, self.SCREEN_HEIGHT)
         self.face_renderer = None
         self.chat = None
+        self._gamepads = {}  # opened so the runner game and the install screen can read them
         self._display_generation = -1
         self.display_manager = DisplayManager(
             config.DISPLAY_SETTINGS_PATH,
@@ -113,6 +120,24 @@ class App:
             pygame.MOUSEBUTTONUP,
         ):
             self.chat.note_user_activity()
+
+        if event.type == pygame.JOYDEVICEADDED:
+            try:
+                pad = pygame.joystick.Joystick(event.device_index)
+                self._gamepads[pad.get_instance_id()] = pad
+            except pygame.error:
+                pass
+        elif event.type == pygame.JOYDEVICEREMOVED:
+            self._gamepads.pop(event.instance_id, None)
+
+        setup = getattr(self.chat, "setup_view", None)
+        if setup is not None and setup.active:
+            if event.type == pygame.KEYDOWN and event.key in SETUP_KEYS:
+                setup.press(SETUP_KEYS[event.key])
+            elif event.type == pygame.JOYBUTTONDOWN and event.button == 0:
+                setup.press("enter")
+            elif event.type == pygame.JOYHATMOTION and event.value[1]:
+                setup.press("up" if event.value[1] > 0 else "down")
 
         if event.type == pygame.QUIT:
             # A window close, or a stop signal SDL turned into one (logged: live 2026-10-20 BMO quit on his own).

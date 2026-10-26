@@ -1,0 +1,10 @@
+[Unit]
+Description=BMO install screen: Linux updates (apt-get update and upgrade only)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Root's own copy (tools/image/in_chroot.sh), not the one in /opt/bemo that the account owns.
+ExecStart=/usr/bin/python3 -I /usr/local/lib/bemo/system_update.py
+TimeoutStartSec=3h

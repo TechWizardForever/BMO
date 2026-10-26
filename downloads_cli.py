@@ -32,9 +32,10 @@ def main(argv=None) -> int:
         except OSError:
             print("Another downloader is already running.")
             return 0
+        from systems.wifi import online
         ok = downloads.run_all(downloads.DownloadState(), benchmark=downloads.simple_benchmark,
-                               extras=downloads.EXTRAS)
-        print("All done." if ok else "A download kept failing; it will be tried again at the next start.")
+                               extras=downloads.EXTRAS, online=online)
+        print("All done." if ok else "Something didn't download; the install screen says what.")
         return 0 if ok else 1
 
 

@@ -34,6 +34,7 @@ from systems.context_policy import (
     coding_work_request,
 )
 from systems.windows_screensaver import WindowsScreensaverManager
+from systems.first_boot import SetupView
 from systems.desktop_idle import DesktopIdleMonitor
 from systems.piper_streaming import PiperSpeechEngine
 from systems.stt_guard import implausible_speech_rate, is_runaway_repetition, output_is_looping
@@ -346,6 +347,7 @@ class Chat:
         # of the LLM so the CRT saver and model-loading mini-game never depend on
         # inference being available.
         self._visual_lock = threading.Lock()
+        self.setup_view = SetupView()  # the install screen while the first boot is open (systems/first_boot.py)
         self._last_user_activity_monotonic = time.monotonic()
         self._model_switch_generation = 0
         self._model_switch_active = False
@@ -565,6 +567,7 @@ class Chat:
                 "parts_menu": now < float(getattr(self, "_parts_menu_until", 0.0)),
                 "parts_menu_busy": bool(getattr(self, "_parts_menu_busy", False)),
             }
+        status["setup"] = self.setup_view.snapshot() if self.setup_view.active else None
         status["idle_seconds"] = self.desktop_idle_monitor.idle_seconds(internal_idle)
         return status
 
@@ -715,10 +718,11 @@ class Chat:
             # Load the small Piper model before heavier startup work so the
             # user hears a real boot announcement while Whisper/Ollama warm.
             self._ensure_tts_loaded()
-            self.state = State.RESPONDING
-            self.speak(config.VOICE_STARTUP_LOADING_ANNOUNCEMENT)
-            self.state = State.THINKING
-            logger.info("Startup loading announcement played; preparing STT and Ollama")
+            if not self.setup_view.active:  # the install screen greets the person itself
+                self.state = State.RESPONDING
+                self.speak(config.VOICE_STARTUP_LOADING_ANNOUNCEMENT)
+                self.state = State.THINKING
+                logger.info("Startup loading announcement played; preparing STT and Ollama")
         else:
             self.tts = None
             logger.info("TTS is disabled in Text mode; skipping spoken boot cues")
@@ -755,6 +759,7 @@ class Chat:
                 logger.exception("Voice-activity endpointing unavailable; using the energy threshold")
 
         self._first_boot("before_listening")
+        config.refresh_ollama_threads()  # the install screen's speed test may have just finished
 
         # Do not announce ready until the Supervisor preloads the active brain.
         if config.SUPERVISOR_PRELOAD_ACTIVE_MODEL_ON_START:
@@ -772,17 +777,24 @@ class Chat:
         except Exception:
             logger.exception("Could not start drawing the 3D parts pictures")
 
-    def _first_boot(self, phase):
-        """Installer plan I2: the spoken first-boot steps, only while ~/.bemo/install/first-boot.json is open
-        (the installer creates it; older installs never have one). A failure never stops BMO starting."""
+    def _first_boot(self, phase=None):
+        """The install screen (systems/first_boot.py), only while ~/.bemo/install/first-boot.json is open (the
+        installer creates it; older installs never have one). No phase: just show it, with what's saved.
+        A failure never stops BMO starting."""
         try:
-            from systems.first_boot import ChatIO, FirstBoot, FirstBootState
+            from systems.first_boot import ChatIO, FirstBootState, Setup
             state = FirstBootState.default()
             if state.active():
+                setup = Setup(state, ChatIO(self), self.setup_view,
+                              log=lambda msg, *args: logger.info(msg.replace("%s", "{}"), *args))
+                if phase is None:
+                    setup.show()
+                    return
                 logger.info("First boot: running the {} steps", phase)
-                FirstBoot(state, ChatIO(self), log=lambda msg, *args: logger.info(msg.replace("%s", "{}"), *args)).run(phase)
+                setup.run(phase)
         except Exception:
             logger.exception("First-boot steps failed; starting normally")
+            self.setup_view.active = False
 
     def _announce_downloads_finished(self):
         """Once, at the first start after the background downloads and benchmark finished (installer I4)."""
@@ -1206,6 +1218,7 @@ class Chat:
     def run(self):
         try:
             self.state = State.THINKING
+            self._first_boot()  # the install screen goes up before anything loads
             self._load_models()
 
             if self.project_manager.active_slug:

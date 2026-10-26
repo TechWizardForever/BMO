@@ -6,6 +6,7 @@ import pygame
 
 import config
 from systems.chat import State
+from systems import runner_game as runner
 
 
 class FaceRenderer:
@@ -85,16 +86,12 @@ class FaceRenderer:
         self._crt_static_frames = self._build_crt_static_frames()
 
         # ------------------------------------------------------------------
-        # Model-switch loading / mini-game state.
+        # Model-switch loading / runner game state (systems/runner_game.py).
         # ------------------------------------------------------------------
         self._seen_switch_generation = -1
         self._game_last_update = time.monotonic()
-        self._game_last_spawn = time.monotonic()
-        self._game_packets = []
-        self._game_score = 0
-        self._game_missed = 0
-        self._game_paddle_x = self._app.SCREEN_WIDTH / 2.0
-        self._game_paddle_direction = 0
+        self._runner = None
+        self._switch_was_visible = False
 
     def _scaled_surface(self, surface, scale):
         if abs(scale - 1.0) < 0.001:
@@ -130,31 +127,49 @@ class FaceRenderer:
         if hasattr(self, "_bouncer"):
             self._bouncer["x"] = min(self._bouncer.get("x", 0), max(0, self._app.SCREEN_WIDTH - 100))
             self._bouncer["y"] = min(self._bouncer.get("y", 0), max(0, self._app.SCREEN_HEIGHT - 80))
-        self._game_paddle_x = self._app.SCREEN_WIDTH / 2.0
-        self._game_packets = []
 
     # ----------------------------------------------------------------------
-    # Input used only by the model-switch mini-game. App owns wake/quit/F11.
+    # Input used only by the brain-swap runner game. App owns wake/quit/F11.
+    # One button jumps (Space, Up, W, a click, pad A), one ducks (Down, S, pad B).
     # ----------------------------------------------------------------------
+    _JUMP_KEYS = (pygame.K_SPACE, pygame.K_UP, pygame.K_w)
+    _DUCK_KEYS = (pygame.K_DOWN, pygame.K_s)
+
     def handle_event(self, event):
-        if not config.ENABLE_MODEL_SWITCH_MINIGAME:
+        game = self._runner
+        if not config.ENABLE_MODEL_SWITCH_MINIGAME or game is None or not self._switch_was_visible:
             return
         if event.type == pygame.KEYDOWN:
-            if event.key in (pygame.K_LEFT, pygame.K_a):
-                self._game_paddle_direction = -1
-            elif event.key in (pygame.K_RIGHT, pygame.K_d):
-                self._game_paddle_direction = 1
+            if event.key in self._JUMP_KEYS:
+                game.press_jump()
+            elif event.key in self._DUCK_KEYS:
+                game.set_duck(True)
         elif event.type == pygame.KEYUP:
-            if event.key in (pygame.K_LEFT, pygame.K_a) and self._game_paddle_direction < 0:
-                self._game_paddle_direction = 0
-            elif event.key in (pygame.K_RIGHT, pygame.K_d) and self._game_paddle_direction > 0:
-                self._game_paddle_direction = 0
-        elif event.type == pygame.MOUSEMOTION:
-            # Mouse movement is optional; it makes the loading game usable even
-            # on a tiny keyboard-less setup without changing normal Bemo input.
-            viewport = getattr(self._app, "viewport_rect", None)
-            x = float(event.pos[0] - (viewport.left if viewport is not None else 0))
-            self._game_paddle_x = max(0.0, min(float(self._app.SCREEN_WIDTH), x))
+            if event.key in self._JUMP_KEYS:
+                game.release_jump()
+            elif event.key in self._DUCK_KEYS:
+                game.set_duck(False)
+        elif event.type == pygame.JOYBUTTONDOWN:
+            if event.button == 0:
+                game.press_jump()
+            elif event.button == 1:
+                game.set_duck(True)
+        elif event.type == pygame.JOYBUTTONUP:
+            if event.button == 0:
+                game.release_jump()
+            elif event.button == 1:
+                game.set_duck(False)
+        elif event.type == pygame.JOYHATMOTION:
+            up_down = event.value[1]
+            if up_down > 0:
+                game.press_jump()
+            else:
+                game.release_jump()
+            game.set_duck(up_down < 0)
+        elif event.type == pygame.MOUSEBUTTONDOWN:
+            game.press_jump()
+        elif event.type == pygame.MOUSEBUTTONUP:
+            game.release_jump()
 
     # ----------------------------------------------------------------------
     # Original audio / face animation helpers.
@@ -447,17 +462,15 @@ class FaceRenderer:
                 pass
 
     # ----------------------------------------------------------------------
-    # Model-switch loading screen + optional Data Catch mini-game.
+    # Model-switch loading screen + the runner game (systems/runner_game.py).
     # ----------------------------------------------------------------------
     def _reset_switch_game(self, generation, now):
         self._seen_switch_generation = generation
         self._game_last_update = now
-        self._game_last_spawn = now
-        self._game_packets = []
-        self._game_score = 0
-        self._game_missed = 0
-        self._game_paddle_x = self._app.SCREEN_WIDTH / 2.0
-        self._game_paddle_direction = 0
+        if self._runner is None:
+            self._runner = runner.RunnerGame(getattr(config, "RUNNER_SCORES_PATH", None))
+        else:
+            self._runner.reset()
 
     def _switch_visible(self, status, now):
         if not config.ENABLE_MODEL_SWITCH_LOADING_SCREEN:
@@ -471,68 +484,12 @@ class FaceRenderer:
         min_until = started + max(0.0, float(config.MODEL_SWITCH_MIN_DISPLAY_SECONDS))
         return now < min_until
 
-    def _update_switch_game(self, now):
-        dt = min(0.1, max(0.0, now - self._game_last_update))
-        self._game_last_update = now
-        w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
-        play_left = int(w * 0.16)
-        play_right = int(w * 0.84)
-        paddle_half = max(38.0, w * 0.045)
-        self._game_paddle_x += (
-            self._game_paddle_direction
-            * float(config.MODEL_SWITCH_GAME_PADDLE_SPEED)
-            * dt
-        )
-        self._game_paddle_x = max(play_left + paddle_half, min(play_right - paddle_half, self._game_paddle_x))
-
-        if now - self._game_last_spawn >= max(0.12, float(config.MODEL_SWITCH_GAME_PACKET_INTERVAL_SECONDS)):
-            self._game_last_spawn = now
-            self._game_packets.append(
-                {
-                    "x": rand.uniform(play_left + 12, play_right - 12),
-                    "y": h * 0.34,
-                    "speed": float(config.MODEL_SWITCH_GAME_PACKET_SPEED) * rand.uniform(0.78, 1.28),
-                    "phase": rand.uniform(0, math.tau),
-                }
-            )
-
-        paddle_y = h * 0.83
-        next_packets = []
-        for packet in self._game_packets:
-            packet["y"] += packet["speed"] * dt
-            packet["x"] += math.sin(now * 2.2 + packet["phase"]) * 18.0 * dt
-            if packet["y"] >= paddle_y - 10:
-                if abs(packet["x"] - self._game_paddle_x) <= paddle_half + 8:
-                    self._game_score += 1
-                else:
-                    self._game_missed += 1
-                continue
-            if packet["y"] < h + 20:
-                next_packets.append(packet)
-        self._game_packets = next_packets[-30:]
-        return dt, play_left, play_right, paddle_half, paddle_y
-
-
-    def _render_retro_progress_bar(self, rect, now):
-        """Render a Windows-95-ish indeterminate segmented progress bar.
-
-        This intentionally does not pretend that model loading has a known
-        percentage. A short train of blue blocks cycles through a classic
-        sunken 3-D track until Supervisor reports the model switch complete.
-        """
+    def _retro_track(self, rect):
+        """A Windows-95-ish sunken track; returns the inside, where the blocks go."""
         screen = self._app._screen
-        x, y, width, height = rect
-        rect = pygame.Rect(int(x), int(y), int(width), int(height))
-
-        # Win95-style sunken bevel: dark top/left, bright bottom/right.
-        face = (192, 192, 192)
-        shadow = (128, 128, 128)
-        dark = (64, 64, 64)
-        highlight = (255, 255, 255)
-        track = (236, 233, 216)
-        blue = (0, 0, 128)
-        blue_hi = (0, 0, 255)
-
+        rect = pygame.Rect(int(rect[0]), int(rect[1]), int(rect[2]), int(rect[3]))
+        face, shadow, dark, highlight, track = (192, 192, 192), (128, 128, 128), (64, 64, 64), (255, 255, 255), \
+            (236, 233, 216)
         pygame.draw.rect(screen, face, rect)
         pygame.draw.line(screen, dark, rect.topleft, (rect.right - 1, rect.top), 1)
         pygame.draw.line(screen, dark, rect.topleft, (rect.left, rect.bottom - 1), 1)
@@ -542,28 +499,42 @@ class FaceRenderer:
         pygame.draw.line(screen, shadow, inner.topleft, (inner.right - 1, inner.top), 1)
         pygame.draw.line(screen, shadow, inner.topleft, (inner.left, inner.bottom - 1), 1)
         pygame.draw.rect(screen, track, inner.inflate(-2, -2))
+        return inner.inflate(-4, -4)
 
-        content = inner.inflate(-4, -4)
-        blocks = max(6, int(config.MODEL_SWITCH_RETRO_PROGRESS_BLOCKS))
-        lit = max(1, min(blocks - 1, int(config.MODEL_SWITCH_RETRO_PROGRESS_LIT_BLOCKS)))
+    @staticmethod
+    def _retro_blocks(content, blocks):
+        """Where each block of a retro bar goes."""
         gap = max(1, int(content.height * 0.18))
         block_w = max(2, (content.width - gap * (blocks - 1)) // blocks)
         used = block_w * blocks + gap * (blocks - 1)
         start_x = content.left + max(0, (content.width - used) // 2)
+        return [pygame.Rect(start_x + i * (block_w + gap), content.top, block_w, content.height) for i in range(blocks)]
+
+    def _render_retro_progress_bar(self, rect, now):
+        """Render a Windows-95-ish indeterminate segmented progress bar.
+
+        This intentionally does not pretend that model loading has a known
+        percentage. A short train of blue blocks cycles through a classic
+        sunken 3-D track until Supervisor reports the model switch complete.
+        """
+        content = self._retro_track(rect)
+        blocks = max(6, int(config.MODEL_SWITCH_RETRO_PROGRESS_BLOCKS))
+        lit = max(1, min(blocks - 1, int(config.MODEL_SWITCH_RETRO_PROGRESS_LIT_BLOCKS)))
         step_seconds = max(0.04, float(config.MODEL_SWITCH_RETRO_PROGRESS_STEP_SECONDS))
         head = int(now / step_seconds) % (blocks + lit)
-
-        for i in range(blocks):
+        for i, block in enumerate(self._retro_blocks(content, blocks)):
             # The train wraps cleanly, with older blocks slightly darker.
             age = (head - i) % (blocks + lit)
             if age < lit:
-                color = blue_hi if age == 0 else blue
-                bx = start_x + i * (block_w + gap)
-                pygame.draw.rect(
-                    screen,
-                    color,
-                    pygame.Rect(bx, content.top, block_w, content.height),
-                )
+                pygame.draw.rect(self._app._screen, (0, 0, 255) if age == 0 else (0, 0, 128), block)
+
+    def _render_retro_fill_bar(self, rect, fraction):
+        """The same bar, filled to a real fraction (the install screen)."""
+        content = self._retro_track(rect)
+        blocks = max(10, content.width // max(8, int(content.height * 0.7)))
+        lit = int(round(max(0.0, min(1.0, float(fraction))) * blocks))
+        for block in self._retro_blocks(content, blocks)[:lit]:
+            pygame.draw.rect(self._app._screen, (0, 0, 128), block)
 
     @staticmethod
     def _pretty_role(label):
@@ -628,37 +599,246 @@ class FaceRenderer:
                 y = h * 0.60 + math.sin(angle * 1.13) * radius * 0.55
                 pygame.draw.circle(screen, (21, 140 + (idx * 5) % 80, 122), (int(x), int(y)), 4)
             return
+        self._render_runner(now, drift)
 
-        _, play_left, play_right, paddle_half, paddle_y = self._update_switch_game(now)
-        play_top = int(h * 0.32)
-        play_bottom = int(h * 0.88)
-        pygame.draw.rect(
-            screen,
-            (13, 50, 48),
-            pygame.Rect(play_left, play_top, play_right - play_left, play_bottom - play_top),
-            width=2,
-            border_radius=10,
-        )
-        for packet in self._game_packets:
-            x, y = int(packet["x"]), int(packet["y"])
-            pygame.draw.rect(screen, (89, 233, 185), pygame.Rect(x - 6, y - 6, 12, 12), border_radius=2)
-            pygame.draw.rect(screen, (183, 255, 226), pygame.Rect(x - 3, y - 3, 6, 6), border_radius=1)
-        paddle = pygame.Rect(
-            int(self._game_paddle_x - paddle_half),
-            int(paddle_y),
-            int(paddle_half * 2),
-            max(8, int(h * 0.015)),
-        )
-        pygame.draw.rect(screen, (75, 228, 180), paddle, border_radius=5)
+    def _render_runner(self, now, drift):
+        """The runner game in the lower part of the brain-swap screen (systems/runner_game.py)."""
+        screen = self._app._screen
+        w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
+        game = self._runner
+        play = pygame.Rect(int(w * 0.10), int(h * 0.32), int(w * 0.80), int(h * 0.56))
+        unit = play.height * 1.15                        # one "play height" in pixels
+        ground_y = play.bottom - int(play.height * 0.14)
+        game.width = play.width / unit
+        game.update(now - self._game_last_update)
+        self._game_last_update = now
 
-        game_label = self.SMALL_FONT.render(
-            f"DATA CATCH   SCORE {self._game_score}   MISSED {self._game_missed}",
-            True,
-            (116, 215, 192),
-        )
-        screen.blit(game_label, game_label.get_rect(center=(w // 2 - drift, int(h * 0.92))))
-        controls = self.SMALL_FONT.render("< >  or  A D", True, (55, 135, 124))
-        screen.blit(controls, controls.get_rect(center=(w // 2 + drift, int(h * 0.965))))
+        pygame.draw.rect(screen, (13, 50, 48), play, width=2, border_radius=10)
+        clip = screen.get_clip()
+        screen.set_clip(play.inflate(-4, -4))
+        # Far-off specks drift slower than the ground (a bit of depth), then the ground itself.
+        for i in range(18):
+            x = play.left + (i * 0.53 * unit - game.distance * unit * 0.3) % play.width
+            y = play.top + play.height * (0.18 + 0.4 * ((i * 37) % 11) / 11)
+            pygame.draw.rect(screen, (24, 74, 70), pygame.Rect(int(x), int(y), 3, 3))
+        pygame.draw.line(screen, (70, 190, 165), (play.left, ground_y), (play.right, ground_y), 2)
+        dash = max(6, int(unit * 0.05))
+        offset = int(game.distance * unit) % (dash * 3)
+        for x in range(play.left - offset, play.right, dash * 3):
+            pygame.draw.line(screen, (38, 116, 103), (x, ground_y + 6), (x + dash, ground_y + 6), 1)
+
+        def box(gx, gy, gw, gh):
+            return pygame.Rect(int(play.left + gx * unit), int(ground_y - (gy + gh) * unit),
+                               max(2, int(gw * unit)), max(2, int(gh * unit)))
+
+        flap = int(now * 8) % 2
+        for o in game.obstacles:
+            if o.kind.endswith("bug"):
+                body = box(o.x, o.y, o.w, o.h)
+                pygame.draw.ellipse(screen, (226, 86, 140), body)
+                wing = body.height * (0.9 if flap else -0.5)
+                for side in (0.3, 0.7):
+                    x = body.left + body.width * side
+                    pygame.draw.line(screen, (250, 170, 205), (x, body.top + 2),
+                                     (x - body.width * 0.15, body.top - wing), 2)
+                pygame.draw.rect(screen, (30, 10, 20), pygame.Rect(body.left + 3, body.centery - 2, 4, 4))
+                continue
+            parts = [(o.x, o.w * 0.42), (o.x + o.w * 0.58, o.w * 0.42)] if o.kind == "pair" else [(o.x, o.w)]
+            for gx, gw in parts:
+                block = box(gx, o.y, gw, o.h)
+                pygame.draw.rect(screen, (232, 158, 64), block)
+                pygame.draw.rect(screen, (120, 70, 20), block, width=2)
+                for row in range(block.top + 4, block.bottom - 2, 6):  # glitchy scan lines
+                    pygame.draw.line(screen, (250, 200, 120), (block.left + 3, row), (block.right - 4, row), 1)
+
+        ducking = game.ducking and game.on_ground
+        bw, bh = (runner.DUCK_W, runner.DUCK_H) if ducking else (runner.RUNNER_W, runner.RUNNER_H)
+        self._draw_little_bmo(box(runner.RUNNER_X, game.y, bw, bh), game, ducking)
+        screen.set_clip(clip)
+
+        font, big = self.SMALL_FONT, self.MEDIUM_FONT
+        hud = font.render(f"LEVEL {game.level}    SCORE {int(game.score):05d}    BEST {game.best:05d}", True,
+                          (150, 235, 214))
+        screen.blit(hud, hud.get_rect(midtop=(w // 2, play.top + 8)))
+        if game.state == runner.READY:
+            lines = [(big, "PRESS SPACE TO RUN", (230, 255, 245)),
+                     (font, "SPACE or UP: jump (hold for higher)    DOWN: duck", (120, 200, 185))]
+        elif game.state == runner.OVER:
+            lines = [(big, "NEW BEST!" if game.new_best else "OUCH!", (255, 214, 120)),
+                     (font, f"Level {game.level}, {int(game.score)} points. Press SPACE to go again.",
+                      (190, 235, 222))]
+        elif game.level_shown_at is not None and game.distance - game.level_shown_at < 1.6 * game.speed:
+            lines = [(big, f"LEVEL {game.level}!", (255, 214, 120))]
+        else:
+            lines = []
+        y = play.top + play.height * 0.30
+        for face, text, color in lines:
+            surface = face.render(text, True, color)
+            screen.blit(surface, surface.get_rect(midtop=(w // 2, int(y))))
+            y += surface.get_height() + 6
+        controls = font.render("jump: SPACE / UP / pad A      duck: DOWN / pad B", True, (55, 135, 124))
+        screen.blit(controls, controls.get_rect(center=(w // 2 + drift, int(h * 0.94))))
+
+    def _draw_little_bmo(self, rect, game, ducking):
+        """BMO in a few rectangles: teal body, pale screen with a face, legs that run."""
+        screen = self._app._screen
+        legs = max(2, int(rect.height * 0.18))
+        body = pygame.Rect(rect.left, rect.top, rect.width, rect.height - legs)
+        pygame.draw.rect(screen, (99, 196, 178), body, border_radius=max(1, rect.width // 10))
+        face = pygame.Rect(body.left + body.width * 0.14, body.top + body.height * 0.12, body.width * 0.72,
+                           body.height * (0.6 if ducking else 0.5))
+        pygame.draw.rect(screen, (190, 240, 212), face)
+        eye = max(2, int(face.height * 0.16))
+        for side in (0.3, 0.7):
+            pygame.draw.rect(screen, (20, 40, 36), pygame.Rect(face.left + face.width * side - eye / 2,
+                                                               face.top + face.height * 0.3, eye, eye))
+        mouth_y = face.top + face.height * 0.72
+        if game.state == runner.OVER:
+            pygame.draw.line(screen, (20, 40, 36), (face.left + face.width * 0.35, mouth_y),
+                             (face.left + face.width * 0.65, mouth_y), 2)
+        else:
+            smile = pygame.Rect(face.left + face.width * 0.32, mouth_y - face.height * 0.2, face.width * 0.36,
+                                face.height * 0.3)
+            pygame.draw.arc(screen, (20, 40, 36), smile, 3.4, 6.0, 2)
+        pygame.draw.circle(screen, (226, 70, 70), (int(body.left + body.width * 0.72),
+                                                   int(body.bottom - body.height * 0.17)), max(1, body.width // 12))
+        step = int(game.distance * 14) % 2 if game.on_ground and game.state == runner.RUNNING else 0
+        leg_w = max(2, rect.width // 7)
+        for i, side in enumerate((0.28, 0.62)):
+            length = legs if (i == step or not game.on_ground) else legs * 0.55
+            pygame.draw.rect(screen, (60, 150, 134), pygame.Rect(rect.left + rect.width * side, body.bottom,
+                                                                leg_w, max(1, length)))
+
+    # ----------------------------------------------------------------------
+    # The install screen (systems/first_boot.py, SetupView).
+    # ----------------------------------------------------------------------
+    _SETUP_COLORS = {"done": (150, 230, 205), "running": (235, 255, 248), "pending": (78, 128, 120),
+                     "failed": (255, 190, 90), "skipped": (110, 132, 126)}
+
+    def _setup_fonts(self, h):
+        cache = getattr(self, "_setup_font_cache", None)
+        if not cache or cache[0] != h:
+            cache = (h, pygame.font.SysFont("DejaVu Sans Mono", max(16, h // 20), bold=True),
+                     pygame.font.SysFont("DejaVu Sans Mono", max(11, h // 34)),
+                     pygame.font.SysFont("DejaVu Sans Mono", max(10, h // 42)))
+            self._setup_font_cache = cache
+        return cache[1:]
+
+    def _setup_icon(self, rect, status, now):
+        screen = self._app._screen
+        color = self._SETUP_COLORS.get(status, (78, 128, 120))
+        thick = max(2, rect.width // 7)
+        if status == "done":
+            pygame.draw.lines(screen, (90, 230, 150), False,
+                              [(rect.left + rect.width * 0.12, rect.top + rect.height * 0.55),
+                               (rect.left + rect.width * 0.42, rect.top + rect.height * 0.85),
+                               (rect.left + rect.width * 0.9, rect.top + rect.height * 0.15)], thick)
+        elif status == "running":
+            pulse = 0.55 + 0.45 * math.sin(now * 5.0)
+            shade = tuple(int(c * pulse) for c in (120, 255, 220))
+            pygame.draw.polygon(screen, shade, [(rect.left + rect.width * 0.2, rect.top + rect.height * 0.1),
+                                                (rect.right - rect.width * 0.1, rect.centery),
+                                                (rect.left + rect.width * 0.2, rect.bottom - rect.height * 0.1)])
+        elif status == "failed":
+            pygame.draw.rect(screen, color, rect, width=max(1, thick // 2))
+            stem = pygame.Rect(rect.centerx - thick // 2, rect.top + rect.height * 0.18, thick, rect.height * 0.42)
+            pygame.draw.rect(screen, color, stem)
+            pygame.draw.rect(screen, color, pygame.Rect(rect.centerx - thick // 2, rect.bottom - rect.height * 0.3,
+                                                        thick, thick))
+        elif status == "skipped":
+            pygame.draw.line(screen, color, (rect.left + 2, rect.centery), (rect.right - 2, rect.centery), thick)
+        else:
+            pygame.draw.rect(screen, color, rect, width=max(1, thick // 2))
+
+    def _render_setup(self, setup, now):
+        screen = self._app._screen
+        w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
+        title_font, row_font, small_font = self._setup_fonts(h)
+        screen.fill((2, 10, 11))
+        # The white frame the screen step asks about; otherwise a quiet one.
+        framed = bool(setup.get("frame"))
+        thick = max(2, h // 160) * (3 if framed else 1)
+        pygame.draw.rect(screen, (255, 255, 255) if framed else (30, 86, 80), pygame.Rect(0, 0, w, h), width=thick)
+        if framed:  # heavier corners, so a cut-off one is easy to spot
+            arm, heavy = int(min(w, h) * 0.08), thick * 2
+            for x, y in ((0, 0), (w - arm, 0), (0, h - heavy), (w - arm, h - heavy)):
+                pygame.draw.rect(screen, (255, 255, 255), pygame.Rect(x, y, arm, heavy))
+            for x, y in ((0, 0), (w - heavy, 0), (0, h - arm), (w - heavy, h - arm)):
+                pygame.draw.rect(screen, (255, 255, 255), pygame.Rect(x, y, heavy, arm))
+        # Everything drifts a few pixels over minutes, so nothing sits still for hours on a CRT.
+        dx, dy = int(math.sin(now / 37.0) * 3), int(math.cos(now / 53.0) * 2)
+        left, right, top = int(w * 0.07) + dx, int(w * 0.93) + dx, int(h * 0.05) + dy
+
+        title = title_font.render("BMO SETUP", True, (108, 245, 206))
+        screen.blit(title, (left, top))
+        overall = float(setup.get("overall") or 0.0)
+        percent = title_font.render(f"{int(overall * 100)}%", True, (108, 245, 206))
+        screen.blit(percent, percent.get_rect(topright=(right, top)))
+        count = small_font.render(f"{setup.get('done', 0)} of {setup.get('total', 0)} done", True, (90, 160, 148))
+        screen.blit(count, count.get_rect(bottomright=(right - percent.get_width() - 16, top + percent.get_height())))
+        bar = pygame.Rect(left, top + title.get_height() + int(h * 0.015), right - left, max(18, int(h * 0.045)))
+        self._render_retro_fill_bar(bar, overall)
+
+        rows = setup.get("rows") or []
+        rows_top, rows_bottom = bar.bottom + int(h * 0.03), int(h * 0.79)
+        row_h = min(int(h * 0.05), max(12, (rows_bottom - rows_top) // max(1, len(rows))))
+        mini_left, mini_right = left + int((right - left) * 0.47), left + int((right - left) * 0.70)
+        for i, row in enumerate(rows):
+            y = rows_top + i * row_h
+            status = row.get("status") or "pending"
+            icon = pygame.Rect(left, y + int(row_h * 0.15), int(row_h * 0.7), int(row_h * 0.7))
+            self._setup_icon(icon, status, now)
+            color = self._SETUP_COLORS.get(status, (78, 128, 120))
+            label = row_font.render(str(row.get("label", "")), True, color)
+            screen.blit(label, (icon.right + int(row_h * 0.5), y + (row_h - label.get_height()) // 2))
+            progress = row.get("progress")
+            if status == "running":
+                track = pygame.Rect(mini_left, y + int(row_h * 0.3), mini_right - mini_left, max(4, int(row_h * 0.4)))
+                pygame.draw.rect(screen, (12, 48, 48), track)
+                if progress is None:  # no real number to show: a block slides along
+                    block_w = max(6, track.width // 5)
+                    x = track.left + int((track.width - block_w) * (0.5 + 0.5 * math.sin(now * 2.2)))
+                    pygame.draw.rect(screen, (55, 220, 174), pygame.Rect(x, track.top, block_w, track.height))
+                else:
+                    pygame.draw.rect(screen, (55, 220, 174),
+                                     pygame.Rect(track.left, track.top, int(track.width * progress), track.height))
+            detail = small_font.render(str(row.get("detail") or ""), True, color)
+            screen.blit(detail, detail.get_rect(midright=(right, y + row_h // 2)))
+
+        text, hint = str(setup.get("text") or ""), str(setup.get("hint") or "")
+        y = int(h * 0.81)
+        for line in (self._wrap_text(row_font, text, right - left)[:2] if text else []):
+            surface = row_font.render(line, True, (205, 236, 228))
+            screen.blit(surface, (left, y))
+            y += surface.get_height() + 2
+        if hint:
+            surface = row_font.render(hint, True, (255, 226, 140))
+            screen.blit(surface, (left, max(y + 4, int(h * 0.90))))
+
+        panel_lines, heading, selected = [], "", -1
+        if setup.get("problems"):
+            heading, panel_lines = "THESE NEED YOU", list(setup["problems"])
+        elif setup.get("choices"):
+            heading = "WI-FI NETWORKS"
+            panel_lines = [f"{n}  {name}" for n, name in enumerate(setup["choices"], 1)]
+            selected = int(setup.get("selected") or 0)
+        if panel_lines:
+            wrapped = [(line, i) for i, item in enumerate(panel_lines)
+                       for line in self._wrap_text(row_font, item, int(w * 0.7))]
+            line_h = row_font.get_linesize()
+            panel = pygame.Rect(0, 0, int(w * 0.78), line_h * (len(wrapped) + 2) + 24)
+            panel.center = (w // 2 + dx, (rows_top + rows_bottom) // 2 + dy)
+            pygame.draw.rect(screen, (4, 22, 22), panel)
+            pygame.draw.rect(screen, (255, 190, 90) if setup.get("problems") else (108, 245, 206), panel, width=2)
+            surface = row_font.render(heading, True, (255, 226, 140))
+            screen.blit(surface, (panel.left + 16, panel.top + 10))
+            y = panel.top + 10 + int(line_h * 1.5)
+            for line, item in wrapped:
+                if item == selected:
+                    pygame.draw.rect(screen, (20, 90, 80), pygame.Rect(panel.left + 8, y - 1, panel.width - 16, line_h))
+                surface = row_font.render(line, True, (235, 255, 248) if item == selected else (205, 236, 228))
+                screen.blit(surface, (panel.left + 16, y))
+                y += line_h
 
     # ----------------------------------------------------------------------
     # Text-only conversation mode.
@@ -970,8 +1150,26 @@ class FaceRenderer:
             self.fpsclock.tick(self.FPS)
             return
 
+        setup = status.get("setup")
+        if setup:
+            # The install screen owns the window until the setup is done (systems/first_boot.py).
+            self._reset_crt_static_refresh(now)
+            self._stop_external_saver()
+            self._saver_started = None
+            self._render_setup(setup, now)
+            if hasattr(self._app, "present"):
+                self._app.present()
+            else:
+                pygame.display.flip()
+            self.frame_timer = now
+            self.fpsclock.tick(self.FPS)
+            return
+
         display_mode = str(status.get("display_mode") or "face")
         switch_visible = self._switch_visible(status, now)
+        if self._switch_was_visible and not switch_visible and self._runner is not None:
+            self._runner.finish()  # the brain is ready mid-run: a best score still counts
+        self._switch_was_visible = switch_visible
         static_allowed = (
             display_mode == "face"
             and not switch_visible

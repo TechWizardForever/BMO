@@ -1,7 +1,7 @@
 # Putting BMO on a new computer
 
 BMO comes as a USB installer: Linux Mint 22.3 with BMO already inside. You install it like ordinary Mint;
-BMO then sets himself up by talking to you.
+BMO then sets himself up, one step at a time on his screen.
 
 ## What you need
 
@@ -33,19 +33,25 @@ On Windows or a Mac, use [balenaEtcher](https://etcher.balena.io): **Flash from 
 
 ## 3. BMO's first start
 
-The computer logs in by itself and BMO starts. Answer him out loud:
+The computer logs in by itself and BMO's setup screen comes up. It lists every step, ticks each one off when
+it's done, and shows a progress bar for anything that takes a while.
 
-1. **Microphone:** he asks you to say **"Hey BMO, hello."**
-2. **Your voice:** he says **"Go"** a few times; say "Hey BMO" each time, then talk normally for ten seconds.
-   This helps him wake for you and not for the TV.
-3. **Screen:** "Can you see all of my face?" Say **yes** or **no**; on no he helps you fit it.
-4. **Internet:** if you didn't connect during the install, he lists the Wi-Fi networks; say the number of
-   yours and type its password in the window that opens.
-5. **Brains:** he downloads his main brain first (about 18 GB) and can chat once it's done. Then the game
-   player (Dolphin) and the screensavers, then the other brains in the background. Ask
-   **"Hey BMO, how are the downloads?"** any time.
+1. **Internet:** if you didn't connect during the install, plug in a network cable, or pick your Wi-Fi with
+   the arrow keys and press Enter. Type its password in the window that opens.
+2. **Linux updates:** Mint's own updates, so you don't have to do them yourself. If a new kernel comes in,
+   the computer restarts once and the setup carries on by itself.
+3. **Downloads:** his main brain (about 19 GB), the game player (Dolphin), the screensavers and his other
+   brains, about 80 GB in all, then a five-minute speed test. You don't need to stay for this part.
+4. **The part that needs you:** once everything is downloaded he asks you to press Enter. Then:
+   - **Microphone:** say **"Hey BMO, hello."**
+   - **Your voice:** he says **"Go"** a few times; say "Hey BMO" each time, then talk normally for ten
+     seconds. This helps him wake for you and not for the TV.
+   - **Screen:** can you see the whole white frame around the edge? Say **yes** or **no**, or press **Y**
+     or **N**. On no he helps you fit it.
 
-If the computer is switched off part-way, BMO carries on where he stopped at the next start.
+If a step goes wrong, BMO tries it again and moves on to the next one. At the end he goes back to it, and
+anything still not working is listed on the screen: press **Enter** to try again, or **S** to skip it for
+now. If the computer is switched off part-way, the setup carries on where it stopped.
 
 ## Afterwards
 

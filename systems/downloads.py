@@ -1,10 +1,13 @@
 """BMO's brains, downloaded in a set order.
 
-Main first (BMO can talk once it is in), then the other brains smallest first, then the simple
-benchmark (hardware_autotune.py). One background process does it (`downloads_cli.py run`), so it goes
-on while BMO talks and resumes after a restart or reboot: Ollama keeps partly downloaded files and
-carries on from them. Progress is saved in ~/.bemo/install/downloads.json, which BMO reads to answer
-"Hey BMO, how are the downloads?".
+Main first, the game player and screensavers, then the other brains smallest first, then the simple
+benchmark (hardware_autotune.py). One background process does it (`downloads_cli.py run`), so it carries
+on after a restart or reboot: Ollama keeps partly downloaded files and resumes them. Progress is saved in
+~/.bemo/install/downloads.json, which the install screen draws its bars from (systems/first_boot.py) and
+BMO reads to answer "Hey BMO, how are the downloads?".
+
+A download that fails is tried once more, then left with its problem saved while the rest carry on; the
+downloader comes back to it once at the end (2026-10-25: one stuck step used to hold up the whole install).
 """
 from __future__ import annotations
 
@@ -15,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -74,6 +78,9 @@ def install_screensavers() -> None:
 
 EXTRA_INSTALLED = {GAME_PLAYER: game_player_installed, SCREENSAVERS: screensavers_installed}
 EXTRAS = {GAME_PLAYER: install_game_player, SCREENSAVERS: install_screensavers}
+# Flatpak shows no progress BMO can read, so the game player's bar follows the space it takes up on disk
+# (up to 99 % until it's really done).
+EXTRA_DISK = {GAME_PLAYER: Path.home() / ".local" / "share" / "flatpak"}
 
 
 def queue(state=None):
@@ -82,8 +89,18 @@ def queue(state=None):
     extras = [alias for alias in EXTRA_GB if state is not None and alias in state.models()]
     if not extras:
         return brains
+    return brains[:1] + [_extra_spec(a) for a in extras] + brains[1:]
+
+
+def everything():
+    """What the install screen lists: the queue with both extras, before the downloader has started too."""
+    brains = list(roster())
+    return brains[:1] + [_extra_spec(a) for a in EXTRA_GB] + brains[1:]
+
+
+def _extra_spec(alias):
     from model_installer import ModelSpec
-    return brains[:1] + [ModelSpec(spoken(a).title(), f"extra:{a}", a, EXTRA_GB[a]) for a in extras] + brains[1:]
+    return ModelSpec(spoken(alias).title(), f"extra:{alias}", alias, EXTRA_GB[alias])
 
 
 # --- Saved progress -----------------------------------------------------------------------------------
@@ -177,16 +194,25 @@ def download(spec, state: DownloadState, client=None, *, clock=time.monotonic) -
     state.set(spec.alias, status=DONE, total=size, completed=size)
 
 
-def run_all(state: DownloadState, client=None, *, benchmark=None, retries: int = 5, sleep=time.sleep,
-            already=None, extras=None) -> bool:
+NO_INTERNET = "no internet connection"
+
+
+def run_all(state: DownloadState, client=None, *, benchmark=None, retries: int = 2, sleep=time.sleep,
+            already=None, extras=None, online=None, offline_wait: float = 600.0) -> bool:
     """Every brain in order, the extras (alias -> installer) right after Main, then the benchmark.
-    False when something kept failing (tried again later)."""
+
+    Each one gets `retries` tries. One that still fails keeps its problem in the saved state and the rest
+    carry on; it gets one more try at the end. With no internet it waits up to `offline_wait` seconds
+    instead of using up the tries, then stops, because nothing can download. False when something is
+    still missing (the install screen says what, and starts this again when asked)."""
     already = already or (lambda alias: installed(alias, client))
     extras = extras or {}
+    online = online or (lambda: True)
     state.data.setdefault("started_at", time.time())
     for alias in extras:
         if alias not in state.models():
             state.set(alias, status=WAITING)
+    todo = []
     for spec in queue(state):
         if state.done(spec.alias):
             continue
@@ -197,37 +223,115 @@ def run_all(state: DownloadState, client=None, *, benchmark=None, retries: int =
             state.set(spec.alias, status=DONE, total=int(spec.approx_gb * GB), completed=int(spec.approx_gb * GB),
                       already=True)
             continue
-        for attempt in range(1, retries + 1):
-            try:
-                if extra:
-                    state.set(spec.alias, status=DOWNLOADING, started_at=time.time(), error=None)
-                    extras[spec.alias]()
-                    size = int(spec.approx_gb * GB)
-                    state.set(spec.alias, status=DONE, total=size, completed=size)
-                else:
-                    download(spec, state, client)
-                break
-            except Exception as exc:
-                message = str(exc)[:200]
-                state.set(spec.alias, status=FAILED, error=message, attempts=attempt)
-                if attempt == retries:
-                    return False
-                sleep(min(300, 10 * 2 ** (attempt - 1)))
-    if "benchmark" not in state.data and benchmark is not None:
-        state.data["benchmark"] = {"running": True}
-        state.save()
-        state.data["benchmark"] = benchmark()
-        state.save()
+        todo.append(spec)
+    left = []
+    for spec in todo:
+        fetched = _fetch(spec, state, client, extras, retries, sleep, online, offline_wait)
+        if fetched is None:
+            return False
+        if not fetched:
+            left.append(spec)
+    for spec in list(left):  # back to what failed, once
+        sleep(10)
+        fetched = _fetch(spec, state, client, extras, 1, sleep, online, offline_wait)
+        if fetched is None:
+            return False
+        if fetched:
+            left.remove(spec)
+    if benchmark is not None and state.done(roster()[0].alias) and benchmark_needed(state):
+        _run_benchmark(state, benchmark)
+    if left:
+        return False
     state.data["finished_at"] = time.time()
     state.save()
     return True
 
 
-def simple_benchmark() -> dict:
-    """The thread-count benchmark (about five minutes, Main brain), reduced to what BMO says."""
+def _fetch(spec, state: DownloadState, client, extras, tries: int, sleep, online, offline_wait) -> bool | None:
+    """One brain or extra, `tries` times. None when the internet stayed away (stop everything)."""
+    extra = spec.alias in EXTRA_GB
+    for attempt in range(1, tries + 1):
+        if not _wait_online(online, offline_wait, sleep):
+            state.set(spec.alias, status=FAILED, error=NO_INTERNET, attempts=attempt)
+            return None
+        try:
+            if extra:
+                _install_extra(spec, extras[spec.alias], state)
+            else:
+                download(spec, state, client)
+            return True
+        except Exception as exc:
+            state.set(spec.alias, status=FAILED, error=str(exc)[:200], attempts=attempt)
+            if attempt < tries:
+                sleep(min(300, 10 * 2 ** (attempt - 1)))
+    return False
+
+
+def _wait_online(online, seconds: float, sleep) -> bool:
+    if online():
+        return True
+    for _ in range(max(0, int(seconds // 5))):
+        sleep(5)
+        if online():
+            return True
+    return False
+
+
+def _install_extra(spec, installer, state: DownloadState) -> None:
+    """The extra's own installer, with its bar following the disk space it takes (EXTRA_DISK)."""
+    expected = int(spec.approx_gb * GB)
+    where = EXTRA_DISK.get(spec.alias)
+    start_free = free_gb(where) if where else None
+    state.set(spec.alias, status=DOWNLOADING, started_at=time.time(), error=None, total=expected, completed=0)
+    errors = []
+
+    def work():
+        try:
+            installer()
+        except Exception as exc:
+            errors.append(exc)
+
+    worker = threading.Thread(target=work, name=f"bemo-install-{spec.alias}", daemon=True)
+    worker.start()
+    while worker.is_alive():
+        worker.join(2.0)
+        if worker.is_alive() and start_free is not None:
+            used = max(0.0, (start_free - free_gb(where)) * GB)
+            state.set(spec.alias, status=DOWNLOADING, total=expected, completed=int(min(0.99 * expected, used)))
+    if errors:
+        raise errors[0]
+    state.set(spec.alias, status=DONE, total=expected, completed=expected)
+
+
+def benchmark_needed(state: DownloadState) -> bool:
+    """Never run, cut off half way (a restart), or it failed: run it (again)."""
+    bench = state.data.get("benchmark")
+    return not bench or bool(bench.get("running")) or not bench.get("ok")
+
+
+def _run_benchmark(state: DownloadState, benchmark) -> None:
+    """The benchmark with its progress saved for the install screen, and a second go if it fails."""
+    def progress(step, steps, label=""):
+        state.data["benchmark"] = {"running": True, "step": int(step), "steps": max(1, int(steps)),
+                                   "label": str(label)}
+        state.save()
+
+    result = {}
+    for _attempt in range(2):
+        progress(0, 1, "starting")
+        result = benchmark(progress) or {}
+        if result.get("ok"):
+            break
+    state.data["benchmark"] = result
+    state.save()
+
+
+def simple_benchmark(progress=None) -> dict:
+    """The thread-count benchmark (about five minutes, Main brain), reduced to what BMO says.
+    progress(step, steps, label) follows its stages for the install screen."""
     try:
         import hardware_autotune
-        result = hardware_autotune.run_benchmark(force=False)
+        result = hardware_autotune.run_benchmark(force=False, progress=progress)
         record = result.get("record") or {}
         return {"ok": bool(result.get("ok")), "threads": record.get("chosen_ollama_threads"),
                 "skipped": result.get("reason") if result.get("skipped") else None}
@@ -282,6 +386,7 @@ def model_dir() -> Path:
 
 
 def free_gb(path: Path) -> float:
+    path = Path(path)
     while not path.exists() and path != path.parent:
         path = path.parent
     usage = shutil.disk_usage(path)

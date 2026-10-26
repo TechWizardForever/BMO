@@ -37,23 +37,28 @@ class FakeNmcli:
 
 
 class StepIO:
-    def __init__(self, nmcli, answers=(), online=False, online_after=None):
+    """BMO's side of the internet step: keys from the install screen; online() answers from a list (the last
+    answer repeats)."""
+    def __init__(self, nmcli, keys=(), online=(False,), online_after=True):
         self.wifi = wf.Wifi(run=nmcli, which=lambda name: "/usr/bin/" + name, popen=lambda *a, **k: None)
-        self.answers, self.said, self._online = list(answers), [], online
-        self.online_after = online_after
+        self.said, self._online, self.online_after, self.clock = [], list(online), online_after, 0.0
+        self.view = fb.SetupView(blocking=False)
+        self.view.open()
+        for key in keys:
+            self.view.press(key)
 
     def say(self, text):
         self.said.append(text)
 
-    def ask(self, question):
-        self.said.append(question)
-        return self.answers.pop(0) if self.answers else None
-
     def online(self):
-        return self._online
+        return self._online.pop(0) if len(self._online) > 1 else self._online[0]
 
     def wait_until_online(self, seconds):
-        return True if self.online_after is None else self.online_after
+        return self.online_after
+
+    def now(self):
+        self.clock += 1
+        return self.clock
 
 
 def step(practice=False):
@@ -111,48 +116,66 @@ class WifiToolTests(unittest.TestCase):
 
 class InternetStepTests(unittest.TestCase):
     def test_already_online_needs_nothing(self):
-        io = StepIO(FakeNmcli(), online=True)
+        io = StepIO(FakeNmcli(), online=(True,))
         self.assertEqual(step().run(io).result, {"online": True, "how": "already"})
+        self.assertEqual(io.said, [])
 
-    def test_wifi_number_then_the_password_window(self):
-        io = StepIO(FakeNmcli(), answers=["number one"])
+    def test_wifi_picked_with_the_arrow_keys_then_the_password_window(self):
+        io = StepIO(FakeNmcli(), keys=["down", "enter"])
         outcome = step().run(io)
-        self.assertEqual((outcome.status, outcome.result["ssid"]), (DONE, "HomeNet"))
-        self.assertTrue(any("1: HomeNet. 2: Neighbour 5G. 3: Cafe:Guest" in s for s in io.said))
+        self.assertEqual((outcome.status, outcome.result["ssid"]), (DONE, "Neighbour 5G"))
+        self.assertIn("pick your Wi-Fi on the screen", io.said[0])
         self.assertTrue(any("Type it with the keyboard" in s for s in io.said))
-        self.assertEqual(io.said[-1], "I'm online, through HomeNet.")
+        self.assertEqual(io.said[-1], "I'm online, through Neighbour 5G.")
+        self.assertEqual(io.view.snapshot()["choices"], [])  # the list goes away once it's done
+
+    def test_a_number_key_picks_that_network(self):
+        io = StepIO(FakeNmcli(), keys=["3"])
+        outcome = step().run(io)
+        self.assertEqual(outcome.result["ssid"], "Cafe:Guest")
+        self.assertTrue(any(s == "Connecting to Cafe:Guest." for s in io.said))  # an open network: no password
+
+    def test_the_networks_are_on_the_screen_until_a_cable_goes_in(self):
+        io = StepIO(FakeNmcli(), keys=["down"], online=(False, False, False, True))
+        shown = []
+        original = io.view.show_choices
+        io.view.show_choices = lambda names, selected=0: (shown.append((list(names), selected)),
+                                                          original(names, selected))
+        self.assertEqual(step().run(io).result["how"], "connected")
+        self.assertIn((["HomeNet", "Neighbour 5G", "Cafe:Guest"], 1), shown)  # the second one picked
 
     def test_a_wrong_password_gets_another_try(self):
         nmcli = FakeNmcli(connects=[(4, "Error: Connection activation failed: Secrets were required, but not provided."),
                                     (0, "")])
-        io = StepIO(nmcli, answers=["one", "one"])
+        io = StepIO(nmcli, keys=["1", "1"])
         outcome = step().run(io)
         self.assertEqual(outcome.status, DONE)
-        self.assertTrue(any("wasn't right. Let's try again." in s for s in io.said))
+        self.assertTrue(any("wasn't right. Pick it again to have another go." in s for s in io.said))
 
-    def test_none_of_them_or_no_answer_waits_for_the_next_start(self):
-        io = StepIO(FakeNmcli(), answers=["none of those"])
-        self.assertEqual(step().run(io).status, FAILED)
-        io = StepIO(FakeNmcli(), answers=[None, "banana"])
-        self.assertEqual(step().run(io).result, {"reason": "no network chosen"})
-
-    def test_no_wifi_adapter_asks_for_a_cable(self):
-        io = StepIO(FakeNmcli(devices="enp1s0:ethernet\n"), online_after=True)
-        self.assertEqual(step().run(io).result, {"online": True, "how": "cable"})
+    def test_it_waits_for_a_cable_and_carries_on_by_itself(self):
+        io = StepIO(FakeNmcli(devices="enp1s0:ethernet\n"), online=(False, False, False, True))
+        outcome = step().run(io)
+        self.assertEqual(outcome.result, {"online": True, "how": "cable"})
         self.assertIn("network cable", io.said[0])
 
+    def test_losing_the_connection_says_so_and_waits(self):
+        io = StepIO(FakeNmcli(), online=(False, False, True))
+        outcome = step().wait(io, lost=True)
+        self.assertEqual(outcome.status, DONE)
+        self.assertEqual(io.said, ["I lost the internet. I'll carry on as soon as it's back.", "I'm online again."])
+
     def test_practice_runs_the_wifi_part_on_a_wired_pc(self):
-        io = StepIO(FakeNmcli(), answers=["two"], online=True)
+        io = StepIO(FakeNmcli(), keys=["down", "enter"], online=(True,))
         outcome = step(practice=True).run(io)
         self.assertEqual(outcome.result["ssid"], "Neighbour 5G")
-        self.assertFalse(any("not connected" in s for s in io.said))
+        self.assertFalse(any("need the internet" in s for s in io.said))
 
     def test_runner_passes_the_rehearsal_option(self):
         import tempfile
         state = fb.FirstBootState(Path(tempfile.mkdtemp()) / "fb.json")
         state.begin(("internet",), {"internet": {"practice_wifi": True}})
-        io = StepIO(FakeNmcli(), answers=["one"], online=True)
-        fb.FirstBoot(state, io).run("listening")
+        io = StepIO(FakeNmcli(), keys=["1"], online=(True,))
+        fb.Setup(state, io).run("before_listening")
         self.assertEqual(state.steps()[0]["result"]["ssid"], "HomeNet")
 
 

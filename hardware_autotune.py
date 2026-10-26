@@ -320,7 +320,9 @@ def _record_is_current(record: dict | None) -> bool:
     )
 
 
-def run_benchmark(*, force: bool = False) -> dict:
+def run_benchmark(*, force: bool = False, progress=None) -> dict:
+    """progress(step, steps, label), when given, follows the stages (the install screen's bar)."""
+    progress = progress or (lambda step, steps, label="": None)
     target = autotune_path()
     existing = read_autotune_record(target)
     if not force and _record_is_current(existing):
@@ -342,8 +344,11 @@ def run_benchmark(*, force: bool = False) -> dict:
     print(f"Candidate Ollama thread counts: {', '.join(map(str, candidates))}")
     print("Policy: prefer the lower-thread candidate when balanced performance is within 5% of the best.")
 
+    steps = len(candidates) + 2
+    progress(0, steps, "loading the main brain")
     _preload(model, candidates[0])
 
+    progress(1, steps, "checking the voice")
     tts_probe = TTSProbe()
     print(f"Loading TTS probe: {config.TTS_MODEL}")
     tts_probe.load()
@@ -353,7 +358,8 @@ def run_benchmark(*, force: bool = False) -> dict:
         print(f"TTS overlap probe unavailable; using LLM efficiency only. {tts_probe.error or ''}".strip())
 
     results = []
-    for threads in candidates:
+    for index, threads in enumerate(candidates):
+        progress(2 + index, steps, f"testing {threads} threads")
         print(f"Testing {threads} Ollama threads...")
         try:
             row = _run_candidate(model, threads, tts_probe)
@@ -376,6 +382,7 @@ def run_benchmark(*, force: bool = False) -> dict:
         else:
             print(f"  FAILED: {row.get('error', 'unknown benchmark failure')}")
 
+    progress(steps, steps, "done")
     chosen = choose_efficient_result(results)
     record = {
         "algorithm_version": AUTOTUNE_ALGORITHM_VERSION,

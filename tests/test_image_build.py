@@ -12,6 +12,7 @@ ROOT = Path(os.environ.get("BEMO_TEST_CODE_ROOT", Path(__file__).resolve().paren
 IMAGE = ROOT / "tools" / "image"
 sys.path.insert(0, str(IMAGE))
 import firstboot
+import system_update
 
 PASSWD = """root:x:0:0:root:/root:/bin/bash
 syslog:x:104:111::/home/syslog:/usr/sbin/nologin
@@ -174,6 +175,85 @@ class NothingToShareTests(unittest.TestCase):
             self.assertEqual(done.returncode, 3, name)
             self.assertIn("mustn't share", done.stdout)
             (root / "rootfs" / name).unlink()
+
+
+class LinuxUpdatesTests(unittest.TestCase):
+    """2026-10-25: the install screen runs Linux's updates through a root-owned helper; the account may only
+    start that one service."""
+    def test_the_helper_root_runs_is_roots_own_copy(self):
+        inside = (IMAGE / "in_chroot.sh").read_text()
+        self.assertIn("install -m 755 -o root -g root tools/image/system_update.py /usr/local/lib/bemo/system_update.py",
+                      inside)
+        unit = (IMAGE / "bemo-system-update.service").read_text()
+        self.assertIn("ExecStart=/usr/bin/python3 -I /usr/local/lib/bemo/system_update.py", unit)
+        self.assertNotIn("/opt/bemo", unit.split("ExecStart=")[1])  # the account owns /opt/bemo
+        self.assertNotIn("[Install]", unit)  # never runs by itself
+
+    def test_the_rule_allows_starting_that_service_and_nothing_else(self):
+        rule = (IMAGE / "bemo-system-update.rules").read_text()
+        for piece in ('action.id == "org.freedesktop.systemd1.manage-units"',
+                      'action.lookup("unit") == "bemo-system-update.service"', 'action.lookup("verb") == "start"',
+                      "subject.local && subject.active", 'subject.isInGroup("sudo")'):
+            self.assertIn(piece, rule)
+        self.assertEqual(rule.count("polkit.Result.YES"), 1)
+        self.assertIn("/etc/polkit-1/rules.d/50-bemo-system-update.rules", (IMAGE / "in_chroot.sh").read_text())
+
+    def test_progress_lines_and_a_new_kernel(self):
+        self.assertEqual(system_update.progress_from("dlstatus:3:42.5:Retrieving file 3 of 7"),
+                         ("downloading", 42.5, "Retrieving file 3 of 7"))
+        self.assertEqual(system_update.progress_from("pmstatus:libc6:61.2:Installing libc6"),
+                         ("installing", 61.2, "Installing libc6"))
+        self.assertIsNone(system_update.progress_from("Reading package lists..."))
+        boot = Path(tempfile.mkdtemp())
+        (boot / "vmlinuz-6.14.0-37-generic").write_text("")
+        flag = boot / "no-flag"
+        self.assertFalse(system_update.reboot_needed(boot, "6.14.0-37-generic", flag))
+        newer = boot / "vmlinuz-7.0.0-38-generic"
+        newer.write_text("")
+        os.utime(newer, (2e9, 2e9))
+        self.assertTrue(system_update.reboot_needed(boot, "6.14.0-37-generic", flag))
+
+    def test_it_runs_only_update_and_upgrade_and_writes_its_progress(self):
+        tmp = Path(tempfile.mkdtemp())
+        calls, seen = [], []
+
+        class FakeApt:
+            broken = False
+
+            def __init__(self, argv, pass_fds=(), stdout=None, stderr=None, **kwargs):
+                calls.append(argv)
+                fd = int(next(a for a in argv if a.startswith("APT::Status-Fd=")).split("=")[1])
+                os.write(fd, b"pmstatus:bash:50.0:Installing bash\n" if "upgrade" in argv else b"dlstatus:1:100:done\n")
+                self.code = 0
+                if "upgrade" in argv and FakeApt.broken:
+                    stderr.write("E: Could not get lock /var/lib/dpkg/lock-frontend\n")
+                    self.code = 100
+
+            def wait(self):
+                return self.code
+
+        status = tmp / "status.json"
+        status.write_text('{"run": 4}')
+        write = system_update.write_status
+        system_update.write_status = lambda path, data: (seen.append(dict(data)), write(path, data))
+        try:
+            code = system_update.main(status, tmp / "log", popen=FakeApt, reboot=lambda: True)
+        finally:
+            system_update.write_status = write
+        self.assertEqual(code, 0)
+        self.assertEqual([c[-1] for c in calls], ["update", "upgrade"])
+        self.assertIn("--with-new-pkgs", calls[1])
+        self.assertTrue(all(c[0] == "apt-get" for c in calls))
+        self.assertIn({"run": 5, "state": "running", "phase": "installing", "percent": 55.0,
+                       "detail": "Installing bash"}, seen)
+        final = __import__("json").loads(status.read_text())
+        self.assertEqual((final["run"], final["state"], final["percent"], final["reboot_needed"]), (5, "done", 100.0, True))
+        self.assertEqual(oct(status.stat().st_mode & 0o777), "0o644")  # BMO reads it as the account
+        FakeApt.broken = True
+        self.assertEqual(system_update.main(status, tmp / "log", popen=FakeApt, reboot=lambda: False), 1)
+        failed = __import__("json").loads(status.read_text())
+        self.assertEqual((failed["run"], failed["state"], failed["error"]),
+                         (6, "failed", "E: Could not get lock /var/lib/dpkg/lock-frontend"))
 
 
 if __name__ == "__main__":
