@@ -236,6 +236,13 @@ class SetupTests(unittest.TestCase):
         self.assertEqual(self.ran, ["internet", "downloads", "microphone", "voice"])
         self.assertEqual(self.status()["first_start"], SKIPPED)
 
+    def test_it_names_only_the_steps_left_for_the_person(self):
+        self.state.begin(("internet", "downloads", "screen"))
+        io = FakeIO(keys=["enter"])
+        fb.Setup(self.state, io, steps=self.steps()).run("before_listening")
+        self.assertIn("My brains are all here. The last part needs you for a couple of minutes: the screen. "
+                      "Press Enter when you're ready.", io.said)
+
     def test_nothing_waits_for_the_person_when_their_steps_are_done(self):
         self.state.begin(("internet", "downloads"))
         io = FakeIO()  # no keys: it must not ask for Enter

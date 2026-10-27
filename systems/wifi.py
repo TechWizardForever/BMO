@@ -59,6 +59,22 @@ class Wifi:
                 return fields[0]
         return None
 
+    def link(self) -> str | None:
+        """What the PC is online through, for the install screen: "cable" (it wins when both are up, as the
+        system's routes do), the Wi-Fi network's name, or None."""
+        if not self._which("nmcli"):
+            return None
+        done = self._nmcli("-t", "-f", "TYPE,STATE,CONNECTION", "device", timeout=10)
+        cable = wifi = None
+        for line in done.stdout.splitlines():
+            fields = _split(line)
+            if len(fields) >= 3 and fields[1] == "connected":
+                if fields[0] == "ethernet":
+                    cable = "cable"
+                elif fields[0] == "wifi":
+                    wifi = fields[2]
+        return cable or wifi
+
     def connected(self, device: str) -> bool:
         done = self._nmcli("-t", "-f", "DEVICE,STATE", "device")
         return any(_split(line)[:2] == [device, "connected"] for line in done.stdout.splitlines())

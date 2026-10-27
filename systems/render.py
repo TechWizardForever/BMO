@@ -1,4 +1,5 @@
 import math
+from pathlib import Path
 import random as rand
 import time
 
@@ -7,6 +8,20 @@ import pygame
 import config
 from systems.chat import State
 from systems import runner_game as runner
+
+
+def ui_font(size, bold=False):
+    """The lettering on BMO's own screens (setup, brain swap, parts, calibration, text mode): config.UI_FONT,
+    a font file in BMO's assets or the first of a list of installed fonts' names, at config.UI_FONT_SCALE
+    (pixel fonts run larger or smaller than ordinary ones)."""
+    name = str(getattr(config, "UI_FONT", "DejaVu Sans"))
+    size = max(6, int(round(size * float(getattr(config, "UI_FONT_SCALE", 1.0)))))
+    if name.lower().endswith((".ttf", ".otf")):
+        path = Path(name) if Path(name).is_absolute() else Path(__file__).resolve().parents[1] / name
+        if path.is_file():
+            return pygame.font.Font(str(path), size)  # no made-up bold on a pixel font
+        name = "DejaVu Sans"
+    return pygame.font.SysFont(name, size, bold=bold)
 
 
 class FaceRenderer:
@@ -23,8 +38,8 @@ class FaceRenderer:
         self.LEVER_FLIP = pygame.mixer.Sound("./lever_flip.mp3")
         self.LEVER_FLIP_BACK = pygame.mixer.Sound("./lever_flip_back.mp3")
         self.COMIC_SANS = pygame.font.SysFont("Comic Sans MS", 30)
-        self.SMALL_FONT = pygame.font.SysFont("DejaVu Sans Mono", 18)
-        self.MEDIUM_FONT = pygame.font.SysFont("DejaVu Sans Mono", 26, bold=True)
+        self.SMALL_FONT = ui_font(18)
+        self.MEDIUM_FONT = ui_font(26, bold=True)
         self.BACKGROUND_COLOR = tuple(getattr(config, "FACE_BACKGROUND_COLOR", (163, 230, 202)))
 
         # ------------------------------------------------------------------
@@ -547,15 +562,8 @@ class FaceRenderer:
         if generation != self._seen_switch_generation:
             self._reset_switch_game(generation, now)
 
-        screen.fill((2, 10, 11))
         # Slowly moving grid / scan motif so the loading page itself is not static.
-        grid = max(28, int(min(w, h) * 0.055))
-        offset_x = int((now * 23) % grid)
-        offset_y = int((now * 11) % grid)
-        for x in range(-grid + offset_x, w + grid, grid):
-            pygame.draw.line(screen, (5, 34, 34), (x, 0), (x, h), 1)
-        for y in range(-grid + offset_y, h + grid, grid):
-            pygame.draw.line(screen, (5, 28, 29), (0, y), (w, y), 1)
+        self._green_grid(now, speed=1.0)
 
         drift = int(math.sin(now * 1.15) * 7)
         title = self.MEDIUM_FONT.render("BMO MODEL SWAP", True, (108, 245, 206))
@@ -601,6 +609,20 @@ class FaceRenderer:
             return
         self._render_runner(now, drift)
 
+    GRID_BACKGROUND = (3, 14, 6)  # the green grid behind the brain-swap and setup screens (2026-10-27)
+
+    def _green_grid(self, now, speed=1.0):
+        screen = self._app._screen
+        w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
+        screen.fill(self.GRID_BACKGROUND)
+        grid = max(28, int(min(w, h) * 0.055))
+        offset_x = int((now * 23 * speed) % grid)
+        offset_y = int((now * 11 * speed) % grid)
+        for x in range(-grid + offset_x, w + grid, grid):
+            pygame.draw.line(screen, (10, 56, 22), (x, 0), (x, h), 1)
+        for y in range(-grid + offset_y, h + grid, grid):
+            pygame.draw.line(screen, (9, 48, 19), (0, y), (w, y), 1)
+
     def _render_runner(self, now, drift):
         """The runner game in the lower part of the brain-swap screen (systems/runner_game.py)."""
         screen = self._app._screen
@@ -613,14 +635,14 @@ class FaceRenderer:
         game.update(now - self._game_last_update)
         self._game_last_update = now
 
-        pygame.draw.rect(screen, (13, 50, 48), play, width=2, border_radius=10)
+        pygame.draw.rect(screen, (24, 92, 44), play, width=2, border_radius=10)
         clip = screen.get_clip()
         screen.set_clip(play.inflate(-4, -4))
         # Far-off specks drift slower than the ground (a bit of depth), then the ground itself.
         for i in range(18):
             x = play.left + (i * 0.53 * unit - game.distance * unit * 0.3) % play.width
             y = play.top + play.height * (0.18 + 0.4 * ((i * 37) % 11) / 11)
-            pygame.draw.rect(screen, (24, 74, 70), pygame.Rect(int(x), int(y), 3, 3))
+            pygame.draw.rect(screen, (34, 104, 56), pygame.Rect(int(x), int(y), 3, 3))
         pygame.draw.line(screen, (70, 190, 165), (play.left, ground_y), (play.right, ground_y), 2)
         dash = max(6, int(unit * 0.05))
         offset = int(game.distance * unit) % (dash * 3)
@@ -718,9 +740,9 @@ class FaceRenderer:
     def _setup_fonts(self, h):
         cache = getattr(self, "_setup_font_cache", None)
         if not cache or cache[0] != h:
-            cache = (h, pygame.font.SysFont("DejaVu Sans Mono", max(16, h // 20), bold=True),
-                     pygame.font.SysFont("DejaVu Sans Mono", max(11, h // 34)),
-                     pygame.font.SysFont("DejaVu Sans Mono", max(10, h // 42)))
+            cache = (h, ui_font(max(16, h // 20), bold=True),
+                     ui_font(max(11, h // 34)),
+                     ui_font(max(10, h // 42)))
             self._setup_font_cache = cache
         return cache[1:]
 
@@ -754,11 +776,11 @@ class FaceRenderer:
         screen = self._app._screen
         w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
         title_font, row_font, small_font = self._setup_fonts(h)
-        screen.fill((2, 10, 11))
+        self._green_grid(now, speed=0.25)  # slower here: it's up for an hour or more
         # The white frame the screen step asks about; otherwise a quiet one.
         framed = bool(setup.get("frame"))
         thick = max(2, h // 160) * (3 if framed else 1)
-        pygame.draw.rect(screen, (255, 255, 255) if framed else (30, 86, 80), pygame.Rect(0, 0, w, h), width=thick)
+        pygame.draw.rect(screen, (255, 255, 255) if framed else (28, 96, 44), pygame.Rect(0, 0, w, h), width=thick)
         if framed:  # heavier corners, so a cut-off one is easy to spot
             arm, heavy = int(min(w, h) * 0.08), thick * 2
             for x, y in ((0, 0), (w - arm, 0), (0, h - heavy), (w - arm, h - heavy)):
@@ -794,7 +816,7 @@ class FaceRenderer:
             progress = row.get("progress")
             if status == "running":
                 track = pygame.Rect(mini_left, y + int(row_h * 0.3), mini_right - mini_left, max(4, int(row_h * 0.4)))
-                pygame.draw.rect(screen, (12, 48, 48), track)
+                pygame.draw.rect(screen, (10, 44, 20), track)
                 if progress is None:  # no real number to show: a block slides along
                     block_w = max(6, track.width // 5)
                     x = track.left + int((track.width - block_w) * (0.5 + 0.5 * math.sin(now * 2.2)))
@@ -828,14 +850,14 @@ class FaceRenderer:
             line_h = row_font.get_linesize()
             panel = pygame.Rect(0, 0, int(w * 0.78), line_h * (len(wrapped) + 2) + 24)
             panel.center = (w // 2 + dx, (rows_top + rows_bottom) // 2 + dy)
-            pygame.draw.rect(screen, (4, 22, 22), panel)
+            pygame.draw.rect(screen, (4, 24, 10), panel)
             pygame.draw.rect(screen, (255, 190, 90) if setup.get("problems") else (108, 245, 206), panel, width=2)
             surface = row_font.render(heading, True, (255, 226, 140))
             screen.blit(surface, (panel.left + 16, panel.top + 10))
             y = panel.top + 10 + int(line_h * 1.5)
             for line, item in wrapped:
                 if item == selected:
-                    pygame.draw.rect(screen, (20, 90, 80), pygame.Rect(panel.left + 8, y - 1, panel.width - 16, line_h))
+                    pygame.draw.rect(screen, (20, 84, 40), pygame.Rect(panel.left + 8, y - 1, panel.width - 16, line_h))
                 surface = row_font.render(line, True, (235, 255, 248) if item == selected else (205, 236, 228))
                 screen.blit(surface, (panel.left + 16, y))
                 y += line_h
@@ -878,8 +900,8 @@ class FaceRenderer:
         rows = math.ceil(len(kinds) / cols)
         cache = getattr(self, "_parts_fonts", None)
         if not cache or cache[0] != w:
-            cache = (w, pygame.font.SysFont("DejaVu Sans Mono", max(18, w // 30), bold=True),
-                     pygame.font.SysFont("DejaVu Sans Mono", max(11, w // 70)))
+            cache = (w, ui_font(max(18, w // 30), bold=True),
+                     ui_font(max(11, w // 70)))
             self._parts_fonts = cache
         title_font, label_font = cache[1], cache[2]
         top, bottom = int(h * 0.11), int(h * 0.07)
@@ -943,8 +965,8 @@ class FaceRenderer:
             pygame.draw.polygon(screen, white, [(cx, cy), (cx + dx * size, cy), (cx, cy + dy * size)])
         cache = getattr(self, "_calibration_fonts", None)
         if not cache or cache[0] != w:  # text sized to the screen: 640x480 CRTs too
-            cache = (w, pygame.font.SysFont("DejaVu Sans Mono", max(18, w // 32), bold=True),
-                     pygame.font.SysFont("DejaVu Sans Mono", max(14, w // 44)))
+            cache = (w, ui_font(max(18, w // 32), bold=True),
+                     ui_font(max(14, w // 44)))
             try:
                 self._calibration_fonts = cache
             except AttributeError:

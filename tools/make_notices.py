@@ -35,6 +35,12 @@ name and look belong to them.
 | openWakeWord and its feature models | dscripka/openWakeWord | Apache-2.0 |
 | BMO's "Hey BMO" detector (`assets/wakeword/hey_bmo.onnx`) | trained for this project with openWakeWord from synthetic voices; the training data includes ACAV100M features | CC BY-NC-SA 4.0 (non-commercial, credit, same licence for changes) |
 
+## Lettering
+
+| Part | Where it comes from | Licence |
+|---|---|---|
+| Silkscreen pixel font (`assets/fonts/Silkscreen-Regular.ttf`), on BMO's setup, brain-swap and calibration screens | The Silkscreen Project Authors, via Google Fonts | SIL Open Font License 1.1 (`assets/fonts/Silkscreen-OFL.txt`) |
+
 ## Python packages (exact versions from installer/requirements.lock)
 
 | Package | Version | Licence (from the package's metadata) |

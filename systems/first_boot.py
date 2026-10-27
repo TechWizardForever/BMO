@@ -303,7 +303,8 @@ class InternetStep:
     def run(self, io) -> StepResult:
         practice = bool(self.options.get("practice_wifi"))  # the Wi-Fi part on a PC that is online already
         if not practice and io.online():
-            return StepResult(DONE, {"online": True, "how": "already"})
+            link = io.wifi.link()
+            return StepResult(DONE, dict({"online": True, "how": "already"}, **({"link": link} if link else {})))
         return self.wait(io, practice=practice)
 
     def wait(self, io, *, lost=False, practice=False) -> StepResult:
@@ -632,8 +633,7 @@ GREETING = "Hi! I'm BMO. Let's get me set up. I'll show you each step on the scr
 FINISHED = "That's the setup done!"
 LABELS = {"internet": "the internet", "updates": "the Linux updates", "downloads": "my downloads", "microphone": "the microphone",
           "voice": "learning your voice", "screen": "the screen"}
-READY_LINE = ("The last part needs you for a couple of minutes: the microphone, your voice and the screen. "
-              "Press Enter when you're ready.")
+PERSON_WORDS = {"microphone": "the microphone", "voice": "your voice", "screen": "the screen"}
 REMIND_SECONDS = 20 * 60
 RETRY_DOWNLOADS_SECONDS = 10 * 60
 
@@ -676,7 +676,8 @@ def describe(name: str, outcome: StepResult) -> str:
     """The row's short note once a step has run."""
     result = outcome.result or {}
     if name == "internet":
-        return result.get("ssid") or {"cable": "cable", "already": "connected"}.get(result.get("how"), "connected")
+        return (result.get("ssid") or result.get("link")
+                or {"cable": "cable", "already": "connected"}.get(result.get("how"), "connected"))
     if name == "updates":
         if outcome.status == SKIPPED:
             return "skipped for now" if result.get("skipped") else "you do these yourself"
@@ -797,8 +798,10 @@ class Setup:
 
     def _wait_for_person(self) -> None:
         downloads_left = self._status("downloads") == FAILED
+        left = [PERSON_WORDS[n] for n in PERSON_STEPS if self._status(n) in (PENDING, FAILED)]
         line = ("Some of my downloads need another go; I'll come back to them. " if downloads_left
-                else "My brains are all here. ") + READY_LINE
+                else "My brains are all here. ") + \
+            f"The last part needs you for a couple of minutes: {_join(left)}. Press Enter when you're ready."
         self.view.message("Ready for the last part? It needs you for a couple of minutes.",
                           "Press Enter when you're ready")
         self.io.say(line)

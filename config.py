@@ -445,6 +445,10 @@ MODEL_SWITCH_RETRO_PROGRESS_BLOCKS = 18
 MODEL_SWITCH_RETRO_PROGRESS_LIT_BLOCKS = 5
 MODEL_SWITCH_RETRO_PROGRESS_STEP_SECONDS = 0.11
 ENABLE_MODEL_SWITCH_MINIGAME = True  # the runner game (systems/runner_game.py)
+# BMO's own screens' lettering (systems/render.py ui_font): Silkscreen, a pixel font that ships in assets/fonts
+# (SIL Open Font License, 2026-10-27). It runs a little large, hence the scale.
+UI_FONT = "assets/fonts/Silkscreen-Regular.ttf"
+UI_FONT_SCALE = 0.85
 RUNNER_SCORES_PATH = DATA_ROOT / "runner-game.json"  # its best score and level
 
 # Lip-sync sampling. The original sprite-driven animation structure is preserved.

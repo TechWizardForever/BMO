@@ -17,8 +17,10 @@ LIST = "HomeNet:82:WPA2\nCafe\\:Guest:40:\n:30:WPA2\nHomeNet:60:WPA2\nNeighbour 
 
 class FakeNmcli:
     """Answers nmcli like NetworkManager would; connect results come from a list."""
-    def __init__(self, connects=((0, ""),), devices="enp1s0:ethernet\nwlp3s0:wifi\n", applet=True):
+    def __init__(self, connects=((0, ""),), devices="enp1s0:ethernet\nwlp3s0:wifi\n", applet=True,
+                 links="ethernet:connected:Wired connection 1\nwifi:connected:HomeNet\nloopback:connected (externally):lo\n"):
         self.connects, self.devices, self.applet, self.calls = list(connects), devices, applet, []
+        self.links = links
 
     def __call__(self, argv, **kwargs):
         self.calls.append(argv)
@@ -27,6 +29,8 @@ class FakeNmcli:
             code = 0 if self.applet else 1
         elif argv[-1] == "device" and "DEVICE,TYPE" in argv:
             out = self.devices
+        elif argv[-1] == "device" and "TYPE,STATE,CONNECTION" in argv:
+            out = self.links
         elif argv[-1] == "device":
             out = "wlp3s0:connected\n"
         elif "list" in argv:
@@ -115,10 +119,14 @@ class WifiToolTests(unittest.TestCase):
 
 
 class InternetStepTests(unittest.TestCase):
-    def test_already_online_needs_nothing(self):
+    def test_already_online_needs_nothing_and_says_which_link(self):
         io = StepIO(FakeNmcli(), online=(True,))
-        self.assertEqual(step().run(io).result, {"online": True, "how": "already"})
+        outcome = step().run(io)
+        self.assertEqual(outcome.result, {"online": True, "how": "already", "link": "cable"})  # the cable wins
+        self.assertEqual(fb.describe("internet", outcome), "cable")
         self.assertEqual(io.said, [])
+        wifi_only = StepIO(FakeNmcli(links="ethernet:unavailable:\nwifi:connected:Cafe\\:Guest\n"), online=(True,))
+        self.assertEqual(fb.describe("internet", step().run(wifi_only)), "Cafe:Guest")
 
     def test_wifi_picked_with_the_arrow_keys_then_the_password_window(self):
         io = StepIO(FakeNmcli(), keys=["down", "enter"])
