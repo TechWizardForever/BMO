@@ -181,21 +181,38 @@ class UpdateTests(unittest.TestCase):
         self.assertIn("didn't work, because the new version failed its self-test", updater.mark_ready())
         self.assertIsNone(updater.mark_ready())  # said once
 
-    def test_the_supervisor_puts_back_a_crashing_or_slow_version(self):
+    def test_the_supervisor_puts_back_a_crashing_version(self):
         before = self.head()
+        self.release("1.1.0")
+        updater = self.updater()
+        updater.install(updater.check().update)
+        self.assertTrue(updater.roll_back_after_crash())
+        self.assertEqual(self.head(), before)
+        self.assertFalse(updater.roll_back_after_crash())  # nothing left to undo
+        self.assertIn("crashed", updater.mark_ready())
+        self.release("1.2.0")
+        updater.install(updater.check().update)
+        updater.mark_started()
+        self.assertTrue(updater.roll_back_after_crash())  # a crash in the setup still counts
+        self.assertEqual(self.head(), before)
+
+    def test_a_long_setup_never_undoes_an_update(self):
+        # Owner 2026-10-27: give it all the time it needs. The other PC's setup (downloads, Enter, the screen)
+        # comes before "ready", and its 1.30 Supervisor puts back a version still "verifying" after 15 minutes.
+        def old_supervisor_rolls_back(updater):  # what 1.31.0 and before check every 30 s while BMO runs
+            record = updater.state()
+            return record.get("status") == "verifying" and updater.clock() - record["started_at"] > 15 * 60
         self.release("1.1.0")
         now = [1000.0]
         updater = self.updater(clock=lambda: now[0])
         updater.install(updater.check().update)
-        self.assertFalse(updater.roll_back_if_unhealthy(crashed=False))  # still within 15 minutes
-        now[0] += up.VERIFY_SECONDS + 1
-        self.assertTrue(updater.roll_back_if_unhealthy(crashed=False))
-        self.assertEqual(self.head(), before)
-        self.assertFalse(updater.roll_back_if_unhealthy(crashed=True))  # nothing left to undo
-        self.release("1.2.0")
-        updater.install(updater.check().update)
-        self.assertTrue(updater.roll_back_if_unhealthy(crashed=True))
-        self.assertIn("crashed", updater.mark_ready())
+        updater.mark_started()  # the new version is up and showing the setup screen
+        now[0] += 10 * 3600
+        self.assertFalse(old_supervisor_rolls_back(updater))
+        self.assertEqual(updater.state()["status"], up.STARTED)
+        self.assertEqual(updater.mark_ready(), "I'm updated to version 1.1.0.")
+        updater.mark_started()  # a later start leaves a finished update alone
+        self.assertEqual(updater.state()["status"], up.OK)
 
     def test_only_three_backups_are_kept(self):
         updater = self.updater()
@@ -217,9 +234,11 @@ class WordsTests(unittest.TestCase):
         self.assertIn("if self._handle_update_command(command):", chat)
         self.assertIn('tag="UPDATE"', chat)  # installing needs "Hey BMO, yes"
         self.assertIn("self._announce_update_result()", chat)
+        run = chat[chat.index("    def run(self):"):]
+        self.assertLess(run.index("self._update_started()"), run.index("self._first_boot()"))
         sup = (ROOT / "supervisor.py").read_text()
-        self.assertIn("_update_rolled_back(crashed=True)", sup)
-        self.assertIn("_update_rolled_back(crashed=False)", sup)
+        self.assertIn("if _update_rolled_back():", sup)  # after a crash
+        self.assertNotIn("crashed=False", sup)  # no time limit
 
 
 if __name__ == "__main__":

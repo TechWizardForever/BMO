@@ -811,6 +811,14 @@ class Chat:
         except Exception:
             logger.exception("Could not read the download progress")
 
+    def _update_started(self):
+        """A just-installed version got this far: from here only a crash undoes it, however long the setup takes."""
+        try:
+            from systems.updates import default_updater
+            default_updater().mark_started()
+        except Exception:
+            logger.exception("Could not read the update state")
+
     def _announce_update_result(self):
         """Installer plan I5: confirm a just-installed update now that BMO is ready, or say it was undone."""
         try:
@@ -1239,6 +1247,7 @@ class Chat:
     def run(self):
         try:
             self.state = State.THINKING
+            self._update_started()
             self._first_boot()  # the install screen goes up before anything loads
             self._load_models()
 

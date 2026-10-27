@@ -1103,13 +1103,13 @@ def _hand_over_to_running_supervisor(*, standby: bool, socket_path=None, wait=ti
     return True
 
 
-def _update_rolled_back(*, crashed: bool) -> bool:
-    """Installer plan I5: a just-installed update that crashes, or isn't ready in time, is put back."""
+def _update_rolled_back() -> bool:
+    """Installer plan I5: a just-installed update that crashes before it is ready is put back. No time limit
+    (owner 2026-10-27): the first start can sit in the setup screen for hours."""
     try:
         from systems.updates import default_updater
-        if default_updater().roll_back_if_unhealthy(crashed=crashed):
-            LOG.warning("The new version %s; went back to the previous version.",
-                        "crashed" if crashed else "did not get ready in time")
+        if default_updater().roll_back_after_crash():
+            LOG.warning("The new version crashed; went back to the previous version.")
             return True
     except Exception:
         LOG.exception("Could not check the update state")
@@ -1211,7 +1211,6 @@ def run_supervised(command: list[str], *, standby: bool = False) -> int:
 
     restarts = 0
     child_started = time.monotonic()
-    last_update_check = 0.0
     child: subprocess.Popen | None = None
     exit_code = 0
 
@@ -1277,14 +1276,6 @@ def run_supervised(command: list[str], *, standby: bool = False) -> int:
 
             code = child.poll()
             if code is None:
-                if time.monotonic() - last_update_check > 30:
-                    last_update_check = time.monotonic()
-                    if _update_rolled_back(crashed=False):
-                        _terminate_child(child)
-                        child = _launch_bemo_child(command, woke_from_standby=False)
-                        child_started = time.monotonic()
-                        service.set_bemo_pid(child.pid)
-                        continue
                 time.sleep(0.2)
                 continue
 
@@ -1298,7 +1289,7 @@ def run_supervised(command: list[str], *, standby: bool = False) -> int:
                 restarts = 0
                 continue
 
-            if _update_rolled_back(crashed=True):
+            if _update_rolled_back():
                 child = _launch_bemo_child(command, woke_from_standby=False)
                 child_started = time.monotonic()
                 service.set_bemo_pid(child.pid)

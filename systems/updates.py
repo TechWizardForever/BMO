@@ -11,8 +11,9 @@ checkout and the start-at-login service never moves):
   2. a small backup of BMO's data (~/.bemo/update-backups, the last three are kept);
   3. check out the tag; install the package list again only if it changed;
   4. run the self-test; if it fails, go back at once;
-  5. restart BMO. If the new version crashes before it is ready, or isn't ready within 15 minutes, the
-     Supervisor goes back to the previous version and says so.
+  5. restart BMO. If the new version crashes before it is ready, the Supervisor goes back to the previous
+     version and says so. There's no time limit: the first start can sit in the setup screen for hours
+     (owner 2026-10-27: give it all the time it needs).
 State: ~/.bemo/install/update.json.
 """
 from __future__ import annotations
@@ -29,11 +30,10 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
-VERIFY_SECONDS = 15 * 60
 KEEP_BACKUPS = 3
 BACKUP_SKIP = {"models", "wine-screensavers", "screensavers", "games", "install-cache", "runtime", "logs",
                "update-backups", "source-upgrade-backups"}
-VERIFYING, OK, ROLLED_BACK, FAILED = "verifying", "ok", "rolled_back", "failed"
+VERIFYING, STARTED, OK, ROLLED_BACK, FAILED = "verifying", "started", "ok", "rolled_back", "failed"
 
 
 def version_of(text: str) -> tuple[int, ...] | None:
@@ -199,15 +199,20 @@ class Updater:
         self.save(record)
         return True
 
-    def roll_back_if_unhealthy(self, *, crashed: bool) -> bool:
-        """For the Supervisor: a new version that crashed, or isn't ready in time, is put back."""
+    def mark_started(self) -> None:
+        """The new version is up. Supervisors from 1.31.0 and before put back a version still "verifying"
+        after 15 minutes, which a setup with downloads easily takes, so the status moves on now."""
         record = self.state()
-        if record.get("status") != VERIFYING:
+        if record.get("status") == VERIFYING:
+            record.update(status=STARTED, up_at=self.clock())
+            self.save(record)
+
+    def roll_back_after_crash(self) -> bool:
+        """For the Supervisor: a new version that crashed before it was ready is put back."""
+        record = self.state()
+        if record.get("status") not in (VERIFYING, STARTED):
             return False
-        too_slow = self.clock() - float(record.get("started_at", 0)) > VERIFY_SECONDS
-        if crashed or too_slow:
-            return self.roll_back(record, "the new version crashed" if crashed else "the new version didn't get ready")
-        return False
+        return self.roll_back(record, "the new version crashed")
 
     def missing_system_packages(self) -> list[str]:
         """Linux packages in this version's list (installer/apt-packages.txt) that the PC doesn't have. An update
@@ -229,7 +234,7 @@ class Updater:
     def mark_ready(self) -> str | None:
         """BMO reached "ready": confirm a verifying update, or report a switch-back once. The sentence to say."""
         record = self.state()
-        if record.get("status") == VERIFYING:
+        if record.get("status") in (VERIFYING, STARTED):
             record.update(status=OK, ready_at=self.clock())
             missing = self.missing_system_packages()
             record["missing_packages"] = missing
