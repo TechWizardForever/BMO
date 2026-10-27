@@ -1,9 +1,12 @@
 import re
+import http.client
 import json
 import os
 import queue
+import socket
 import threading
 import time
+from urllib.parse import urlparse
 from enum import Enum
 from pathlib import Path
 
@@ -1187,15 +1190,33 @@ class Chat:
         if tools:
             kwargs["tools"] = tools
         if background:
+            # A plain connection whose socket a brain swap can shut (_stop_background_warmup): closing an
+            # Ollama client from another thread doesn't reach the socket, and the request ran on (2026-10-27).
+            warmup = {"model": kwargs["model"], "conn": None, "stopped": False}
+            self._background_warmup = warmup
+
             def _warm():
                 try:
-                    response = ollama.chat(**kwargs)
+                    from ollama._client import _parse_host  # the host the ollama library itself would use
+                    host = urlparse(_parse_host(os.getenv("OLLAMA_HOST")))
+                    conn = http.client.HTTPConnection(host.hostname or "127.0.0.1", host.port or 11434, timeout=900)
+                    warmup["conn"] = conn
+                    if warmup["stopped"]:
+                        return
+                    conn.request("POST", "/api/chat", body=json.dumps(kwargs, default=str),
+                                 headers={"Content-Type": "application/json"})
+                    response = json.loads(conn.getresponse().read() or b"{}")
                     logger.info("LATENCY background prompt warmup {} prefill={:.2f}s prompt_tokens={}",
-                                kwargs["model"],
-                                float(getattr(response, "prompt_eval_duration", 0) or 0) / 1e9,
-                                int(getattr(response, "prompt_eval_count", 0) or 0))
+                                kwargs["model"], float(response.get("prompt_eval_duration") or 0) / 1e9,
+                                int(response.get("prompt_eval_count") or 0))
                 except Exception:
-                    logger.warning("Background prompt warmup failed for {}", kwargs["model"])
+                    if not warmup["stopped"]:
+                        logger.warning("Background prompt warmup failed for {}", kwargs["model"])
+                finally:
+                    if warmup["conn"] is not None:
+                        warmup["conn"].close()
+                    if getattr(self, "_background_warmup", None) is warmup:
+                        self._background_warmup = None
             threading.Thread(target=_warm, name="bemo-prompt-warmup", daemon=True).start()
             return
         warm_response = ollama.chat(**kwargs)
@@ -2186,6 +2207,24 @@ class Chat:
                 return self.project_manager.active_slug
         return selected
 
+    def _stop_background_warmup(self, keep_model=None):
+        """A brain swap: stop the old brain's background warm-up. Closing its connection makes Ollama drop the
+        request; left running, the swap waited for it (live 2026-10-27: back to Main took 50 s, not 38, behind
+        Coding's 51 s warm-up). True when one was stopped."""
+        warmup = getattr(self, "_background_warmup", None)
+        if not warmup or warmup["model"] == keep_model:
+            return False
+        warmup["stopped"] = True
+        self._background_warmup = None
+        sock = getattr(warmup.get("conn"), "sock", None)
+        if sock is not None:
+            try:
+                sock.shutdown(socket.SHUT_RDWR)  # its wait ends at once, and Ollama drops the request
+            except OSError:
+                pass
+        logger.info("Stopped the background warm-up of {} for a brain swap", warmup["model"])
+        return True
+
     def _supervisor_switch_model(self, model_name, *, preload=None, keep_alive=None):
         """Ask the parent supervisor to make one Bemo brain resident.
 
@@ -2524,6 +2563,7 @@ class Chat:
             config.MODEL_PROFILES.get(old_profile, {}).get("route_label") or old_profile
         )
         target_label = str(target.get("route_label") or profile_name)
+        self._stop_background_warmup(keep_model=target_model)
         self._begin_model_switch_visual(old_label, target_label)
         switch_ok = False
         try:

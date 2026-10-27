@@ -15,7 +15,7 @@ from systems.voice import prepare_spoken_text
 chat_source=(BASE/'systems/chat.py').read_text()
 chat_tree=ast.parse(chat_source)
 chat_cls=next(n for n in chat_tree.body if isinstance(n,ast.ClassDef) and n.name=='Chat')
-method_names={'_profile_spoken_name','_confirm_specialist_switch','_confirm_by_voice','_switch_profile','_return_to_main_after_specialist','_extract_switch_target','_match_profile_name','_normalize_command_text'}
+method_names={'_stop_background_warmup','_profile_spoken_name','_confirm_specialist_switch','_confirm_by_voice','_switch_profile','_return_to_main_after_specialist','_extract_switch_target','_match_profile_name','_normalize_command_text'}
 methods=[n for n in chat_cls.body if isinstance(n,ast.FunctionDef) and n.name in method_names]
 mini=ast.ClassDef(name='ChatMini',bases=[],keywords=[],body=methods,decorator_list=[])
 

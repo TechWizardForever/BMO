@@ -216,7 +216,7 @@ class AutotuneTests(unittest.TestCase):
 # --- Approval and pinning, using the real Chat methods ----------------------
 _CHAT = next(n for n in ast.parse(_SRC).body if isinstance(n, ast.ClassDef) and n.name == "Chat")
 _NAMES = {"_profile_spoken_name", "_confirm_specialist_switch", "_confirm_by_voice", "_switch_profile",
-          "_return_to_main_after_specialist", "_normalize_command_text"}
+          "_return_to_main_after_specialist", "_normalize_command_text", "_stop_background_warmup"}
 _MINI = ast.ClassDef(name="ChatMini", bases=[], keywords=[], decorator_list=[],
                      body=[n for n in _CHAT.body if isinstance(n, ast.FunctionDef) and n.name in _NAMES])
 
