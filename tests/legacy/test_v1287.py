@@ -120,7 +120,7 @@ class TestTurns(unittest.TestCase):
         return obj
 
     def test_version_and_main_prompt(self):
-        self.assertRegex(config.APP_VERSION, r'v1\.(?:28|29|30)\.\d')
+        self.assertRegex(config.APP_VERSION, r'v1\.(?:28|29|30|31)\.\d')
         prompt=config.MODEL_PROFILES['normal']['system_prompt']
         # v1.28.8 adds the shared grounding rule (no camera/GPS/weather/sensors).
         self.assertLess(len(prompt),2200)  # v1.28.42: + detected capability line (~200 chars)

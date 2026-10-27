@@ -57,7 +57,7 @@ MEMORY_BACKUP_DIR = DATA_ROOT / "memory" / "backups"
 PERSONAL_NOTES_PATH = DATA_ROOT / "memory" / "notes.json"
 PROJECTS_ROOT = DATA_ROOT / "projects"
 TASKS_ROOT = DATA_ROOT / "tasks"
-APP_VERSION = "supervisor-v1.30.0-timers-memory-and-fixes"
+APP_VERSION = "supervisor-v1.31.0-install-screen-and-runner-game"
 
 # Raw messages stay indefinitely on disk. New sessions start with an empty
 # live prompt. Historical summary and archive hits are retrieved on recall.

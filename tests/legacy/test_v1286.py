@@ -26,7 +26,7 @@ MiniChat = ns['MiniChat']
 
 class V1286Tests(unittest.TestCase):
     def test_version(self):
-        self.assertRegex(config.APP_VERSION, r'v1\.(?:28|29|30)\.\d')
+        self.assertRegex(config.APP_VERSION, r'v1\.(?:28|29|30|31)\.\d')
 
     def test_main_identity_and_model_awareness_are_compact(self):
         prompt = config.MODEL_PROFILES['normal']['system_prompt']
