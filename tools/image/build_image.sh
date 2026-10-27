@@ -166,6 +166,19 @@ if ! stage_done inside; then
   mark_done inside
 fi
 
+# The install screen's Linux updates step (2026-10-25): root's own copy of the helper, a service that runs only
+# it, and a polkit rule that lets the person at the computer start that one service. Copied on every build, not
+# in the long in-image step above, so a code refresh picks up a change to them too (found 2026-10-27).
+system_file() {  # mode, file in BMO's code, where it goes in the image
+  if ! cmp -s "$ROOTFS/opt/bemo/$2" "$ROOTFS$3"; then
+    install -D -m "$1" -o root -g root "$ROOTFS/opt/bemo/$2" "$ROOTFS$3"
+    rm -f "$(done_marker squash)" "$(done_marker iso)"
+  fi
+}
+system_file 755 tools/image/system_update.py /usr/local/lib/bemo/system_update.py
+system_file 644 tools/image/bemo-system-update.service /etc/systemd/system/bemo-system-update.service
+system_file 644 tools/image/bemo-system-update.rules /etc/polkit-1/rules.d/50-bemo-system-update.rules
+
 # Nothing that isn't ours to share goes out: no Windows screensavers (BMO fetches them on the installed PC), no
 # games, no videos (2026-10-24). Images built before then had the screensaver pack in the seed; it goes here.
 for leftover in "$ROOTFS/opt/bemo-seed/.bemo/screensavers" "$ROOTFS/opt/bemo-seed/.bemo/install-cache"; do

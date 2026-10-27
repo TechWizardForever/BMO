@@ -74,13 +74,6 @@ export HOME=/root
 step "First start of the installed PC"
 install -m 644 tools/image/bemo-firstboot.service /etc/systemd/system/bemo-firstboot.service
 systemctl enable bemo-firstboot.service
-# The install screen's Linux updates step (2026-10-25): root's own copy of the helper, a service that runs
-# only it, and a polkit rule that lets the person at the computer start that one service.
-install -d -m 755 /usr/local/lib/bemo
-install -m 755 -o root -g root tools/image/system_update.py /usr/local/lib/bemo/system_update.py
-install -m 644 tools/image/bemo-system-update.service /etc/systemd/system/bemo-system-update.service
-install -d -m 755 /etc/polkit-1/rules.d
-install -m 644 tools/image/bemo-system-update.rules /etc/polkit-1/rules.d/50-bemo-system-update.rules
 
 step "BMO self-test"
 check_home="$(mktemp -d)"

@@ -180,10 +180,14 @@ class NothingToShareTests(unittest.TestCase):
 class LinuxUpdatesTests(unittest.TestCase):
     """2026-10-25: the install screen runs Linux's updates through a root-owned helper; the account may only
     start that one service."""
-    def test_the_helper_root_runs_is_roots_own_copy(self):
-        inside = (IMAGE / "in_chroot.sh").read_text()
-        self.assertIn("install -m 755 -o root -g root tools/image/system_update.py /usr/local/lib/bemo/system_update.py",
-                      inside)
+    def test_the_helper_root_runs_is_roots_own_copy_and_every_build_refreshes_it(self):
+        build = (IMAGE / "build_image.sh").read_text()
+        self.assertIn("system_file 755 tools/image/system_update.py /usr/local/lib/bemo/system_update.py", build)
+        self.assertIn('install -D -m "$1" -o root -g root', build)
+        # Outside the long in-image step, which a code refresh skips (2026-10-27: it would have been left out).
+        self.assertLess(build.index("mark_done inside"), build.index("system_file 755"))
+        self.assertLess(build.index("system_file 755"), build.index("mksquashfs \"$ROOTFS\""))
+        self.assertNotIn("system_update.py", (IMAGE / "in_chroot.sh").read_text())
         unit = (IMAGE / "bemo-system-update.service").read_text()
         self.assertIn("ExecStart=/usr/bin/python3 -I /usr/local/lib/bemo/system_update.py", unit)
         self.assertNotIn("/opt/bemo", unit.split("ExecStart=")[1])  # the account owns /opt/bemo
@@ -196,7 +200,7 @@ class LinuxUpdatesTests(unittest.TestCase):
                       "subject.local && subject.active", 'subject.isInGroup("sudo")'):
             self.assertIn(piece, rule)
         self.assertEqual(rule.count("polkit.Result.YES"), 1)
-        self.assertIn("/etc/polkit-1/rules.d/50-bemo-system-update.rules", (IMAGE / "in_chroot.sh").read_text())
+        self.assertIn("/etc/polkit-1/rules.d/50-bemo-system-update.rules", (IMAGE / "build_image.sh").read_text())
 
     def test_progress_lines_and_a_new_kernel(self):
         self.assertEqual(system_update.progress_from("dlstatus:3:42.5:Retrieving file 3 of 7"),
