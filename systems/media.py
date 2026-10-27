@@ -8,13 +8,21 @@ interface, with gdbus: nothing extra to install. Linux only (systems/adapters bo
 Shows: a file named "... - S02E03 - Title ..." is season 2, episode 3; "S01E02-E03" covers both. Playing an
 episode queues the rest of its season, so "next episode" moves on; the last episode played of each show is
 remembered (~/.bemo/media.json), so "play Jimmy Neutron" carries on where it left off.
+
+Where you stopped (2026-10-28): the player saves its place when it closes (mpv's watch-later files, in BMO's own
+folder), and the next "play" picks up there; "restart" / "play <title> from the beginning" starts over. While the
+player is open BMO notes which file is on (watch()), so a show carries on from the episode last watched even
+after the player moved on to the next one by itself: that episode again if it was stopped part way, else the next.
 """
 from __future__ import annotations
 
 import difflib
+import hashlib
 import json
 import re
 import subprocess
+import time
+from urllib.parse import unquote
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -112,8 +120,9 @@ def _episode_phrase(said: str) -> str:
     return said
 
 
-def find(query: str, videos: list[Video], last_played: dict | None = None) -> Video | None:
-    """The video meant by what was said after "play", or None."""
+def find(query: str, videos: list[Video], last_played: dict | None = None, resumable=None) -> Video | None:
+    """The video meant by what was said after "play", or None. resumable(path): True when that file was stopped
+    part way (a show then carries on with that episode rather than the next one)."""
     said = words(query)
     said = re.sub(r"^(?:the movie|the film|the show|an episode of|some|a bit of)\s+", "", said)
     said = _episode_phrase(said)
@@ -137,7 +146,7 @@ def find(query: str, videos: list[Video], last_played: dict | None = None) -> Vi
         return None
     if not best.show:
         return best
-    episodes = sorted((v for v in videos if v.show == best.show), key=lambda v: (v.season, v.episodes))
+    episodes = episodes_of(best.show, videos)
     if season or episode:
         want_season = _number(season.group(1)) if season else None
         want_episode = _number(episode.group(1)) if episode else 1
@@ -145,13 +154,26 @@ def find(query: str, videos: list[Video], last_played: dict | None = None) -> Vi
             if (want_season is None or video.season == want_season) and want_episode in video.episodes:
                 return video
         return None
-    last = (last_played or {}).get(best.show)
-    if last:
-        paths = [str(v.path) for v in episodes]
-        if last in paths and paths.index(last) + 1 < len(paths):
-            return episodes[paths.index(last) + 1]
+    return show_episode(episodes, last_played, resumable)
+
+
+def show_episode(episodes: list[Video], last_played: dict | None = None, resumable=None) -> Video:
+    """Where a show carries on: the episode last watched if it was stopped part way, else the one after it;
+    the first regular episode for a show not watched yet. `episodes` in order."""
+    last = (last_played or {}).get(episodes[0].show)
+    paths = [str(v.path) for v in episodes]
+    if last in paths:
+        at = paths.index(last)
+        if resumable is not None and resumable(Path(last)):
+            return episodes[at]
+        if at + 1 < len(paths):
+            return episodes[at + 1]
     regular = [v for v in episodes if v.season and v.season > 0]
     return (regular or episodes)[0]
+
+
+def episodes_of(show: str, videos: list[Video]) -> list[Video]:
+    return sorted((v for v in videos if v.show == show), key=lambda v: (v.season, v.episodes))
 
 
 def queue_for(video: Video, videos: list[Video]) -> list[Path]:
@@ -165,10 +187,11 @@ def queue_for(video: Video, videos: list[Video]) -> list[Path]:
 
 
 class Player:
-    """Celluloid through MPRIS (gdbus)."""
+    """Celluloid through MPRIS (gdbus). watch_later: the folder where the player saves its place on closing."""
 
-    def __init__(self, run=subprocess.run, popen=subprocess.Popen):
+    def __init__(self, run=subprocess.run, popen=subprocess.Popen, watch_later: Path | None = None):
         self._run, self._popen = run, popen
+        self.watch_later = Path(watch_later) if watch_later else None
 
     def _gdbus(self, *args, timeout=5):
         return self._run(["gdbus", "call", "--session", *args], capture_output=True, text=True, timeout=timeout,
@@ -188,9 +211,45 @@ class Player:
         window made BMO think a video was on), but it isn't BMO's movie."""
         return "celluloid" in (self.bus_name() or "").lower()
 
-    def play_files(self, paths: list[Path]) -> None:
-        self._popen([*PLAYER, *[str(p) for p in paths]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+    def play_files(self, paths: list[Path], from_start: bool = False) -> None:
+        command = list(PLAYER)
+        if self.watch_later:
+            self.watch_later.mkdir(parents=True, exist_ok=True)
+            command += ["--mpv-save-position-on-quit=yes", f"--mpv-watch-later-directory={self.watch_later}"]
+            if from_start:
+                command.append("--mpv-resume-playback=no")
+        self._popen([*command, *[str(p) for p in paths]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                     start_new_session=True)
+
+    def _property(self, name: str, prop: str) -> str:
+        return self._gdbus("--dest", name, "--object-path", "/org/mpris/MediaPlayer2", "--method",
+                           "org.freedesktop.DBus.Properties.Get", "org.mpris.MediaPlayer2.Player", prop).stdout or ""
+
+    def now_playing(self) -> tuple[Path, float, float | None] | None:
+        """(file, seconds in, length in seconds) of what BMO's player has on, or None."""
+        name = self.bus_name()
+        if not name or "celluloid" not in name.lower():
+            return None
+        meta = self._property(name, "Metadata")
+        url = re.search(r"'xesam:url': <'file://([^']+)'>", meta)
+        if not url:
+            return None
+        length = re.search(r"'mpris:length': <(?:int64|uint64)? ?(\d+)>", meta)
+        position = re.search(r"<(?:int64 )?(-?\d+)>", self._property(name, "Position"))
+        return (Path(unquote(url.group(1))), max(0.0, int(position.group(1)) / 1e6) if position else 0.0,
+                int(length.group(1)) / 1e6 if length else None)
+
+    def restart(self) -> bool:
+        """Back to the start of what's on (a big backwards Seek is ignored by Celluloid: tried 2026-10-28)."""
+        name = self.bus_name()
+        if not name:
+            return False
+        track = re.search(r"'mpris:trackid': <objectpath '([^']+)'>", self._property(name, "Metadata"))
+        if not track:
+            return False
+        return self._gdbus("--dest", name, "--object-path", "/org/mpris/MediaPlayer2", "--method",
+                           "org.mpris.MediaPlayer2.Player.SetPosition", f"objectpath '{track.group(1)}'",
+                           "int64 0").returncode == 0
 
     def control(self, method: str, *args: str) -> bool:
         name = self.bus_name()
@@ -241,6 +300,9 @@ class Player:
 
 _THING = r"(?:movie|video|show|episode|film|player|media player|celluloid|playback|playing|tv|cartoon)"
 _CONTROL = (
+    ("Restart", re.compile(r"^(?:restart|start over|start (?:it|this|that) over|go back to the (?:start|beginning)|"
+                           r"(?:start|play|watch) (?:it |this |that |the " + _THING + " )?(?:again )?from the "
+                           r"(?:start|beginning)|from the (?:start|beginning))(?: (?:it|this|the " + _THING + "))?$")),
     ("Pause", re.compile(r"^(?:pause|hold on|hold up|hold it)(?: (?:it|this|that|the " + _THING + "))?$")),
     ("Play", re.compile(r"^(?:resume|unpause|continue|keep (?:playing|going|watching)|go on|play|start it again)"
                         r"(?: (?:it|the " + _THING + "))?$")),
@@ -317,32 +379,123 @@ def bare_command(text: str, status: str | None) -> str | None:
     return None
 
 
-_PLAY = re.compile(r"^(?:please |can you |could you )?(?:play|watch|put on|start)\s+(?P<what>.+)$")
+_PLAY = re.compile(r"^(?:please |can you |could you )?(?:play|watch|put on|start|restart)\s+(?P<what>.+)$")
+_FROM_START = re.compile(r"\s+(?:over(?: from the (?:start|beginning))?|(?:again )?from the (?:start|beginning))$")
 
 
 def play_request(text: str) -> str | None:
     found = _PLAY.match(words(text))
-    return found.group("what") if found else None
+    return _FROM_START.sub("", found.group("what")) if found else None
+
+
+def from_start(text: str) -> bool:
+    """'restart Spirited Away' / 'play Spirited Away from the beginning' / 'start Ponyo over'."""
+    said = words(text)
+    return bool(re.match(r"^(?:please |can you |could you )?restart\s", said) or
+                (_PLAY.match(said) and _FROM_START.search(said)))
+
+
+# --- Where you stopped ---------------------------------------------------------------------------------
+
+def saved_position(path: Path, folder: Path | None) -> float | None:
+    """Seconds into `path` where the player was closed, from mpv's watch-later file (named by the MD5 of the
+    path as given to the player); None when it was finished or never stopped part way."""
+    if not folder:
+        return None
+    try:
+        text = (Path(folder) / hashlib.md5(str(path).encode()).hexdigest().upper()).read_text()
+    except OSError:
+        return None
+    found = re.search(r"^start=([\d.]+)", text, re.M)
+    return float(found.group(1)) if found else None
+
+
+def forget_position(path: Path, folder: Path | None) -> None:
+    if folder:
+        (Path(folder) / hashlib.md5(str(path).encode()).hexdigest().upper()).unlink(missing_ok=True)
+
+
+def near_end(position: float, length: float | None) -> bool:
+    """Into the credits: the last 3 minutes, or the last 5 % of a long movie."""
+    return bool(length) and length - position <= max(180.0, length * 0.05)
+
+
+def spoken_time(seconds: float) -> str:
+    hours, minutes = int(seconds // 3600), int(seconds % 3600 // 60)
+    if not hours and not minutes:
+        return f"{int(seconds)} seconds"
+    parts = ([f"{hours} hour{'s' if hours != 1 else ''}"] if hours else []) + \
+        ([f"{minutes} minute{'s' if minutes != 1 else ''}"] if minutes else [])
+    return " ".join(parts)
+
+
+def watch(player: "Player", memory: "LastPlayed", *, every: float = 5.0, sleep=time.sleep, wait_for: float = 60.0,
+          stop=lambda: False):
+    """While BMO's player is open: note what's on and its length every few seconds (memory.watched). Ends when the
+    player closes, if it never showed up within `wait_for` seconds, or when stop() (a newer play took over)."""
+    seen, waited, last = False, 0.0, None
+    while not stop():
+        try:
+            now = player.now_playing()
+        except Exception:
+            now = None
+        if now is None:
+            if seen and not player.running():
+                return
+            if not seen and waited >= wait_for:
+                return
+        else:
+            seen = True
+            if now[0] != last or now[2]:
+                memory.watched(*now)
+                last = now[0]
+        sleep(every)
+        waited += every
 
 
 class LastPlayed:
+    """~/.bemo/media.json: the last episode watched of each show, and how long each video is (for "near the end")."""
     def __init__(self, path: Path):
         self.path = Path(path)
 
-    def load(self) -> dict:
+    def _all(self) -> dict:
         try:
             data = json.loads(self.path.read_text())
-            return data.get("last_played", {}) if isinstance(data, dict) else {}
+            return data if isinstance(data, dict) else {}
         except (OSError, ValueError):
             return {}
+
+    def _save(self, data: dict) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(data, indent=2) + "\n")
+        tmp.replace(self.path)
+
+    def load(self) -> dict:
+        return dict(self._all().get("last_played") or {})
+
+    def length(self, path: Path) -> float | None:
+        return (self._all().get("lengths") or {}).get(str(path))
 
     def remember(self, video: Video) -> None:
         if not video.show:
             return
-        data = self.load()
-        data[video.show] = str(video.path)
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(json.dumps({"last_played": data}, indent=2) + "\n")
+        data = self._all()
+        data.setdefault("last_played", {})[video.show] = str(video.path)
+        self._save(data)
+
+    def watched(self, path: Path, position: float = 0.0, length: float | None = None) -> None:
+        data = self._all()
+        video = describe(Path(path))
+        changed = False
+        if video.show and (data.get("last_played") or {}).get(video.show) != str(path):
+            data.setdefault("last_played", {})[video.show] = str(path)
+            changed = True
+        if length and (data.get("lengths") or {}).get(str(path)) != round(length, 1):
+            data.setdefault("lengths", {})[str(path)] = round(length, 1)
+            changed = True
+        if changed:
+            self._save(data)
 
 
 class Ducker:

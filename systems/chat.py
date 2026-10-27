@@ -351,6 +351,8 @@ class Chat:
         # inference being available.
         self._visual_lock = threading.Lock()
         self.setup_view = SetupView()  # the install screen while the first boot is open (systems/first_boot.py)
+        from systems.library import LibraryView
+        self.library_view = LibraryView()  # "show my movies" / "show my games" (systems/library.py)
         self._last_user_activity_monotonic = time.monotonic()
         self._model_switch_generation = 0
         self._model_switch_active = False
@@ -571,6 +573,8 @@ class Chat:
                 "parts_menu_busy": bool(getattr(self, "_parts_menu_busy", False)),
             }
         status["setup"] = self.setup_view.snapshot() if self.setup_view.active else None
+        library_view = getattr(self, "library_view", None)
+        status["library"] = library_view.snapshot() if library_view is not None else None
         status["idle_seconds"] = self.desktop_idle_monitor.idle_seconds(internal_idle)
         return status
 
@@ -1031,8 +1035,7 @@ class Chat:
         if not getattr(config, "ENABLE_MEDIA_COMMANDS", True):
             return False
         from systems import media
-        player = getattr(self, "_media_player", None) or media.Player()
-        self._media_player = player
+        player = self._player()
         running = player.running()
         titles = ()
         if running:
@@ -1041,6 +1044,9 @@ class Chat:
         control = media.control_command(command, titles) if running else None
         if control:
             method, seconds = control
+            if method == "Restart":
+                ok = player.restart()
+                return self._say_local(command, "Back to the start." if ok else "The player didn't answer.")
             if method == "Stop":
                 ok = player.quit()
                 self._watch_started_at = None
@@ -1056,17 +1062,195 @@ class Chat:
         wanted = media.play_request(command)
         if not wanted:
             return False
+        return self._play_video(command, wanted, from_start=media.from_start(command))
+
+    def _handle_library_command(self, command):
+        """'show my movies' / 'show my games'; while one is on the screen: scroll, 'play number 3', close."""
+        from systems import library
+        kind = library.open_request(command)
+        if kind:
+            return self._open_library(command, kind)
+        view = getattr(self, "library_view", None)
+        if view is None or not view.active:
+            if library.command(command) and library.command(command)[0] == "play":
+                return self._say_local(command, "Say, show my movies, or show my games, and then the number.")
+            return False
+        action = library.command(command)
+        return self._library_action(command, *action) if action else False
+
+    def _handle_sort_downloads(self, command):
+        """'Hey BMO, sort my downloads' (2026-10-28): games and movies from Downloads to where they go, once the owner
+        says yes (systems/sort_downloads.py)."""
+        from systems import sort_downloads as sorter
+        if not sorter.is_request(command):
+            return False
+        downloads = sorter.downloads_folder()
+        plan = sorter.plan(downloads, Path(config.MEDIA_DIRS[0]), Path(config.GAME_GAMECUBE_ROM_DIR),
+                           skip=[config.APP_ROOT, config.DATA_ROOT])
+        waiting = sum(1 for _, why in plan.skipped if why == "downloading")
+        note = "" if not waiting else (" One is still downloading, so I'll leave it." if waiting == 1 else
+                                       f" {waiting} are still downloading, so I'll leave them.")
+        logger.info("SORT {}: {} to move, skipped {}", downloads, len(plan.moves),
+                    [why for _, why in plan.skipped])
+        if not plan.moves:
+            return self._say_local(command, "I didn't find any games or movies to sort in Downloads." + note)
+        question = (f"I found {plan.summary()} in Downloads.{note} Should I move them where they go? "
+                    "Say, Hey BMO, yes.")
+        if not self._confirm_by_voice(question, tag="SORT", target=str(downloads)):
+            return self._say_local(command, "Okay, I left them where they are.")
+        self.speak("Moving them now.")
+        result = sorter.run(plan)
+        moved, failed = result["moved"], result["failed"]
+        places = []
+        if moved["movie"] or moved["episode"]:
+            places.append("the movies and shows are in your Videos folder")
+        if moved["game"]:
+            places.append("the games are in my games folder")
+            try:
+                self.supervisor.refresh_games()
+            except SupervisorError:
+                logger.warning("SORT: the Supervisor didn't refresh the game list")
+        said = " and ".join(places)
+        line = f"Done. {said[:1].upper()}{said[1:]}." if places else "I couldn't move them."
+        if failed:
+            names = ", ".join(path.name for path, _ in failed[:3])
+            line += f" {len(failed)} didn't move: {names}."
+            logger.warning("SORT failures: {}", failed)
+        logger.info("SORT moved {}", moved)
+        return self._say_local(command, line)
+
+    def _bare_library_command(self, heard):
+        """Scroll, 'play number 3' and close without Hey BMO while a library is on the screen."""
+        view = getattr(self, "library_view", None)
+        if view is None or not view.active or len(str(heard).split()) > 5:
+            return False
+        from systems import library
+        action = library.command(heard)
+        if action is None:
+            return False
+        logger.info("LIBRARY {} without Hey BMO", action[0])
+        try:
+            return self._library_action(heard, *action)
+        except Exception:
+            logger.exception("Library command failed")
+            return False
+
+    def _open_library(self, command, kind):
+        from systems import library
+        stills = getattr(config, "LIBRARY_STILLS_DIR", config.DATA_ROOT / "library-stills")
+        if kind == "movies":
+            items = library.with_stills(library.movie_items(config.MEDIA_DIRS), stills)
+        else:
+            from systems.games import GameLibrary
+            items = library.game_items(GameLibrary(config.GAME_ROOT, config.APP_ROOT))
+        view = self.library_view
+        view.open(kind, items)
+        self.note_user_activity()
+        name = "movies and shows" if kind == "movies" else "games"
+        if not items:
+            where = ("They go in the Videos folder" if kind == "movies" else "They go in my games folder")
+            line = f"I don't have any {name} yet. {where}, or say, Hey BMO, sort my downloads."
+        else:
+            line = f"Here are your {name}, {len(items)} in all. Say play and a number"
+            line += ", or scroll down." if len(items) > view.per_page else "."
+        if kind == "movies" and any(i.picture is None and i.still_from for i in items):
+            generation = view.generation
+            threading.Thread(target=library.make_stills, args=(view, items, stills), daemon=True,
+                             name="library-stills", kwargs={"stop": lambda: view.generation != generation}).start()
+        logger.info("LIBRARY {} open: {} items", kind, len(items))
+        return self._say_local(command, line)
+
+    def _library_action(self, command, action, number=0):
+        view = self.library_view
+        self.note_user_activity()
+        if action in ("down", "up"):
+            if view.scroll(1 if action == "down" else -1):
+                self.state = State.READY  # the page turning is the answer
+                return True
+            return self._say_local(command, "That's the end of the list." if action == "down"
+                                   else "That's the top of the list.")
+        if action == "top":
+            view.to_top()
+            self.state = State.READY
+            return True
+        if action == "close":
+            view.close()
+            self.state = State.READY
+            return True
+        item = view.item(number)
+        if item is None:
+            return self._say_local(command, f"There's no number {number}. The list goes up to "
+                                            f"{len(view.items)}.")
+        if item.kind == "game":
+            view.close()
+            try:
+                result = self.supervisor.launch_game(Path(item.key).stem)
+            except SupervisorError:
+                return self._say_local(command, "The supervisor is not responding.")
+            if result.get("ok"):
+                self._watch_started_at = time.monotonic()
+                return self._say_local(command, f"Launching {item.title}.")
+            return self._say_local(command, str(result.get("error") or f"I couldn't start {item.title}."))
+        if item.kind == "show":
+            played = self._play_video(command, show=item.key)
+        else:
+            played = self._play_video(command, path=item.key)
+        return played or self._say_local(command, f"I couldn't find {item.title} any more.")
+
+    def _player(self):
+        """BMO's movie player (systems/media.Player); it saves its place in ~/.bemo/watch-later on closing."""
+        player = getattr(self, "_media_player", None)
+        if player is None:
+            from systems import media
+            player = self._media_player = media.Player(watch_later=getattr(config, "MEDIA_WATCH_LATER_DIR", None))
+        return player
+
+    def _play_video(self, command, wanted=None, *, show=None, path=None, from_start=False):
+        """Play what was asked for (a title, or a movie or whole show from the library), from where it was stopped
+        unless from_start. False when there's no such movie or show (then "play <game>" and others carry on)."""
+        from systems import media
+        player = self._player()
         videos = media.library(config.MEDIA_DIRS)
         memory = media.LastPlayed(config.MEDIA_STATE_PATH)
-        video = media.find(wanted, videos, memory.load())
+        folder = getattr(config, "MEDIA_WATCH_LATER_DIR", None)
+
+        def resumable(path):
+            at = media.saved_position(path, folder)
+            return at is not None and not media.near_end(at, memory.length(path))
+
+        if show:
+            episodes = media.episodes_of(show, videos)
+            video = media.show_episode(episodes, memory.load(), resumable) if episodes else None
+        elif path:
+            video = next((v for v in videos if str(v.path) == str(path)), None)
+        else:
+            video = media.find(wanted, videos, memory.load(), resumable)
         if video is None:
-            return False  # not a movie or show here: "play <game>" and others carry on
-        self._say_local(command, f"Playing {video.spoken}.")
+            return False
+        at = None if from_start else media.saved_position(video.path, folder)
+        if from_start or (at is not None and media.near_end(at, memory.length(video.path))):
+            media.forget_position(video.path, folder)  # into the credits last time: from the top
+            at = None
+        where = f", from {media.spoken_time(at)} in" if at and at >= 60 else ""
+        self._say_local(command, f"Playing {video.spoken}{where}." if not from_start
+                        else f"Playing {video.spoken} from the beginning.")
         self._watch_started_at = time.monotonic()
-        player.play_files(media.queue_for(video, videos))
+        if getattr(self, "library_view", None) is not None:
+            self.library_view.close()
+        queue = media.queue_for(video, videos)
+        player.play_files(queue, from_start=from_start)
         memory.remember(video)
-        logger.info("MEDIA playing {} ({} queued)", video.path.name, len(media.queue_for(video, videos)))
+        self._start_media_watch(player, memory)
+        logger.info("MEDIA playing {} ({} queued{})", video.path.name, len(queue),
+                    ", from the start" if from_start else f", resuming at {int(at)} s" if at else "")
         return True
+
+    def _start_media_watch(self, player, memory):
+        """While the player is open, note which episode is on (systems/media.watch); a new play replaces it."""
+        from systems import media
+        self._media_watch_generation = generation = getattr(self, "_media_watch_generation", 0) + 1
+        threading.Thread(target=media.watch, args=(player, memory), daemon=True, name="media-watch",
+                         kwargs={"stop": lambda: self._media_watch_generation != generation}).start()
 
     def _movie_ducker(self):
         """While a video plays, a Ducker that turns it down on "Hey BMO" (systems/media.Ducker); restores the
@@ -1089,8 +1273,7 @@ class Chat:
             status = None
             try:
                 from systems import media
-                player = getattr(self, "_media_player", None) or media.Player()
-                self._media_player = player
+                player = self._player()
                 status = player.status()
             except Exception:
                 logger.exception("Could not ask the player for its status")
@@ -1123,8 +1306,7 @@ class Chat:
             return False
         try:
             from systems import media
-            player = getattr(self, "_media_player", None) or media.Player()
-            self._media_player = player
+            player = self._player()
             method = media.bare_command(heard, player.status())
             if not method:
                 return False
@@ -1319,7 +1501,8 @@ class Chat:
 
                     self._current_turn_explicit_wake = self.voice_gate.has_wake_prefix(prompt)
                     gated_prompt = self._apply_command_gate(prompt)
-                    if gated_prompt is None and self._bare_player_command(prompt):
+                    if gated_prompt is None and (self._bare_player_command(prompt)
+                                                 or self._bare_library_command(prompt)):
                         self._current_turn_explicit_wake = False
                         self.state = State.READY
                         continue
@@ -1598,7 +1781,7 @@ class Chat:
         r"keep playing|stop|skip|rewind|fast forward|go back|go forward|next|previous|close|closes|closed|clothes|"
         r"cloze|post|quit|exit|end|turn|volume|mute|unmute|louder|quieter|go (?:back )?to sleep|"
         r"shut ?down yourself)\b"
-        r"|\b(?:volume|louder|quieter|mute|unmute|episode|game|games|movie|show|video|film)\b")
+        r"|\b(?:volume|louder|quieter|mute|unmute|episode|game|games|movie|show|video|film|restart|beginning)\b")
 
     @staticmethod
     def _plain_words(text):
@@ -1618,8 +1801,7 @@ class Chat:
             return False
         try:
             from systems import media
-            player = getattr(self, "_media_player", None) or media.Player()
-            self._media_player = player
+            player = self._player()
             return player.bmo_player_open()
         except Exception:
             logger.exception("Could not check for an open video")
@@ -3445,6 +3627,8 @@ class Chat:
                 result = self.supervisor.launch_game(query)
                 if result.get("ok"):
                     self._watch_started_at = time.monotonic()
+                    if getattr(self, "library_view", None) is not None:
+                        self.library_view.close()
                     title = (result.get("game") or {}).get("title") or query
                     response = f"Launching {title}."
                 else:
@@ -5228,6 +5412,13 @@ class Chat:
             response = compact_spoken_summary()
             self.speak(response)
             self._archive_local_exchange(command, response)
+            return True
+
+        # The movie and game libraries (2026-10-28): before the player and the games, which also hear "play".
+        if self._handle_library_command(command):
+            return True
+
+        if self._handle_sort_downloads(command):
             return True
 
         if self._PARTS_MENU_QUESTION.match(normalized.strip(" .!?")):

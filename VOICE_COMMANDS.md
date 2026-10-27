@@ -1,160 +1,189 @@
-# Bemo voice-command catalog
+# BMO voice commands
 
-Canonical wake phrase: **Hey Bemo**. **Bemo**, **Beemo**, and **BMO** are also accepted wake aliases; no trailing **over** is required.
-A wake-only name acknowledges Bemo and arms exactly one immediate unprefixed follow-up.
+Start every command with **Hey BMO**, like "Hey BMO, what's the weather?" You can also say "Hey BMO" on its own, wait for him, and then say the command.
 
-## Session
+Words in [square brackets] are yours to fill in. A slash means you can say either one.
 
-- `Hey Bemo / Bemo / BMO` — Wake/acknowledge Bemo; the name alone is also a valid wake trigger and arms one immediate follow-up command.
-- `Hey Bemo, go to sleep` — Go back to standby; the next Hey Bemo starts him again.
-- `Hey Bemo, list commands` — Summarize the built-in deterministic voice commands.
-- `Hey Bemo, what hardware am I on?` — CPU, memory (vs the 28 GB minimum), graphics and whether my models use it, free disk, sound, microphone, screen; saved to ~/.bemo/hardware-profile.json.
-- `Hey Bemo, what can you do on this computer?` — What works on this computer, what doesn't and why (from what is installed); full list: print_capabilities.py.
+These are the set phrases BMO always handles the same way. For anything else, just ask him in your own words.
 
-## Lifecycle
+## Talking to BMO
 
-- `Hey Bemo, reboot yourself` — Restart only the Bemo program; Linux stays running.
-- `Hey Bemo, reload yourself` — Alias for restarting only the Bemo program.
-- `Hey Bemo, shutdown yourself` — Stop full Bemo and return to the tiny Hey Bemo standby listener.
+| Say | What it does |
+|---|---|
+| **Hey BMO / BMO** | Wakes BMO. You can say just his name, wait for him, and then say the command. |
+| **yes / no** | Answers BMO when he asks before doing something. No works on its own; yes needs Hey BMO. |
+| **go to sleep / shutdown yourself** | BMO closes and lets go of his brain. He still hears Hey BMO, which starts him again. |
+| **list commands** | BMO names the kinds of things he can do. This page has the whole list. |
+| **what time is it? / what's the date?** | From this computer's clock. |
+| **what hardware am I on?** | What this computer has: processor, memory, graphics, free disk space, sound and screen. |
+| **what can you do on this computer?** | What works on this computer, what doesn't, and why. |
 
-## Memory
+## Movies and shows
 
-- `Hey Bemo, remember that <something>` — Saved word for word ("remember that my sister's birthday is May 3rd"); every brain knows it from then on.
-- `Hey Bemo, what do you remember about me?` — BMO reads back what you asked him to remember.
-- `Hey Bemo, forget that <something>` — Removes the closest note; "forget everything about me" asks first.
-
-## Timers
-
-- `Hey Bemo, set a timer for <time>` — A timer ("set a pasta timer for 8 minutes", "set a 5 minute timer"); it rings with a chime and BMO's voice, even while he sleeps.
-- `Hey Bemo, remind me <when> to <something>` — A reminder: "in 20 minutes", "at 5 PM", "tomorrow at 9"; BMO says the time back and the reminder when it comes, even while he sleeps.
-- `Hey Bemo, how much time is left?` — Time left on each timer; "what reminders do I have?" lists reminders.
-- `Hey Bemo, cancel the timer` — Cancel the timer (or "cancel the pasta timer", "cancel all timers", "cancel the reminder to water the basil").
-
-## Models
-
-- `Hey Bemo, current model` — Report the active model profile.
-- `Hey Bemo, list models` — List configured model profiles.
-- `Hey Bemo, switch to <profile> model` — Manually switch model profiles.
-- `Hey Bemo, ask <specialist> to <task>` — Run one task on a specialist, then return normally.
-- `Hey Bemo, show me the shapes` — The 3D shapes menu: the six basic shapes turning on the screen for a minute (it also shows while BMO makes a part).
-- `Hey Bemo, make a <part>` — A simple 3D-printable part from one of six basic shapes with holes, walls and rounded edges (docs/3D_PARTS.md): in seconds when BMO understands every word, else by the Engineering model; saves .scad and .stl in ~/BMO-3D (or the open project's models folder) after checking its size, holes and that it is one piece.
-- `Hey Bemo, make it <number> millimeters tall` — Change one size of the last part (tall, wide, deep, thick, across, the hole, the walls) in seconds; the earlier part is kept.
-
-## Voice
-
-- `Hey Bemo, voice status` — Say which voice Bemo is using.
-- `Hey Bemo, test voice` — Speak a short test phrase.
-- `Hey Bemo, learn my voice` — Say Hey Bemo six times and talk for ten seconds, so he wakes for your voice.
-
-## Projects
-
-- `Hey Bemo, list projects` — List known projects.
-- `Hey Bemo, current project` — Report the active project.
-- `Hey Bemo, create project <name>` — Create and open a project.
-- `Hey Bemo, import project from USB` — Discover, copy, verify, and open a project from mounted removable media.
-- `Hey Bemo, import files into current project` — Copy and verify removable-drive files into the active project without overwriting existing files.
-- `Hey Bemo, open project <name>` — Open an existing project.
-- `Hey Bemo, close project` — Close the active project.
-- `Hey Bemo, reindex project` — Refresh the active project's file index.
-- `Hey Bemo, save project snapshot` — Create a manual Git safety snapshot.
-- `Hey Bemo, undo last Bemo change` — Revert the most recent Bemo project change when safely identifiable.
-- `Hey Bemo, export <file-or-folder> to USB` — Copy and verify selected active-project files or folders to removable storage without moving or overwriting originals.
-- `Hey Bemo, export project` — Export and verify the active project to removable storage.
-- `Hey Bemo, remember for this project <note>` — Append a durable project note.
-- `Hey Bemo, what do you remember about this project?` — Read the open project's saved notes aloud, word for word (also: project notes, project memory).
-
-## Interface
-
-- `Hey Bemo, text mode` — Switch the normal display from the animated face to the text-only conversation view.
-- `Hey Bemo, face mode` — Switch back to the animated Bemo face and ensure TTS is on.
-- `Hey Bemo, TTS off` — Disable spoken replies only while Text mode is active; Face mode always keeps TTS on.
-- `Hey Bemo, TTS on` — Enable spoken replies; the voice loads on demand if it was skipped at startup.
-- `Hey Bemo, interface status` — Report Face/Text mode and whether TTS is enabled.
-
-## System
-
-- `Hey Bemo, system status` — Report Supervisor/model/managed-app status.
-- `Hey Bemo, check for updates` — Look for a newer signed release; installing needs Hey Bemo, yes.
-- `Hey Bemo, how are the downloads?` — Progress of the brain downloads after installing.
-- `Hey Bemo, display status` — Report the live resolution, safe-area crop, and whether a display test is pending.
-- `Hey Bemo, list screen resolutions` — List display modes advertised by the current X11 monitor/output.
-- `Hey Bemo, calibrate the screen` — Guided whole-desktop fit for CRTs/TVs: a calibration pattern replaces the face; say smaller, bigger, move left/right/up/down, the left side is cut off, more, too far, lower resolution, 60 hertz, keep it, or cancel (no Hey Bemo needed inside the session). Silence puts it back.
-- `Hey Bemo, test screen resolution <width> by <height>` — Temporarily test a resolution; it is only saved after approval and otherwise auto-reverts.
-- `Hey Bemo, test screen crop <pixels> pixels` — Temporarily inset all screen edges to compensate for CRT/adapter overscan.
-- `Hey Bemo, test <edge> crop <pixels> pixels` — Temporarily adjust left, right, top, bottom, horizontal, or vertical safe-area crop.
-- `Hey Bemo, reset screen crop` — Temporarily test zero safe-area crop on every edge.
-- `Hey Bemo, approve display changes` — Save the currently tested resolution/crop as the startup display settings.
-- `Hey Bemo, reject display changes` — Revert the current resolution/crop test to the previous settings.
-- `Hey Bemo, list apps` — List allowlisted apps Bemo can launch directly.
-- `Hey Bemo, launch <app>` — Launch an allowlisted app such as games or the media player.
-- `Hey Bemo, close <app>` — Close an allowlisted managed app.
-- `Hey Bemo, disable computer control` — Disable model-requested full computer control.
-- `Hey Bemo, enable computer control` — Re-enable model-requested full computer control.
-- `Hey Bemo, computer control status` — Report full-computer-control state and pending actions.
-- `Hey Bemo, confirm computer action` — Approve a pending non-critical computer action.
-- `Hey Bemo, confirm critical computer action` — Approve a pending critical computer action.
-- `Hey Bemo, cancel computer action` — Cancel the pending computer action.
-
-## Desktop apps
-
-- `Hey Bemo, open <app>` — Open any installed desktop app by name (e.g. Calculator, Thunar); verified by its window. Misheard names get 'Did you mean…?'.
-- `Hey Bemo, switch to <app>` — Bring an open app's window to the front.
-- `Hey Bemo, close <app>` — Close an app's window; reports if it is asking about unsaved work.
-
-## App controls
-
-- `Hey Bemo, press <button> in <app>` — Press a named button; 'press 6, then equals' does several. Ordinary changes ask once per app (3 minutes).
-- `Hey Bemo, switch to the <name> tab in <app>` — Switch tabs (no question: navigation only).
-- `Hey Bemo, turn <setting> on|off in <app>` — Flip a named switch or checkbox.
-- `Hey Bemo, what can I press in <app>?` — List the app's visible controls.
-- `Hey Bemo, <task> in <app>` — Multi-step tasks (e.g. make Thunar show hidden files): one OK for the plan, every step verified; buttons not shared by the app (web pages) are found by looking. Critical steps (Delete, Don't Save) always ask.
-
-## Sound
-
-- `Hey Bemo, volume up|down / louder / quieter` — Change the volume by 10 points ('a little' 5, 'a lot' 20); read back after.
-- `Hey Bemo, set the volume to <percent>` — Set an exact level; jumps over 30 points or above 85% ask first.
-- `Hey Bemo, mute / unmute` — Mute or unmute the computer's sound (BMO's voice too).
-- `Hey Bemo, what's the volume?` — Report the level and which output is playing.
-- `Hey Bemo, switch sound to <output>` — Play sound through the TV/HDMI, speakers, or a named device.
-
-## Readability
-
-- `Hey Bemo, make the text bigger|smaller` — Text size in steps (100-200%); a preview: say keep it, bigger, smaller, or cancel; silence puts it back after 30 s.
-- `Hey Bemo, make the mouse pointer bigger|smaller` — Pointer size 24-96 pixels, previewed the same way.
-- `Hey Bemo, hide|show the panel` — Auto-hide the desktop panel (Xfce), previewed the same way.
-- `Hey Bemo, normal text size / normal pointer size` — Back to the desktop's defaults.
-
-## Weather
-
-- `Hey Bemo, set my weather location to <town>` — Opt-in weather (Open-Meteo); the town is confirmed before saving.
-- `Hey Bemo, what's the weather?` — Current weather or forecast for the saved location.
-- `Hey Bemo, do you remember the weather earlier?` — The last weather report he gave, and when.
-- `Hey Bemo, forget my weather location` — Remove the saved location.
-
-## Movies
-
-- `Hey Bemo, play <movie or show>` — Play from the Videos folder, full screen, English audio first; a show carries on where it left off.
-- `Hey Bemo, play <show> season <n> episode <n>` — Also: the first episode of <show>, episode 3 of <show>, season 2 of <show>. The rest of the season follows.
-- `Hey Bemo, pause / resume` — While a video plays; plain pause and play work without Hey Bemo too.
-- `Hey Bemo, next episode / previous episode` — While a show plays.
-- `Hey Bemo, skip / rewind / skip ahead 30 seconds / go back 2 minutes` — While a video plays; skip alone is 30 seconds, rewind 10.
-- `Hey Bemo, stop / stop the show / close <title> / turn it off` — Close the player; BMO's face comes back.
+| Say | What it does |
+|---|---|
+| **show my movies** | Your movies and shows on BMO's screen, each with a picture and its name. A show has one tile. |
+| **scroll down / scroll up** | Next or previous page of the movies or games on the screen. No need for Hey BMO while they're showing. |
+| **play number [n]** | Plays that number from the movies or games on the screen. No need for Hey BMO while they're showing. |
+| **close the library** | Puts BMO's face back. Plain "close" works too, and it closes by itself after 3 minutes. |
+| **play [movie or show]** | Plays it full screen, in English when there's a choice. A movie picks up where you stopped it; a show carries on from the last episode you watched. |
+| **play [show] season [n] episode [n]** | That episode, then the rest of the season. "The first episode of [show]" and "season 2 of [show]" work too. |
+| **restart / play [movie] from the beginning** | Starts over. Say restart while it's playing, or ask for it from the beginning to start fresh. |
+| **pause / resume** | While something is playing. Plain "pause" and "play" work without Hey BMO. |
+| **next episode / previous episode** | While a show is playing. |
+| **skip / rewind / skip ahead 30 seconds / go back 2 minutes** | Skip goes 30 seconds ahead and rewind 10 seconds back, or say how far. |
+| **stop / stop the show / close [title] / turn it off** | Closes the player and brings BMO's face back. He remembers where you stopped. |
 
 ## Games
 
-- `Hey Bemo, boot games` — Open the GameCube library frontend.
-- `Hey Bemo, list games` — Report discovered GameCube games.
-- `Hey Bemo, import games from USB` — Copy and verify supported GameCube ROMs from mounted removable media into Bemo's permanent library.
-- `Hey Bemo, rescan games` — Rescan the GameCube library and refresh ES-DE if it is currently open.
-- `Hey Bemo, play <game>` — Launch a uniquely matched GameCube title in Dolphin. Gamepads plugged in become players 1-4; with none, the keyboard is player 1.
-- `Hey Bemo, close current game` — Close the active Dolphin game session.
+| Say | What it does |
+|---|---|
+| **show my games** | Your games on BMO's screen, with their covers if there are any, otherwise as a list. Scroll and pick by number like the movies. |
+| **play [game]** | Starts the game. Controllers that are plugged in are players 1 to 4; with none, the keyboard is player 1. |
+| **close the game** | Closes the game. |
+| **boot games** | Opens the full game menu (ES-DE), which works with a controller. |
+| **list games** | How many games BMO has. |
+| **import games from USB** | Copies the GameCube games from a USB stick into BMO's games. The stick stays as it was. |
+| **rescan games** | Looks for new games in BMO's games folder. |
 
-## Maintenance
+## Downloads
 
-- `Hey Bemo, backup Bemo to USB` — Create and verify a full lightweight Bemo backup on removable storage.
-- `Hey Bemo, enable Bemo autostart` — Enable Bemo standby automatically when the Xfce desktop logs in.
-- `Hey Bemo, disable Bemo autostart` — Disable future Xfce-login standby autostart without stopping the current session.
-- `Hey Bemo, Bemo autostart status` — Report autostart status.
-- `Hey Bemo, screensaver status` — Report Wine/SCR screensaver readiness or current saver.
-- `Hey Bemo, active task` — Report the current unfinished task.
-- `Hey Bemo, resume task` — Resume the most recent incomplete task/checkpoint.
+| Say | What it does |
+|---|---|
+| **sort my downloads** | Finds the games, movies and shows in your Downloads folder and says what he found. Say Hey BMO, yes, and he moves them where they go. Anything still downloading is left alone. |
+
+## Timers and reminders
+
+| Say | What it does |
+|---|---|
+| **set a timer for [time]** | Like "set a pasta timer for 8 minutes". It rings with a chime and BMO's voice, even while he's asleep. |
+| **remind me [when] to [something]** | Like "remind me in 20 minutes to check the oven" or "remind me tomorrow at 9 to call Sam". He says it back so you know he got it. |
+| **how much time is left?** | Time left on each timer. "What reminders do I have?" lists your reminders. |
+| **cancel the timer** | Or "cancel the pasta timer", "cancel all timers", "cancel the reminder to water the basil". |
+
+## Remembering things
+
+| Say | What it does |
+|---|---|
+| **remember that [something]** | Saved word for word, like "remember that my sister's birthday is May 3rd". Every brain knows it from then on. |
+| **what do you remember about me?** | BMO reads back what you asked him to remember. |
+| **forget that [something]** | Removes that note. "Forget everything about me" asks first. |
+
+## Weather
+
+| Say | What it does |
+|---|---|
+| **set my weather location to [town]** | Turns the weather on for your town. He checks the town with you before saving it. |
+| **what's the weather?** | The weather now, or the forecast, for your town. |
+| **do you remember the weather earlier?** | The last weather report he gave you, and when. |
+| **forget my weather location** | Removes your town. |
+
+## Sound
+
+| Say | What it does |
+|---|---|
+| **volume up / down / louder / quieter** | Changes the volume by 10. Add "a little" for 5 or "a lot" for 20. |
+| **set the volume to [percent]** | An exact level. A big jump, or going over 85, asks first. |
+| **mute / unmute** | All of the computer's sound off or back on, BMO's voice too. |
+| **what's the volume?** | The level, and where the sound is going. |
+| **switch sound to [output]** | Sound through the TV, the speakers, or another device by its name. |
+
+## Screen and text
+
+| Say | What it does |
+|---|---|
+| **make the text bigger / smaller** | Text size one step at a time. Then say keep it, bigger, smaller or cancel; if you say nothing it goes back after 30 seconds. |
+| **make the mouse pointer bigger / smaller** | The same, for the mouse pointer. |
+| **hide / show the panel** | Hides the taskbar until the mouse goes there, or shows it again. |
+| **normal text size / normal pointer size** | Back to the usual size. |
+| **calibrate the screen** | Fits the desktop on an old TV or monitor. Say smaller, bigger, move left, the left side is cut off, keep it or cancel; no Hey BMO needed until it's done. |
+| **display status** | The screen's resolution and how much is trimmed off each edge. |
+| **list screen resolutions** | The resolutions this screen can do. |
+| **test screen resolution [width] by [height]** | Tries a resolution. It goes back by itself unless you approve it. |
+| **test screen crop [pixels] pixels** | Trims every edge, for a TV that cuts off the picture. |
+| **test [edge] crop [pixels] pixels** | Trims one edge: left, right, top or bottom. |
+| **reset screen crop** | Tries the screen with nothing trimmed. |
+| **approve display changes** | Keeps the resolution or trim you're trying. |
+| **reject display changes** | Goes back to how it was. |
+
+## Apps
+
+| Say | What it does |
+|---|---|
+| **open [app]** | Opens an app by its name, like Calculator or Firefox. If he isn't sure which one you mean, he asks. |
+| **switch to [app]** | Brings that app to the front. |
+| **close [app]** | Closes the app. If it has unsaved work, he tells you instead. |
+| **press [button] in [app]** | Presses a button by its name; "press 6, then equals" does more than one. He asks once before changing anything in an app. |
+| **switch to the [name] tab in [app]** | Opens that tab. |
+| **turn [setting] on / off in [app]** | Flips a switch or tick box. |
+| **what can I press in [app]?** | The buttons and settings he can see in it. |
+| **[task] in [app]** | A job with several steps, like "show hidden files in Thunar". He tells you the plan first, and always asks before deleting or closing without saving. |
+| **list apps** | The apps BMO runs himself: the games and the movie player. |
+
+## Computer control
+
+| Say | What it does |
+|---|---|
+| **disable computer control / enable computer control** | Stops, or lets again, BMO's brains using the computer on their own. |
+| **computer control status** | Whether it's on, and if anything is waiting for your OK. |
+| **confirm computer action** | Lets BMO go ahead with what he asked to do. |
+| **confirm critical computer action** | The same, for something that can't be undone. |
+| **cancel computer action** | Stops what he asked to do. |
+
+## Brains
+
+| Say | What it does |
+|---|---|
+| **current model** | Which brain BMO is using. |
+| **list models** | All of BMO's brains. |
+| **switch to [profile] model** | Changes brain, like "switch to coding model". It takes about a minute, with a game to play while you wait. |
+| **ask [specialist] to [task]** | Gives one job to another brain, then comes back. |
+
+## 3D parts
+
+| Say | What it does |
+|---|---|
+| **show me the shapes** | The six basic shapes BMO builds parts from, turning on his screen for a minute. |
+| **make a [part]** | A simple part to 3D print, like "make a 20 millimeter cube with an 8 millimeter hole through the middle". Saved in the BMO-3D folder; docs/3D_PARTS.md has more. |
+| **make it [number] millimeters tall** | Changes one size of the last part: tall, wide, deep, thick, across, the hole or the walls. The earlier one is kept. |
+
+## Projects
+
+| Say | What it does |
+|---|---|
+| **list projects** | Your projects. |
+| **current project** | The project that's open. |
+| **create project [name]** | Makes a new project and opens it. |
+| **open project [name]** | Opens a project. |
+| **close project** | Closes the project. |
+| **import project from USB** | Copies a project from a USB stick, checks it, and opens it. |
+| **import files into current project** | Copies files from a USB stick into the open project. Nothing already there is replaced. |
+| **export [file or folder] to USB** | Copies files from the open project to a USB stick and checks them. |
+| **export project** | Copies the whole open project to a USB stick and checks it. |
+| **reindex project** | Looks through the project's files again. |
+| **save project snapshot** | Saves the project as it is now, so you can go back to it. |
+| **undo last BMO change** | Undoes the last change BMO made to the project, when he can tell exactly what it was. |
+| **remember for this project [note]** | Adds a note to the project. |
+| **what do you remember about this project?** | Reads the project's notes back, word for word. |
+
+## BMO himself
+
+| Say | What it does |
+|---|---|
+| **reboot yourself / reload yourself** | Restarts BMO. The computer stays on. |
+| **check for updates** | Looks for a new version of BMO. To install it, say Hey BMO, yes. |
+| **how are the downloads?** | How far along BMO's brain downloads are, after a new install. |
+| **learn my voice** | Say Hey BMO six times and talk for ten seconds, so he wakes up for your voice. |
+| **voice status** | Which voice BMO is using. |
+| **test voice** | BMO says a short test sentence. |
+| **text mode** | The conversation as text, in place of BMO's face. |
+| **face mode** | BMO's face again, with his voice on. |
+| **TTS off / TTS on** | In text mode, turns his spoken answers off or back on. |
+| **interface status** | Whether he's showing his face or text, and if his voice is on. |
+| **system status** | What's running and which brain is on. |
+| **backup BMO to USB** | Saves a backup of BMO on a USB stick, and checks it. |
+| **enable BMO autostart / disable BMO autostart** | Whether BMO starts when you log in to the computer. |
+| **BMO autostart status** | Whether BMO starts when you log in. |
+| **screensaver status** | Which screensaver is on, or whether they're ready. |
+| **active task** | What BMO was in the middle of. |
+| **resume task** | Carries on with it. |

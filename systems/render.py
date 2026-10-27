@@ -993,6 +993,104 @@ class FaceRenderer:
         footer = label_font.render(note, True, (108, 245, 206))
         screen.blit(footer, footer.get_rect(center=(w // 2, h - bottom // 2)))
 
+    # ----------------------------------------------------------------------
+    # The movie and game libraries (systems/library.py, 2026-10-28).
+    # ----------------------------------------------------------------------
+    _LIBRARY_KIND = {"movie": "MOVIE", "show": "SHOW", "game": "GAME"}
+
+    def _library_picture(self, path, size):
+        """The picture scaled to fit `size`, kept between frames; None when it can't be read."""
+        cache = getattr(self, "_library_pictures", None)
+        if cache is None or len(cache) > 96:
+            cache = self._library_pictures = {}
+        key = (path, size)
+        if key not in cache:
+            try:
+                image = pygame.image.load(str(path))
+                image = image.convert() if pygame.display.get_surface() is not None else image
+                scale = min(size[0] / image.get_width(), size[1] / image.get_height())
+                cache[key] = pygame.transform.smoothscale(
+                    image, (max(1, int(image.get_width() * scale)), max(1, int(image.get_height() * scale))))
+            except Exception:
+                cache[key] = None
+        return cache[key]
+
+    def _render_library(self, lib, now):
+        """Numbered tiles, a picture with the name under it (every tile has its name: owner 2026-10-28), or a plain
+        numbered list when nothing has a picture."""
+        screen = self._app._screen
+        w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
+        title_font, row_font, small_font = self._setup_fonts(h)
+        self._green_grid(now, speed=0.25)
+        dx, dy = int(math.sin(now / 37.0) * 3), int(math.cos(now / 53.0) * 2)  # drifts against burn-in
+        left, right, top = int(w * 0.05) + dx, int(w * 0.95) + dx, int(h * 0.04) + dy
+        heading = "MOVIES & SHOWS" if lib.get("kind") == "movies" else "GAMES"
+        title = title_font.render(heading, True, (108, 245, 206))
+        screen.blit(title, (left, top))
+        tiles, total, first = lib.get("tiles") or [], int(lib.get("total") or 0), int(lib.get("first") or 1)
+        if total:
+            count = small_font.render(f"{first}-{first + len(tiles) - 1} of {total}", True, (90, 160, 148))
+            screen.blit(count, count.get_rect(bottomright=(right, top + title.get_height())))
+        body_top, body_bottom = top + title.get_height() + int(h * 0.03), int(h * 0.88)
+        text, dim, number_color = (205, 236, 228), (78, 128, 120), (255, 226, 140)
+        if not total:
+            empty = ("No movies yet. They go in the Videos folder." if lib.get("kind") == "movies"
+                     else "No games yet.")
+            surface = row_font.render(empty, True, text)
+            screen.blit(surface, surface.get_rect(center=(w // 2 + dx, (body_top + body_bottom) // 2)))
+        elif lib.get("grid"):
+            cols, rows = (4, 2) if w >= h else (2, 4)
+            tile_w, tile_h = (right - left) // cols, (body_bottom - body_top) // rows
+            line_h = small_font.get_linesize()
+            for i, tile in enumerate(tiles):
+                x0, y0 = left + (i % cols) * tile_w, body_top + (i // cols) * tile_h
+                room = (tile_w - 12, tile_h - 2 * line_h - 12)
+                picture = self._library_picture(tile["picture"], room) if tile.get("picture") else None
+                if picture is not None:
+                    size = picture.get_size()
+                else:  # no picture (yet): a frame the shape of a movie still, with what it is
+                    size = (room[0], min(room[1], room[0] * 9 // 16))
+                block = size[1] + 6 + 2 * line_h  # the picture with its name right under it, centered in the tile
+                corner = pygame.Rect(0, 0, *size)
+                corner.midtop = (x0 + tile_w // 2, y0 + max(4, (tile_h - block) // 2))
+                if picture is not None:
+                    screen.blit(picture, corner)
+                    pygame.draw.rect(screen, (28, 96, 44), corner.inflate(4, 4), width=2)
+                else:
+                    pygame.draw.rect(screen, (4, 24, 10), corner)
+                    pygame.draw.rect(screen, (28, 96, 44), corner, width=2)
+                    kind = small_font.render(self._LIBRARY_KIND.get(tile.get("kind"), ""), True, dim)
+                    screen.blit(kind, kind.get_rect(center=corner.center))
+                box = corner
+                badge = small_font.render(str(tile["number"]), True, number_color)
+                plate = badge.get_rect(topleft=(corner.left + 4, corner.top + 4)).inflate(8, 4)
+                pygame.draw.rect(screen, (3, 14, 6), plate)
+                screen.blit(badge, badge.get_rect(center=plate.center))
+                if tile.get("kind") == "show" and picture is not None:
+                    tag = small_font.render("SHOW", True, dim)
+                    screen.blit(tag, tag.get_rect(topright=(corner.right - 4, corner.top + 4)))
+                lines = self._wrap_text(small_font, tile.get("title", ""), tile_w - 12)[:2]
+                for n, line in enumerate(lines):
+                    surface = small_font.render(line, True, text)
+                    screen.blit(surface, surface.get_rect(midtop=(x0 + tile_w // 2, box.bottom + 4 + n * line_h)))
+        else:  # one column, so long names fit
+            line_h = min(int(row_font.get_linesize() * 1.8), (body_bottom - body_top) // max(1, len(tiles)))
+            number_w = row_font.size("00")[0]
+            for i, tile in enumerate(tiles):
+                x, y = left + int(w * 0.02), body_top + int(h * 0.02) + i * line_h
+                number = row_font.render(str(tile["number"]), True, number_color)
+                screen.blit(number, number.get_rect(topright=(x + number_w, y)))
+                name = str(tile.get("title", ""))
+                room = right - x - number_w - 24
+                if row_font.size(name)[0] > room:  # the pixel font has no "…"
+                    while name and row_font.size(name + "...")[0] > room:
+                        name = name[:-1]
+                    name = name.rstrip() + "..."
+                screen.blit(row_font.render(name, True, text), (x + number_w + 16, y))
+        hint = "Say: scroll down, scroll up, play number 3, or close" if total else "Say: close"
+        surface = small_font.render(hint, True, number_color)
+        screen.blit(surface, surface.get_rect(center=(w // 2 + dx, int(h * 0.94) + dy)))
+
     def _render_calibration(self, status):
         """Settings plan S2 (approved): a full-screen calibration pattern in place of
         the face, only while a calibration session runs. The white frame sits exactly on
@@ -1195,6 +1293,7 @@ class FaceRenderer:
             and float(status.get("idle_seconds") or 0.0)
             >= float(config.CRT_SCREENSAVER_IDLE_SECONDS)
             and not status.get("parts_menu")
+            and not status.get("library")
         )
         if idle_due and self._saver_started is None:
             # Not over a movie or a game (2026-10-20; systems/saver_guard.py). Asked only before the
@@ -1243,6 +1342,7 @@ class FaceRenderer:
             display_mode == "face"
             and not switch_visible
             and not status.get("parts_menu")
+            and not status.get("library")
             and not idle_due
             and not managed_display_active
             and self._app.chat.state in (State.READY, State.LISTENING)
@@ -1262,6 +1362,11 @@ class FaceRenderer:
             self._stop_external_saver()
             self._saver_started = None
             self._render_model_switch(status, now)
+        elif status.get("library"):
+            self._reset_crt_static_refresh(now)
+            self._stop_external_saver()
+            self._saver_started = None
+            self._render_library(status["library"], now)
         elif status.get("parts_menu"):
             self._reset_crt_static_refresh(now)
             self._stop_external_saver()

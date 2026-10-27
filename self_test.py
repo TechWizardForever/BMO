@@ -118,15 +118,13 @@ def main():
     assert not gate.is_active(now=196.1)
     assert Path("VOICE_COMMANDS.md").read_text(encoding="utf-8") == markdown_catalog()
     catalog_forms = [item.syntax for item in VOICE_COMMANDS]
-    assert "Hey Bemo, reboot yourself" in catalog_forms
-    assert "Hey Bemo, reload yourself" in catalog_forms
-    assert "Hey Bemo, shutdown yourself" in catalog_forms
+    assert "Hey Bemo, reboot yourself / reload yourself" in catalog_forms
+    assert "Hey Bemo, go to sleep / shutdown yourself" in catalog_forms
     assert "Hey Bemo, voice status" in catalog_forms
     assert "Hey Bemo, test voice" in catalog_forms
     assert "Hey Bemo, text mode" in catalog_forms
     assert "Hey Bemo, face mode" in catalog_forms
-    assert "Hey Bemo, TTS off" in catalog_forms
-    assert "Hey Bemo, TTS on" in catalog_forms
+    assert "Hey Bemo, TTS off / TTS on" in catalog_forms
     assert "Hey Bemo, interface status" in catalog_forms
     assert not any("start Bemo" in form for form in catalog_forms)
 

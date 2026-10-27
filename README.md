@@ -21,12 +21,16 @@ He can also:
 - play GameCube games through Dolphin, with a controller or the keyboard. No games come with him. You bring your
   own, and he can import them off a USB stick
 - play your movies and shows from the Videos folder and handle them by voice: "play Adventure Time season 2
-  episode 3", "pause", "skip ahead 30 seconds", "next episode", "stop". A show picks up where you left off.
-  Like the games, no videos come with him
+  episode 3", "pause", "skip ahead 30 seconds", "next episode", "stop". A movie picks up where you stopped it,
+  and a show carries on from the last episode you watched. Like the games, no videos come with him
+- show your movies or games on his screen ("show my movies", "show my games"), so you can scroll through them
+  and say "play number 3"
+- sort the games and movies in your Downloads folder into the right places ("sort my downloads"), after you
+  say yes
 - set timers and reminders, which still go off when he's asleep
 - remember things you tell him ("remember that my sister's birthday is May 3rd")
 - keep projects, check the weather, back himself up to a USB stick, and a bunch more. Everything he understands
-  is in [VOICE_COMMANDS.md](VOICE_COMMANDS.md)
+  is in [VOICE_COMMANDS.md](VOICE_COMMANDS.md), a list you can print and keep next to him
 
 He was built with an old CRT in mind, so he has a moving face, a bit of static now and then, and the old Windows
 screensavers when nobody's using him. He also updates himself from this repo, but only from releases I've signed.

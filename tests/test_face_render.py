@@ -182,5 +182,40 @@ class FaceRenderTests(unittest.TestCase):
         self.assertNotEqual(draw(runner.OVER), running)  # the flat crash mouth
         self.assertNotEqual(draw(runner.RUNNING, y=0.2), draw(runner.RUNNING))  # arms up mid-jump
 
+    def test_the_libraries_draw_pictures_with_names_or_a_list_and_hold_the_saver_off(self):
+        # 2026-10-28: "show my movies" / "show my games" (systems/library.py).
+        from systems import library
+        app = smoke.FakeApp()
+        renderer = FaceRenderer(app)
+        renderer._saver_guard = type("QuietGuard", (), {"hold_off": lambda self: None})()
+        face = self.frame(renderer, app)
+        still = Path(tempfile.mkdtemp()) / "still.png"
+        picture = pygame.Surface((160, 90))
+        picture.fill((250, 20, 200))  # a colour nothing else on these screens uses
+        pygame.image.save(picture, str(still))
+        view = library.LibraryView()
+        view.open("movies", [library.Item("Spirited Away", "movie", "/v/a.mkv", still),
+                             library.Item("Ponyo", "movie", "/v/b.mkv", None, Path("/v/b.mkv")),
+                             library.Item("Jimmy Neutron", "show", "Jimmy", still)])
+        app.chat.status["library"] = view.snapshot()
+        app.chat.status["idle_seconds"] = float(config.CRT_SCREENSAVER_IDLE_SECONDS) + 1.0
+        movies = self.frame(renderer, app)
+        self.assertNotEqual(movies, face)
+        self.assertIsNone(renderer._saver_started)  # the saver waits while a library is open
+        colours = {tuple(app._screen.get_at((x, y)))[:3] for x in range(0, app.SCREEN_WIDTH, 3)
+                   for y in range(0, app.SCREEN_HEIGHT, 3)}
+        self.assertTrue(any(max(abs(a - b) for a, b in zip(c, (250, 20, 200))) <= 8 for c in colours),
+                        "the picture (scaled, so a shade or two off)")
+        title_rows = [y for y in range(app.SCREEN_HEIGHT // 2) for x in range(0, app.SCREEN_WIDTH, 2)
+                      if tuple(app._screen.get_at((x, y)))[:3] == (205, 236, 228)]
+        self.assertTrue(title_rows, "the names under the tiles")
+        view.open("games", [library.Item(f"Game {n}", "game", f"/g/{n}.rvz") for n in range(14)])
+        app.chat.status["library"] = view.snapshot()
+        games = self.frame(renderer, app)
+        self.assertNotEqual(games, movies)
+        app.chat.status["library"] = None
+        app.chat.status["idle_seconds"] = 0.0
+        self.assertEqual(self.frame(renderer, app), face)  # closed: the face is back as it was
+
 if __name__ == "__main__":
     unittest.main()

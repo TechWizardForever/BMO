@@ -81,4 +81,5 @@ LINUX_IMPLEMENTATION_MODULES = (
     "systems/wifi.py",            # NetworkManager (nmcli, nm-applet): first boot's internet step
     "systems/saver_guard.py",     # xprop, D-Bus power-management inhibitors, pgrep: movie/game check
     "systems/media.py",           # Celluloid and MPRIS over gdbus: movies and shows by voice
+    "systems/sort_downloads.py",  # xdg-user-dir, gio trash, 7z: sorting the Downloads folder
 )

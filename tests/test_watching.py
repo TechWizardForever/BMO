@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 import config
 
 SOURCE = (ROOT / "systems" / "chat.py").read_text()
-METHODS = {"_handle_one_request", "_game_or_video_open", "_open_answer_followup", "managed_display_active",
+METHODS = {"_handle_one_request", "_game_or_video_open", "_open_answer_followup", "managed_display_active", "_player",
            "_plain_words", "_WATCHING_COMMAND", "_PART_WORDS", "_3D_REQUEST", "_show_parts_menu"}
 
 
@@ -83,6 +83,11 @@ class WatchingTests(unittest.TestCase):
             for heard in ("close the game", "stop the show.", "pause", "turn the volume down"):
                 self.m._handle_one_request(heard)
             self.assertEqual(self.m.said, [])
+
+    def test_restarting_the_movie_is_a_video_command(self):
+        # 2026-10-28: "restart" / "start over" / "from the beginning" while a movie plays.
+        for heard in ("restart", "restart it", "start over", "go back to the beginning", "play it from the beginning"):
+            self.assertTrue(self.m._WATCHING_COMMAND.search(self.m._plain_words(heard)), heard)
 
     def test_an_open_video_counts(self):
         self.m.on(video=True)

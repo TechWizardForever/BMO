@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import re
 import time
 
-COMMAND_CATALOG_VERSION = "1.15"
+COMMAND_CATALOG_VERSION = "1.16"
 CANONICAL_WAKE_PHRASE = "Hey Bemo"
 CANONICAL_SLEEP_PHRASE = "go to sleep"
 
@@ -198,123 +198,131 @@ class VoiceCommand:
     description: str
 
 
-# These are the canonical user-facing forms. The deterministic parser may accept
-# a few natural aliases too, but this list is the authoritative compact catalog
-# that Bemo can recite/show and that every model sees in its static system prefix.
+# The set phrases BMO always handles himself, before any brain sees them. VOICE_COMMANDS.md is made from this list
+# (markdown_catalog) and is the printable command list on GitHub (owner 2026-10-28: plain words, one line each,
+# grouped by what they're for). Placeholders are <like this>; "a|b" and "a / b" mean either one.
 VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
-    VoiceCommand("Session", "Hey Bemo / Bemo / BMO", "Wake/acknowledge Bemo; the name alone is also a valid wake trigger and arms one immediate follow-up command."),
-    VoiceCommand("Session", "Hey Bemo, go to sleep", "Go back to standby; the next Hey Bemo starts him again."),
-    VoiceCommand("Session", "Hey Bemo, list commands", "Summarize the built-in deterministic voice commands."),
-    VoiceCommand("Session", "Hey Bemo, what hardware am I on?", "CPU, memory (vs the 28 GB minimum), graphics and whether my models use it, free disk, sound, microphone, screen; saved to ~/.bemo/hardware-profile.json."),
-    VoiceCommand("Session", "Hey Bemo, what can you do on this computer?", "What works on this computer, what doesn't and why (from what is installed); full list: print_capabilities.py."),
+    VoiceCommand("Talking to BMO", "Hey Bemo / Bemo / BMO", "Wakes BMO. You can say just his name, wait for him, and then say the command."),
+    VoiceCommand("Talking to BMO", "Hey Bemo, yes / no", "Answers BMO when he asks before doing something. No works on its own; yes needs Hey BMO."),
+    VoiceCommand("Talking to BMO", "Hey Bemo, go to sleep / shutdown yourself", "BMO closes and lets go of his brain. He still hears Hey BMO, which starts him again."),
+    VoiceCommand("Talking to BMO", "Hey Bemo, list commands", "BMO names the kinds of things he can do. This page has the whole list."),
+    VoiceCommand("Talking to BMO", "Hey Bemo, what time is it? / what's the date?", "From this computer's clock."),
+    VoiceCommand("Talking to BMO", "Hey Bemo, what hardware am I on?", "What this computer has: processor, memory, graphics, free disk space, sound and screen."),
+    VoiceCommand("Talking to BMO", "Hey Bemo, what can you do on this computer?", "What works on this computer, what doesn't, and why."),
 
-    VoiceCommand("Lifecycle", "Hey Bemo, reboot yourself", "Restart only the Bemo program; Linux stays running."),
-    VoiceCommand("Lifecycle", "Hey Bemo, reload yourself", "Alias for restarting only the Bemo program."),
-    VoiceCommand("Lifecycle", "Hey Bemo, shutdown yourself", "Stop full Bemo and return to the tiny Hey Bemo standby listener."),
+    VoiceCommand("Movies and shows", "Hey Bemo, show my movies", "Your movies and shows on BMO's screen, each with a picture and its name. A show has one tile."),
+    VoiceCommand("Movies and shows", "Hey Bemo, scroll down / scroll up", "Next or previous page of the movies or games on the screen. No need for Hey BMO while they're showing."),
+    VoiceCommand("Movies and shows", "Hey Bemo, play number <n>", "Plays that number from the movies or games on the screen. No need for Hey BMO while they're showing."),
+    VoiceCommand("Movies and shows", "Hey Bemo, close the library", "Puts BMO's face back. Plain \"close\" works too, and it closes by itself after 3 minutes."),
+    VoiceCommand("Movies and shows", "Hey Bemo, play <movie or show>", "Plays it full screen, in English when there's a choice. A movie picks up where you stopped it; a show carries on from the last episode you watched."),
+    VoiceCommand("Movies and shows", "Hey Bemo, play <show> season <n> episode <n>", "That episode, then the rest of the season. \"The first episode of <show>\" and \"season 2 of <show>\" work too."),
+    VoiceCommand("Movies and shows", "Hey Bemo, restart / play <movie> from the beginning", "Starts over. Say restart while it's playing, or ask for it from the beginning to start fresh."),
+    VoiceCommand("Movies and shows", "Hey Bemo, pause / resume", "While something is playing. Plain \"pause\" and \"play\" work without Hey BMO."),
+    VoiceCommand("Movies and shows", "Hey Bemo, next episode / previous episode", "While a show is playing."),
+    VoiceCommand("Movies and shows", "Hey Bemo, skip / rewind / skip ahead 30 seconds / go back 2 minutes", "Skip goes 30 seconds ahead and rewind 10 seconds back, or say how far."),
+    VoiceCommand("Movies and shows", "Hey Bemo, stop / stop the show / close <title> / turn it off", "Closes the player and brings BMO's face back. He remembers where you stopped."),
 
-    VoiceCommand("Memory", "Hey Bemo, remember that <something>", "Saved word for word (\"remember that my sister's birthday is May 3rd\"); every brain knows it from then on."),
-    VoiceCommand("Memory", "Hey Bemo, what do you remember about me?", "BMO reads back what you asked him to remember."),
-    VoiceCommand("Memory", "Hey Bemo, forget that <something>", "Removes the closest note; \"forget everything about me\" asks first."),
-    VoiceCommand("Timers", "Hey Bemo, set a timer for <time>", "A timer (\"set a pasta timer for 8 minutes\", \"set a 5 minute timer\"); it rings with a chime and BMO's voice, even while he sleeps."),
-    VoiceCommand("Timers", "Hey Bemo, remind me <when> to <something>", "A reminder: \"in 20 minutes\", \"at 5 PM\", \"tomorrow at 9\"; BMO says the time back and the reminder when it comes, even while he sleeps."),
-    VoiceCommand("Timers", "Hey Bemo, how much time is left?", "Time left on each timer; \"what reminders do I have?\" lists reminders."),
-    VoiceCommand("Timers", "Hey Bemo, cancel the timer", "Cancel the timer (or \"cancel the pasta timer\", \"cancel all timers\", \"cancel the reminder to water the basil\")."),
-    VoiceCommand("Models", "Hey Bemo, current model", "Report the active model profile."),
-    VoiceCommand("Models", "Hey Bemo, list models", "List configured model profiles."),
-    VoiceCommand("Models", "Hey Bemo, switch to <profile> model", "Manually switch model profiles."),
-    VoiceCommand("Models", "Hey Bemo, ask <specialist> to <task>", "Run one task on a specialist, then return normally."),
-    VoiceCommand("Models", "Hey Bemo, show me the shapes", "The 3D shapes menu: the six basic shapes turning on the screen for a minute (it also shows while BMO makes a part)."),
-    VoiceCommand("Models", "Hey Bemo, make a <part>", "A simple 3D-printable part from one of six basic shapes with holes, walls and rounded edges (docs/3D_PARTS.md): in seconds when BMO understands every word, else by the Engineering model; saves .scad and .stl in ~/BMO-3D (or the open project's models folder) after checking its size, holes and that it is one piece."),
-    VoiceCommand("Models", "Hey Bemo, make it <number> millimeters tall", "Change one size of the last part (tall, wide, deep, thick, across, the hole, the walls) in seconds; the earlier part is kept."),
+    VoiceCommand("Games", "Hey Bemo, show my games", "Your games on BMO's screen, with their covers if there are any, otherwise as a list. Scroll and pick by number like the movies."),
+    VoiceCommand("Games", "Hey Bemo, play <game>", "Starts the game. Controllers that are plugged in are players 1 to 4; with none, the keyboard is player 1."),
+    VoiceCommand("Games", "Hey Bemo, close the game", "Closes the game."),
+    VoiceCommand("Games", "Hey Bemo, boot games", "Opens the full game menu (ES-DE), which works with a controller."),
+    VoiceCommand("Games", "Hey Bemo, list games", "How many games BMO has."),
+    VoiceCommand("Games", "Hey Bemo, import games from USB", "Copies the GameCube games from a USB stick into BMO's games. The stick stays as it was."),
+    VoiceCommand("Games", "Hey Bemo, rescan games", "Looks for new games in BMO's games folder."),
 
-    VoiceCommand("Voice", "Hey Bemo, voice status", "Say which voice Bemo is using."),
-    VoiceCommand("Voice", "Hey Bemo, test voice", "Speak a short test phrase."),
-    VoiceCommand("Voice", "Hey Bemo, learn my voice", "Say Hey Bemo six times and talk for ten seconds, so he wakes for your voice."),
+    VoiceCommand("Downloads", "Hey Bemo, sort my downloads", "Finds the games, movies and shows in your Downloads folder and says what he found. Say Hey BMO, yes, and he moves them where they go. Anything still downloading is left alone."),
 
-    VoiceCommand("Projects", "Hey Bemo, list projects", "List known projects."),
-    VoiceCommand("Projects", "Hey Bemo, current project", "Report the active project."),
-    VoiceCommand("Projects", "Hey Bemo, create project <name>", "Create and open a project."),
-    VoiceCommand("Projects", "Hey Bemo, import project from USB", "Discover, copy, verify, and open a project from mounted removable media."),
-    VoiceCommand("Projects", "Hey Bemo, import files into current project", "Copy and verify removable-drive files into the active project without overwriting existing files."),
-    VoiceCommand("Projects", "Hey Bemo, open project <name>", "Open an existing project."),
-    VoiceCommand("Projects", "Hey Bemo, close project", "Close the active project."),
-    VoiceCommand("Projects", "Hey Bemo, reindex project", "Refresh the active project's file index."),
-    VoiceCommand("Projects", "Hey Bemo, save project snapshot", "Create a manual Git safety snapshot."),
-    VoiceCommand("Projects", "Hey Bemo, undo last Bemo change", "Revert the most recent Bemo project change when safely identifiable."),
-    VoiceCommand("Projects", "Hey Bemo, export <file-or-folder> to USB", "Copy and verify selected active-project files or folders to removable storage without moving or overwriting originals."),
-    VoiceCommand("Projects", "Hey Bemo, export project", "Export and verify the active project to removable storage."),
-    VoiceCommand("Projects", "Hey Bemo, remember for this project <note>", "Append a durable project note."),
-    VoiceCommand("Projects", "Hey Bemo, what do you remember about this project?", "Read the open project's saved notes aloud, word for word (also: project notes, project memory)."),
+    VoiceCommand("Timers and reminders", "Hey Bemo, set a timer for <time>", "Like \"set a pasta timer for 8 minutes\". It rings with a chime and BMO's voice, even while he's asleep."),
+    VoiceCommand("Timers and reminders", "Hey Bemo, remind me <when> to <something>", "Like \"remind me in 20 minutes to check the oven\" or \"remind me tomorrow at 9 to call Sam\". He says it back so you know he got it."),
+    VoiceCommand("Timers and reminders", "Hey Bemo, how much time is left?", "Time left on each timer. \"What reminders do I have?\" lists your reminders."),
+    VoiceCommand("Timers and reminders", "Hey Bemo, cancel the timer", "Or \"cancel the pasta timer\", \"cancel all timers\", \"cancel the reminder to water the basil\"."),
 
-    VoiceCommand("Interface", "Hey Bemo, text mode", "Switch the normal display from the animated face to the text-only conversation view."),
-    VoiceCommand("Interface", "Hey Bemo, face mode", "Switch back to the animated Bemo face and ensure TTS is on."),
-    VoiceCommand("Interface", "Hey Bemo, TTS off", "Disable spoken replies only while Text mode is active; Face mode always keeps TTS on."),
-    VoiceCommand("Interface", "Hey Bemo, TTS on", "Enable spoken replies; the voice loads on demand if it was skipped at startup."),
-    VoiceCommand("Interface", "Hey Bemo, interface status", "Report Face/Text mode and whether TTS is enabled."),
+    VoiceCommand("Remembering things", "Hey Bemo, remember that <something>", "Saved word for word, like \"remember that my sister's birthday is May 3rd\". Every brain knows it from then on."),
+    VoiceCommand("Remembering things", "Hey Bemo, what do you remember about me?", "BMO reads back what you asked him to remember."),
+    VoiceCommand("Remembering things", "Hey Bemo, forget that <something>", "Removes that note. \"Forget everything about me\" asks first."),
 
-    VoiceCommand("System", "Hey Bemo, system status", "Report Supervisor/model/managed-app status."),
-    VoiceCommand("System", "Hey Bemo, check for updates", "Look for a newer signed release; installing needs Hey Bemo, yes."),
-    VoiceCommand("System", "Hey Bemo, how are the downloads?", "Progress of the brain downloads after installing."),
-    VoiceCommand("System", "Hey Bemo, display status", "Report the live resolution, safe-area crop, and whether a display test is pending."),
-    VoiceCommand("System", "Hey Bemo, list screen resolutions", "List display modes advertised by the current X11 monitor/output."),
-    VoiceCommand("System", "Hey Bemo, calibrate the screen", "Guided whole-desktop fit for CRTs/TVs: a calibration pattern replaces the face; say smaller, bigger, move left/right/up/down, the left side is cut off, more, too far, lower resolution, 60 hertz, keep it, or cancel (no Hey Bemo needed inside the session). Silence puts it back."),
-    VoiceCommand("System", "Hey Bemo, test screen resolution <width> by <height>", "Temporarily test a resolution; it is only saved after approval and otherwise auto-reverts."),
-    VoiceCommand("System", "Hey Bemo, test screen crop <pixels> pixels", "Temporarily inset all screen edges to compensate for CRT/adapter overscan."),
-    VoiceCommand("System", "Hey Bemo, test <edge> crop <pixels> pixels", "Temporarily adjust left, right, top, bottom, horizontal, or vertical safe-area crop."),
-    VoiceCommand("System", "Hey Bemo, reset screen crop", "Temporarily test zero safe-area crop on every edge."),
-    VoiceCommand("System", "Hey Bemo, approve display changes", "Save the currently tested resolution/crop as the startup display settings."),
-    VoiceCommand("System", "Hey Bemo, reject display changes", "Revert the current resolution/crop test to the previous settings."),
-    VoiceCommand("System", "Hey Bemo, list apps", "List allowlisted apps Bemo can launch directly."),
-    VoiceCommand("System", "Hey Bemo, launch <app>", "Launch an allowlisted app such as games or the media player."),
-    VoiceCommand("System", "Hey Bemo, close <app>", "Close an allowlisted managed app."),
-    VoiceCommand("Desktop apps", "Hey Bemo, open <app>", "Open any installed desktop app by name (e.g. Calculator, Thunar); verified by its window. Misheard names get 'Did you mean…?'."),
-    VoiceCommand("Desktop apps", "Hey Bemo, switch to <app>", "Bring an open app's window to the front."),
-    VoiceCommand("Desktop apps", "Hey Bemo, close <app>", "Close an app's window; reports if it is asking about unsaved work."),
-    VoiceCommand("App controls", "Hey Bemo, press <button> in <app>", "Press a named button; 'press 6, then equals' does several. Ordinary changes ask once per app (3 minutes)."),
-    VoiceCommand("App controls", "Hey Bemo, switch to the <name> tab in <app>", "Switch tabs (no question: navigation only)."),
-    VoiceCommand("App controls", "Hey Bemo, turn <setting> on|off in <app>", "Flip a named switch or checkbox."),
-    VoiceCommand("App controls", "Hey Bemo, what can I press in <app>?", "List the app's visible controls."),
-    VoiceCommand("App controls", "Hey Bemo, <task> in <app>", "Multi-step tasks (e.g. make Thunar show hidden files): one OK for the plan, every step verified; buttons not shared by the app (web pages) are found by looking. Critical steps (Delete, Don't Save) always ask."),
-    VoiceCommand("Sound", "Hey Bemo, volume up|down / louder / quieter", "Change the volume by 10 points ('a little' 5, 'a lot' 20); read back after."),
-    VoiceCommand("Sound", "Hey Bemo, set the volume to <percent>", "Set an exact level; jumps over 30 points or above 85% ask first."),
-    VoiceCommand("Sound", "Hey Bemo, mute / unmute", "Mute or unmute the computer's sound (BMO's voice too)."),
-    VoiceCommand("Sound", "Hey Bemo, what's the volume?", "Report the level and which output is playing."),
-    VoiceCommand("Sound", "Hey Bemo, switch sound to <output>", "Play sound through the TV/HDMI, speakers, or a named device."),
-    VoiceCommand("Readability", "Hey Bemo, make the text bigger|smaller", "Text size in steps (100-200%); a preview: say keep it, bigger, smaller, or cancel; silence puts it back after 30 s."),
-    VoiceCommand("Readability", "Hey Bemo, make the mouse pointer bigger|smaller", "Pointer size 24-96 pixels, previewed the same way."),
-    VoiceCommand("Readability", "Hey Bemo, hide|show the panel", "Auto-hide the desktop panel (Xfce), previewed the same way."),
-    VoiceCommand("Readability", "Hey Bemo, normal text size / normal pointer size", "Back to the desktop's defaults."),
-    VoiceCommand("Weather", "Hey Bemo, set my weather location to <town>", "Opt-in weather (Open-Meteo); the town is confirmed before saving."),
-    VoiceCommand("Weather", "Hey Bemo, what's the weather?", "Current weather or forecast for the saved location."),
-    VoiceCommand("Weather", "Hey Bemo, do you remember the weather earlier?", "The last weather report he gave, and when."),
-    VoiceCommand("Weather", "Hey Bemo, forget my weather location", "Remove the saved location."),
-    VoiceCommand("System", "Hey Bemo, disable computer control", "Disable model-requested full computer control."),
-    VoiceCommand("System", "Hey Bemo, enable computer control", "Re-enable model-requested full computer control."),
-    VoiceCommand("System", "Hey Bemo, computer control status", "Report full-computer-control state and pending actions."),
-    VoiceCommand("System", "Hey Bemo, confirm computer action", "Approve a pending non-critical computer action."),
-    VoiceCommand("System", "Hey Bemo, confirm critical computer action", "Approve a pending critical computer action."),
-    VoiceCommand("System", "Hey Bemo, cancel computer action", "Cancel the pending computer action."),
+    VoiceCommand("Weather", "Hey Bemo, set my weather location to <town>", "Turns the weather on for your town. He checks the town with you before saving it."),
+    VoiceCommand("Weather", "Hey Bemo, what's the weather?", "The weather now, or the forecast, for your town."),
+    VoiceCommand("Weather", "Hey Bemo, do you remember the weather earlier?", "The last weather report he gave you, and when."),
+    VoiceCommand("Weather", "Hey Bemo, forget my weather location", "Removes your town."),
 
-    VoiceCommand("Movies", "Hey Bemo, play <movie or show>", "Play from the Videos folder, full screen, English audio first; a show carries on where it left off."),
-    VoiceCommand("Movies", "Hey Bemo, play <show> season <n> episode <n>", "Also: the first episode of <show>, episode 3 of <show>, season 2 of <show>. The rest of the season follows."),
-    VoiceCommand("Movies", "Hey Bemo, pause / resume", "While a video plays; plain pause and play work without Hey Bemo too."),
-    VoiceCommand("Movies", "Hey Bemo, next episode / previous episode", "While a show plays."),
-    VoiceCommand("Movies", "Hey Bemo, skip / rewind / skip ahead 30 seconds / go back 2 minutes", "While a video plays; skip alone is 30 seconds, rewind 10."),
-    VoiceCommand("Movies", "Hey Bemo, stop / stop the show / close <title> / turn it off", "Close the player; BMO's face comes back."),
-    VoiceCommand("Games", "Hey Bemo, boot games", "Open the GameCube library frontend."),
-    VoiceCommand("Games", "Hey Bemo, list games", "Report discovered GameCube games."),
-    VoiceCommand("Games", "Hey Bemo, import games from USB", "Copy and verify supported GameCube ROMs from mounted removable media into Bemo's permanent library."),
-    VoiceCommand("Games", "Hey Bemo, rescan games", "Rescan the GameCube library and refresh ES-DE if it is currently open."),
-    VoiceCommand("Games", "Hey Bemo, play <game>", "Launch a uniquely matched GameCube title in Dolphin. Gamepads plugged in become players 1-4; with none, the keyboard is player 1."),
-    VoiceCommand("Games", "Hey Bemo, close current game", "Close the active Dolphin game session."),
+    VoiceCommand("Sound", "Hey Bemo, volume up|down / louder / quieter", "Changes the volume by 10. Add \"a little\" for 5 or \"a lot\" for 20."),
+    VoiceCommand("Sound", "Hey Bemo, set the volume to <percent>", "An exact level. A big jump, or going over 85, asks first."),
+    VoiceCommand("Sound", "Hey Bemo, mute / unmute", "All of the computer's sound off or back on, BMO's voice too."),
+    VoiceCommand("Sound", "Hey Bemo, what's the volume?", "The level, and where the sound is going."),
+    VoiceCommand("Sound", "Hey Bemo, switch sound to <output>", "Sound through the TV, the speakers, or another device by its name."),
 
-    VoiceCommand("Maintenance", "Hey Bemo, backup Bemo to USB", "Create and verify a full lightweight Bemo backup on removable storage."),
-    VoiceCommand("Maintenance", "Hey Bemo, enable Bemo autostart", "Enable Bemo standby automatically when the Xfce desktop logs in."),
-    VoiceCommand("Maintenance", "Hey Bemo, disable Bemo autostart", "Disable future Xfce-login standby autostart without stopping the current session."),
-    VoiceCommand("Maintenance", "Hey Bemo, Bemo autostart status", "Report autostart status."),
-    VoiceCommand("Maintenance", "Hey Bemo, screensaver status", "Report Wine/SCR screensaver readiness or current saver."),
-    VoiceCommand("Maintenance", "Hey Bemo, active task", "Report the current unfinished task."),
-    VoiceCommand("Maintenance", "Hey Bemo, resume task", "Resume the most recent incomplete task/checkpoint."),
+    VoiceCommand("Screen and text", "Hey Bemo, make the text bigger|smaller", "Text size one step at a time. Then say keep it, bigger, smaller or cancel; if you say nothing it goes back after 30 seconds."),
+    VoiceCommand("Screen and text", "Hey Bemo, make the mouse pointer bigger|smaller", "The same, for the mouse pointer."),
+    VoiceCommand("Screen and text", "Hey Bemo, hide|show the panel", "Hides the taskbar until the mouse goes there, or shows it again."),
+    VoiceCommand("Screen and text", "Hey Bemo, normal text size / normal pointer size", "Back to the usual size."),
+    VoiceCommand("Screen and text", "Hey Bemo, calibrate the screen", "Fits the desktop on an old TV or monitor. Say smaller, bigger, move left, the left side is cut off, keep it or cancel; no Hey BMO needed until it's done."),
+    VoiceCommand("Screen and text", "Hey Bemo, display status", "The screen's resolution and how much is trimmed off each edge."),
+    VoiceCommand("Screen and text", "Hey Bemo, list screen resolutions", "The resolutions this screen can do."),
+    VoiceCommand("Screen and text", "Hey Bemo, test screen resolution <width> by <height>", "Tries a resolution. It goes back by itself unless you approve it."),
+    VoiceCommand("Screen and text", "Hey Bemo, test screen crop <pixels> pixels", "Trims every edge, for a TV that cuts off the picture."),
+    VoiceCommand("Screen and text", "Hey Bemo, test <edge> crop <pixels> pixels", "Trims one edge: left, right, top or bottom."),
+    VoiceCommand("Screen and text", "Hey Bemo, reset screen crop", "Tries the screen with nothing trimmed."),
+    VoiceCommand("Screen and text", "Hey Bemo, approve display changes", "Keeps the resolution or trim you're trying."),
+    VoiceCommand("Screen and text", "Hey Bemo, reject display changes", "Goes back to how it was."),
+
+    VoiceCommand("Apps", "Hey Bemo, open <app>", "Opens an app by its name, like Calculator or Firefox. If he isn't sure which one you mean, he asks."),
+    VoiceCommand("Apps", "Hey Bemo, switch to <app>", "Brings that app to the front."),
+    VoiceCommand("Apps", "Hey Bemo, close <app>", "Closes the app. If it has unsaved work, he tells you instead."),
+    VoiceCommand("Apps", "Hey Bemo, press <button> in <app>", "Presses a button by its name; \"press 6, then equals\" does more than one. He asks once before changing anything in an app."),
+    VoiceCommand("Apps", "Hey Bemo, switch to the <name> tab in <app>", "Opens that tab."),
+    VoiceCommand("Apps", "Hey Bemo, turn <setting> on|off in <app>", "Flips a switch or tick box."),
+    VoiceCommand("Apps", "Hey Bemo, what can I press in <app>?", "The buttons and settings he can see in it."),
+    VoiceCommand("Apps", "Hey Bemo, <task> in <app>", "A job with several steps, like \"show hidden files in Thunar\". He tells you the plan first, and always asks before deleting or closing without saving."),
+    VoiceCommand("Apps", "Hey Bemo, list apps", "The apps BMO runs himself: the games and the movie player."),
+
+    VoiceCommand("Computer control", "Hey Bemo, disable computer control / enable computer control", "Stops, or lets again, BMO's brains using the computer on their own."),
+    VoiceCommand("Computer control", "Hey Bemo, computer control status", "Whether it's on, and if anything is waiting for your OK."),
+    VoiceCommand("Computer control", "Hey Bemo, confirm computer action", "Lets BMO go ahead with what he asked to do."),
+    VoiceCommand("Computer control", "Hey Bemo, confirm critical computer action", "The same, for something that can't be undone."),
+    VoiceCommand("Computer control", "Hey Bemo, cancel computer action", "Stops what he asked to do."),
+
+    VoiceCommand("Brains", "Hey Bemo, current model", "Which brain BMO is using."),
+    VoiceCommand("Brains", "Hey Bemo, list models", "All of BMO's brains."),
+    VoiceCommand("Brains", "Hey Bemo, switch to <profile> model", "Changes brain, like \"switch to coding model\". It takes about a minute, with a game to play while you wait."),
+    VoiceCommand("Brains", "Hey Bemo, ask <specialist> to <task>", "Gives one job to another brain, then comes back."),
+
+    VoiceCommand("3D parts", "Hey Bemo, show me the shapes", "The six basic shapes BMO builds parts from, turning on his screen for a minute."),
+    VoiceCommand("3D parts", "Hey Bemo, make a <part>", "A simple part to 3D print, like \"make a 20 millimeter cube with an 8 millimeter hole through the middle\". Saved in the BMO-3D folder; docs/3D_PARTS.md has more."),
+    VoiceCommand("3D parts", "Hey Bemo, make it <number> millimeters tall", "Changes one size of the last part: tall, wide, deep, thick, across, the hole or the walls. The earlier one is kept."),
+
+    VoiceCommand("Projects", "Hey Bemo, list projects", "Your projects."),
+    VoiceCommand("Projects", "Hey Bemo, current project", "The project that's open."),
+    VoiceCommand("Projects", "Hey Bemo, create project <name>", "Makes a new project and opens it."),
+    VoiceCommand("Projects", "Hey Bemo, open project <name>", "Opens a project."),
+    VoiceCommand("Projects", "Hey Bemo, close project", "Closes the project."),
+    VoiceCommand("Projects", "Hey Bemo, import project from USB", "Copies a project from a USB stick, checks it, and opens it."),
+    VoiceCommand("Projects", "Hey Bemo, import files into current project", "Copies files from a USB stick into the open project. Nothing already there is replaced."),
+    VoiceCommand("Projects", "Hey Bemo, export <file-or-folder> to USB", "Copies files from the open project to a USB stick and checks them."),
+    VoiceCommand("Projects", "Hey Bemo, export project", "Copies the whole open project to a USB stick and checks it."),
+    VoiceCommand("Projects", "Hey Bemo, reindex project", "Looks through the project's files again."),
+    VoiceCommand("Projects", "Hey Bemo, save project snapshot", "Saves the project as it is now, so you can go back to it."),
+    VoiceCommand("Projects", "Hey Bemo, undo last Bemo change", "Undoes the last change BMO made to the project, when he can tell exactly what it was."),
+    VoiceCommand("Projects", "Hey Bemo, remember for this project <note>", "Adds a note to the project."),
+    VoiceCommand("Projects", "Hey Bemo, what do you remember about this project?", "Reads the project's notes back, word for word."),
+
+    VoiceCommand("BMO himself", "Hey Bemo, reboot yourself / reload yourself", "Restarts BMO. The computer stays on."),
+    VoiceCommand("BMO himself", "Hey Bemo, check for updates", "Looks for a new version of BMO. To install it, say Hey BMO, yes."),
+    VoiceCommand("BMO himself", "Hey Bemo, how are the downloads?", "How far along BMO's brain downloads are, after a new install."),
+    VoiceCommand("BMO himself", "Hey Bemo, learn my voice", "Say Hey BMO six times and talk for ten seconds, so he wakes up for your voice."),
+    VoiceCommand("BMO himself", "Hey Bemo, voice status", "Which voice BMO is using."),
+    VoiceCommand("BMO himself", "Hey Bemo, test voice", "BMO says a short test sentence."),
+    VoiceCommand("BMO himself", "Hey Bemo, text mode", "The conversation as text, in place of BMO's face."),
+    VoiceCommand("BMO himself", "Hey Bemo, face mode", "BMO's face again, with his voice on."),
+    VoiceCommand("BMO himself", "Hey Bemo, TTS off / TTS on", "In text mode, turns his spoken answers off or back on."),
+    VoiceCommand("BMO himself", "Hey Bemo, interface status", "Whether he's showing his face or text, and if his voice is on."),
+    VoiceCommand("BMO himself", "Hey Bemo, system status", "What's running and which brain is on."),
+    VoiceCommand("BMO himself", "Hey Bemo, backup Bemo to USB", "Saves a backup of BMO on a USB stick, and checks it."),
+    VoiceCommand("BMO himself", "Hey Bemo, enable Bemo autostart / disable Bemo autostart", "Whether BMO starts when you log in to the computer."),
+    VoiceCommand("BMO himself", "Hey Bemo, Bemo autostart status", "Whether BMO starts when you log in."),
+    VoiceCommand("BMO himself", "Hey Bemo, screensaver status", "Which screensaver is on, or whether they're ready."),
+    VoiceCommand("BMO himself", "Hey Bemo, active task", "What BMO was in the middle of."),
+    VoiceCommand("BMO himself", "Hey Bemo, resume task", "Carries on with it."),
 )
 
 
@@ -331,18 +339,17 @@ def commands_for_category(category: str) -> tuple[VoiceCommand, ...]:
 
 
 def compact_spoken_summary() -> str:
-    """Short spoken response; the full catalog remains available to local docs/UI."""
+    """What "Hey BMO, list commands" says; the printable list is VOICE_COMMANDS.md."""
     return (
-        "I have session, lifecycle, model, voice, interface, project, system, app, sound, readability, weather, game, and maintenance commands. "
-        "Use Hey Bemo, Bemo, or BMO to wake me. You can reload or shut me down, ask for current model or project, switch models, "
-        "switch between face and text mode, turn TTS off in text mode or back on, manage projects, open, switch, close and use apps, change the volume, change text and pointer size, check the weather, set up or test my permanent voice, calibrate the screen, test and approve display resolution or crop, import projects or project files from USB, "
-        "import or play games, control computer access, back me up, check the screensaver, or resume a task. "
-        "The full command list is in Bemo's command catalog."
+        "Say Hey BMO first, then what you want. I can show your movies and games and play them, sort your "
+        "downloads, set timers and reminders, remember things for you, check the weather, change the volume, the "
+        "text size and the screen, open and use apps, switch brains, make 3D parts, and look after your projects. "
+        "The full list is VOICE_COMMANDS, on my GitHub page."
     )
 
 
 def model_command_catalog() -> str:
-    """Render the deterministic command catalog for local docs/UI only."""
+    """The catalog as plain lines, for local docs and the UI."""
     lines = [
         "BEMO VOICE COMMAND CATALOG",
         "These fixed phrases are handled by Bemo's deterministic local voice layer before an LLM turn. Do not invent additional fixed command phrases.",
@@ -356,17 +363,31 @@ def model_command_catalog() -> str:
     return "\n".join(lines)
 
 
+def printed_phrase(syntax: str) -> str:
+    """How a phrase is printed: without "Hey Bemo," (the page says it once), BMO spelled BMO, [your words]."""
+    text = re.sub(r"^Hey Bemo, ", "", syntax)
+    text = "Hey BMO / BMO" if text == "Hey Bemo / Bemo / BMO" else text.replace("Bemo", "BMO")
+    text = re.sub(r"<([^>]+)>", lambda m: "[" + m.group(1).replace("-", " ") + "]", text)
+    return re.sub(r"\s*\|\s*", " / ", text)
+
+
 def markdown_catalog() -> str:
+    """VOICE_COMMANDS.md: the command list to print, a table per section."""
     lines = [
-        "# Bemo voice-command catalog",
+        "# BMO voice commands",
         "",
-        f"Canonical wake phrase: **{CANONICAL_WAKE_PHRASE}**. **Bemo**, **Beemo**, and **BMO** are also accepted wake aliases; no trailing **over** is required.",
-        "A wake-only name acknowledges Bemo and arms exactly one immediate unprefixed follow-up.",
+        "Start every command with **Hey BMO**, like \"Hey BMO, what's the weather?\" You can also say \"Hey BMO\" on "
+        "its own, wait for him, and then say the command.",
+        "",
+        "Words in [square brackets] are yours to fill in. A slash means you can say either one.",
+        "",
+        "These are the set phrases BMO always handles the same way. For anything else, just ask him in your own words.",
         "",
     ]
     for category in categories():
-        lines += [f"## {category}", ""]
+        lines += [f"## {category}", "", "| Say | What it does |", "|---|---|"]
         for item in commands_for_category(category):
-            lines.append(f"- `{item.syntax}` — {item.description}")
+            description = re.sub(r"<([^>]+)>", r"[\1]", item.description.replace("|", "/"))
+            lines.append(f"| **{printed_phrase(item.syntax)}** | {description} |")
         lines.append("")
     return "\n".join(lines).rstrip() + "\n"

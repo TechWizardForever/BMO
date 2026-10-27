@@ -56,6 +56,7 @@ now. If the computer is switched off part-way, the setup carries on where it sto
 ## Afterwards
 
 - Say **"Hey BMO"** before anything you want him to do. **"Hey BMO, what can you do on this computer?"**
-  tells you what works here; every command is in [VOICE_COMMANDS.md](../VOICE_COMMANDS.md).
+  tells you what works here; every command is in [VOICE_COMMANDS.md](../VOICE_COMMANDS.md), which prints as a
+  list to keep next to him.
 - **"Hey BMO, check for updates"** looks for a new version of BMO; to install it, say **"Hey BMO, yes."**
   Each version is signed, and one that doesn't start properly is rolled back.

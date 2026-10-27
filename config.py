@@ -346,6 +346,8 @@ ENABLE_SOUND_COMMANDS = True
 ENABLE_MEDIA_COMMANDS = True
 MEDIA_DIRS = [Path(p).expanduser() for p in os.environ.get("BEMO_MEDIA_DIRS", str(Path.home() / "Videos")).split(":")]
 MEDIA_STATE_PATH = DATA_ROOT / "media.json"
+MEDIA_WATCH_LATER_DIR = DATA_ROOT / "watch-later"  # where the player saves its place (systems/media.py)
+LIBRARY_STILLS_DIR = DATA_ROOT / "library-stills"  # stills for the movie library (systems/library.py)
 # Vision fallback (milestone 4): MAI-UI-2B 8-bit in llama.cpp, started on first
 # use, stopped when idle, only with enough memory (approved plan).
 ENABLE_GUI_VISION = True
