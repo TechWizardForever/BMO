@@ -157,5 +157,30 @@ class FaceRenderTests(unittest.TestCase):
         finally:
             config.RUNNER_SCORES_PATH = old
 
+    def test_the_runner_bmo_has_arms_his_yellow_and_red_buttons_and_a_crash_face(self):
+        app = smoke.FakeApp()
+        renderer = FaceRenderer(app)
+        game = runner.RunnerGame(None)
+        rect = pygame.Rect(200, 150, 56, 93)
+        legs = int(rect.height * 0.18)
+
+        def draw(state, y=0.0):
+            app._screen.fill((0, 0, 0))
+            game.state, game.y = state, y
+            renderer._draw_little_bmo(rect, game, False)
+            return pygame.image.tostring(app._screen, "RGB")
+
+        draw(runner.RUNNING)
+        colours = {tuple(app._screen.get_at((x, y)))[:3] for x in range(rect.left, rect.right)
+                   for y in range(rect.top, rect.bottom - legs)}
+        self.assertIn(renderer._BMO_COLORS["Y"], colours)
+        self.assertIn(renderer._BMO_COLORS["R"], colours)
+        arms = [x for x in range(rect.left - 30, rect.left) for y in range(rect.top, rect.bottom)
+                if tuple(app._screen.get_at((x, y)))[:3] == renderer._BMO_LIMBS]
+        self.assertTrue(arms, "an arm outside his body")
+        running = draw(runner.RUNNING)
+        self.assertNotEqual(draw(runner.OVER), running)  # the flat crash mouth
+        self.assertNotEqual(draw(runner.RUNNING, y=0.2), draw(runner.RUNNING))  # arms up mid-jump
+
 if __name__ == "__main__":
     unittest.main()

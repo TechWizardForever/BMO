@@ -701,35 +701,82 @@ class FaceRenderer:
         controls = font.render("jump: SPACE / UP / pad A      duck: DOWN / pad B", True, (55, 135, 124))
         screen.blit(controls, controls.get_rect(center=(w // 2 + drift, int(h * 0.94))))
 
+    # The runner's BMO as pixel art (2026-10-27), so he stays crisp on the CRT next to the pixel lettering:
+    # T body, S screen, K face, Y the yellow D-pad, R the red button. Squashed into a smaller box when he ducks.
+    _BMO_PIXELS = (
+        " TTTTTTTTTTTT ",
+        "TTTTTTTTTTTTTT",
+        "TTSSSSSSSSSSTT",
+        "TTSSKSSSSKSSTT",
+        "TTSSKSSSSKSSTT",
+        "TTSSSSSSSSSSTT",
+        "TTSSKSSSSKSSTT",
+        "TTSSSKKKKSSSTT",
+        "TTSSSSSSSSSSTT",
+        "TTTTTTTTTTTTTT",
+        "TTTYTTTTTTTTTT",
+        "TTYYYTTTTRRTTT",
+        "TTTYTTTTTRRTTT",
+        "TTTTTTTTTTTTTT",
+        "TTTTTTTTTTTTTT",
+        " TTTTTTTTTTTT ",
+    )
+    _BMO_CRASHED_ROWS = {6: "TTSSSSSSSSSSTT", 7: "TTSSSKKKKSSSTT"}  # a flat mouth
+    _BMO_COLORS = {"T": (99, 196, 178), "S": (190, 240, 212), "K": (20, 40, 36), "Y": (246, 206, 70),
+                   "R": (226, 70, 70)}
+    _BMO_LIMBS = (60, 150, 134)
+    _BMO_SHOULDER_ROW = 10
+
+    def _little_bmo_body(self, size, crashed):
+        """The body drawn once per size and face, then reused every frame."""
+        cache = self.__dict__.setdefault("_little_bmo_cache", {})
+        key = (size, crashed)
+        if key not in cache:
+            rows = list(self._BMO_PIXELS)
+            if crashed:
+                for index, row in self._BMO_CRASHED_ROWS.items():
+                    rows[index] = row
+            width, height = size
+            surface = pygame.Surface((width, height), pygame.SRCALPHA)
+            cols, count = len(rows[0]), len(rows)
+            for r, row in enumerate(rows):
+                y0, y1 = round(r * height / count), round((r + 1) * height / count)
+                for c, cell in enumerate(row):
+                    if cell != " ":
+                        x0, x1 = round(c * width / cols), round((c + 1) * width / cols)
+                        surface.fill(self._BMO_COLORS[cell], pygame.Rect(x0, y0, max(1, x1 - x0), max(1, y1 - y0)))
+            cache[key] = surface
+        return cache[key]
+
     def _draw_little_bmo(self, rect, game, ducking):
-        """BMO in a few rectangles: teal body, pale screen with a face, legs that run."""
+        """BMO: pixel body, arms that swing as he runs (up for a jump, tucked when he ducks) and legs that run."""
         screen = self._app._screen
         legs = max(2, int(rect.height * 0.18))
         body = pygame.Rect(rect.left, rect.top, rect.width, rect.height - legs)
-        pygame.draw.rect(screen, (99, 196, 178), body, border_radius=max(1, rect.width // 10))
-        face = pygame.Rect(body.left + body.width * 0.14, body.top + body.height * 0.12, body.width * 0.72,
-                           body.height * (0.6 if ducking else 0.5))
-        pygame.draw.rect(screen, (190, 240, 212), face)
-        eye = max(2, int(face.height * 0.16))
-        for side in (0.3, 0.7):
-            pygame.draw.rect(screen, (20, 40, 36), pygame.Rect(face.left + face.width * side - eye / 2,
-                                                               face.top + face.height * 0.3, eye, eye))
-        mouth_y = face.top + face.height * 0.72
-        if game.state == runner.OVER:
-            pygame.draw.line(screen, (20, 40, 36), (face.left + face.width * 0.35, mouth_y),
-                             (face.left + face.width * 0.65, mouth_y), 2)
+        cell = max(1.0, body.width / len(self._BMO_PIXELS[0]))
+        limb_w = max(2, int(round(cell * 1.2)))
+        length = body.height * (0.30 if ducking else 0.42)
+        shoulder_y = body.top + body.height * self._BMO_SHOULDER_ROW / len(self._BMO_PIXELS)
+        if not game.on_ground:
+            reach = (-0.75, -0.75)                      # both arms up mid-jump
+        elif game.state == runner.RUNNING and not ducking:
+            swing = 0.35 * math.sin(game.distance * 14 * math.pi)
+            reach = (0.55 + swing, 0.55 - swing)        # one up while the other is down
         else:
-            smile = pygame.Rect(face.left + face.width * 0.32, mouth_y - face.height * 0.2, face.width * 0.36,
-                                face.height * 0.3)
-            pygame.draw.arc(screen, (20, 40, 36), smile, 3.4, 6.0, 2)
-        pygame.draw.circle(screen, (226, 70, 70), (int(body.left + body.width * 0.72),
-                                                   int(body.bottom - body.height * 0.17)), max(1, body.width // 12))
+            reach = (0.9, 0.9)
+        for side, down in ((-1, reach[0]), (1, reach[1])):
+            shoulder = (body.left if side < 0 else body.right - 1, shoulder_y)
+            hand = (shoulder[0] + side * length * 0.55, shoulder_y + length * down)
+            pygame.draw.line(screen, self._BMO_LIMBS, shoulder, hand, limb_w)
+            pygame.draw.rect(screen, self._BMO_LIMBS, pygame.Rect(int(hand[0] - limb_w), int(hand[1] - limb_w // 2),
+                                                                 limb_w * 2, limb_w * 2))
+        screen.blit(self._little_bmo_body(body.size, game.state == runner.OVER), body.topleft)
         step = int(game.distance * 14) % 2 if game.on_ground and game.state == runner.RUNNING else 0
-        leg_w = max(2, rect.width // 7)
-        for i, side in enumerate((0.28, 0.62)):
-            length = legs if (i == step or not game.on_ground) else legs * 0.55
-            pygame.draw.rect(screen, (60, 150, 134), pygame.Rect(rect.left + rect.width * side, body.bottom,
-                                                                leg_w, max(1, length)))
+        leg_w = max(2, int(round(cell * 2)))
+        for i, col in enumerate((3, 9)):
+            reach_down = legs if (i == step or not game.on_ground) else legs * 0.55
+            pygame.draw.rect(screen, self._BMO_LIMBS, pygame.Rect(int(body.left + col * cell), body.bottom,
+                                                                 leg_w, max(1, int(reach_down))))
 
     # ----------------------------------------------------------------------
     # The install screen (systems/first_boot.py, SetupView).
