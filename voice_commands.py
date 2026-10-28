@@ -78,8 +78,10 @@ class VoiceSessionGate:
         # Whisper turns a quick "Hey BMO" into "A Bemo" / "Uh, BMO" (live
         # 2026-10-18: "A Bemo close volume control." reached the Main Brain).
         # "He Bemo switched to coding." (live 2026-10-19) kept the name in the command.
-        # "Big Bemo Play Jimmy Neutron Season 1 Episode 1" (live 2026-10-22) went to Main, which said "Playing...".
-        match = re.match(r"^\s*(?:a|uh|ah|eh|oh|um|okay|ok|he|hi|hay|hit|big)[\s,.]+(?:bemo|beemo|bmo)\b[\s,.:;!\-]*",
+        # "Big Bemo Play Jimmy Neutron Season 1 Episode 1" (live 2026-10-22) went to Main, which said "Playing...";
+        # "Heed Bemo Play Arietti" (live 2026-10-28) did the same. Any short word starting with h is Whisper's "Hey"
+        # (he, hi, hay, hit, heed, head, he'd, hello).
+        match = re.match(r"^\s*(?:a|uh|ah|eh|oh|um|okay|ok|big|h[a-z']{0,4})[\s,.]+(?:bemo|beemo|bmo)\b[\s,.:;!\-]*",
                          cleaned, flags=re.IGNORECASE)
         if match:
             return True, cleaned[match.end():].strip()

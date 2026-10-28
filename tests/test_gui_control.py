@@ -391,6 +391,11 @@ class LiveTestRegressions(unittest.TestCase):
         self.assertEqual(gate.parse("Hey Bemo, A Bemo switched to the recording tab."),
                          (True, "switched to the recording tab."))
         self.assertFalse(gate.parse("I want a bemo plush")[0])
+        # Live 2026-10-28: the brain answered this one without playing anything.
+        for heard in ("Heed Bemo Play Arietti", "Head Bemo, play Arietti", "He'd Bemo play Arietti",
+                      "Hello BMO, play Arietti"):
+            self.assertEqual(gate.parse(heard), (True, heard.split(" ", 2)[2].lstrip(", ")), heard)
+        self.assertFalse(gate.parse("I'd like Bemo to play")[0])
 
     def test_pulse_audio_finds_volume_control(self):
         vol = AppEntry("pavucontrol", "PulseAudio Volume Control", "Volume Control", (), ("pavucontrol",))
