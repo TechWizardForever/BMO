@@ -265,10 +265,20 @@ _TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "sev
          "ninety": 90}
 
 
+# Whisper's spellings (live 2026-10-28: "close" came back as "Clothes" five times; "play number one" as "Say
+# number one").
+_HEARD_AS = {"clothes": "close", "cloze": "close", "clothe": "close", "closed": "close", "closes": "close",
+             "claws": "close", "say": "play", "pay": "play", "played": "play", "plays": "play"}
+
+
 def _plain(text: str) -> str:
     said = re.sub(r"^\W*h[aeiy]+\s*b[e]?e?mo\b[\s,.!]*", "", str(text), flags=re.I)
     said = " ".join(re.findall(r"[a-z0-9]+", said.lower().replace("'", "")))
-    return re.sub(r"^(?:please|ok|okay|now|just|um|uh)\s+", "", said)
+    said = re.sub(r"^(?:(?:please|ok|okay|now|just|um|uh|well|so)\s+)+", "", said)
+    words = said.split()
+    if words:
+        words[0] = _HEARD_AS.get(words[0], words[0])
+    return " ".join(words)
 
 
 def open_request(text: str) -> str | None:

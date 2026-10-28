@@ -1048,6 +1048,7 @@ class Chat:
                 ok = player.restart()
                 return self._say_local(command, "Back to the start." if ok else "The player didn't answer.")
             if method == "Stop":
+                self._restore_movie_volume()  # before closing, or the player keeps the turned-down level
                 ok = player.quit()
                 self._watch_started_at = None
                 return self._say_local(command, "Okay, I stopped it." if ok else "I couldn't stop the player.")
@@ -1094,11 +1095,13 @@ class Chat:
                     [why for _, why in plan.skipped])
         if not plan.moves:
             return self._say_local(command, "I didn't find any games or movies to sort in Downloads." + note)
-        question = (f"I found {plan.summary()} in Downloads.{note} Should I move them where they go? "
+        one = sum(len(m.members) or 1 for m in plan.moves) == 1
+        them, they, go, are = ("it", "it", "goes", "is") if one else ("them", "they", "go", "are")
+        question = (f"I found {plan.summary()} in Downloads.{note} Should I move {them} where {they} {go}? "
                     "Say, Hey BMO, yes.")
         if not self._confirm_by_voice(question, tag="SORT", target=str(downloads)):
-            return self._say_local(command, "Okay, I left them where they are.")
-        self.speak("Moving them now.")
+            return self._say_local(command, f"Okay, I left {them} where {they} {are}.")
+        self.speak(f"Moving {them} now.")
         result = sorter.run(plan)
         moved, failed = result["moved"], result["failed"]
         places = []
@@ -1163,6 +1166,7 @@ class Chat:
     def _library_action(self, command, action, number=0):
         view = self.library_view
         self.note_user_activity()
+        logger.info("LIBRARY {}{}", action, f" {number}" if number else "")
         if action in ("down", "up"):
             if view.scroll(1 if action == "down" else -1):
                 self.state = State.READY  # the page turning is the answer
@@ -1251,6 +1255,16 @@ class Chat:
         self._media_watch_generation = generation = getattr(self, "_media_watch_generation", 0) + 1
         threading.Thread(target=media.watch, args=(player, memory), daemon=True, name="media-watch",
                          kwargs={"stop": lambda: self._media_watch_generation != generation}).start()
+
+    def _restore_movie_volume(self):
+        """The movie's own volume back now, if "Hey BMO" turned it down (live 2026-10-28: "stop" closed the player
+        at 25 %, and Celluloid and the saved place both kept it)."""
+        ducker = getattr(self, "_ducker", None)
+        if ducker:
+            try:
+                ducker.restore()
+            except Exception:
+                logger.exception("Could not restore the movie's volume")
 
     def _movie_ducker(self):
         """While a video plays, a Ducker that turns it down on "Hey BMO" (systems/media.Ducker); restores the

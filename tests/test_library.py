@@ -183,7 +183,9 @@ class PhraseTests(unittest.TestCase):
                                ("go to the top", ("top", 0)), ("close", ("close", 0)),
                                ("close the library", ("close", 0)), ("I'm done", ("close", 0)),
                                ("play number 3", ("play", 3)), ("number three", ("play", 3)),
-                               ("play twenty one", ("play", 21)), ("play number to", ("play", 2))):
+                               ("play twenty one", ("play", 21)), ("play number to", ("play", 2)),
+                               # Live 2026-10-28: Whisper's "Clothes" (five times) and "Say number one."
+                               ("Clothes", ("close", 0)), ("Clothes.", ("close", 0)), ("Say number one.", ("play", 1))):
             self.assertEqual(lib.command(said), expected, said)
         for said in ("play spirited away", "what's the weather", "scroll down the page in firefox"):
             self.assertIsNone(lib.command(said), said)

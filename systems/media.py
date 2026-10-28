@@ -32,7 +32,9 @@ except ImportError:  # the media module is also read without BMO's environment
     np = None
 
 VIDEO_TYPES = {".mkv", ".mp4", ".avi", ".mov", ".m4v", ".webm", ".wmv", ".mpg", ".mpeg"}
-PLAYER = ["celluloid", "--mpv-fs=yes", "--mpv-alang=eng,en,english", "--mpv-sid=no"]
+# Full player volume every time; the computer's volume sets how loud. Celluloid otherwise starts at the volume it
+# was closed at: 0 after a test, 25 % after a stop said while BMO had it turned down (live 2026-10-28).
+PLAYER = ["celluloid", "--mpv-fs=yes", "--mpv-alang=eng,en,english", "--mpv-sid=no", "--mpv-volume=100"]
 _EPISODE = re.compile(r"\bS(\d{1,2})E(\d{1,3})(?:-?E(\d{1,3}))?\b", re.I)
 _NUMBERS = {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9,
             "ten": 10, "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
@@ -215,9 +217,13 @@ class Player:
         command = list(PLAYER)
         if self.watch_later:
             self.watch_later.mkdir(parents=True, exist_ok=True)
-            command += ["--mpv-save-position-on-quit=yes", f"--mpv-watch-later-directory={self.watch_later}"]
+            # Only the place is saved: the volume was too, turned down for "Hey BMO" (live 2026-10-28).
+            command += ["--mpv-save-position-on-quit=yes", "--mpv-watch-later-options=start",
+                        f"--mpv-watch-later-directory={self.watch_later}"]
             if from_start:
                 command.append("--mpv-resume-playback=no")
+            for path in paths:
+                keep_only_position(path, self.watch_later)
         self._popen([*command, *[str(p) for p in paths]], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                     start_new_session=True)
 
@@ -380,17 +386,18 @@ def bare_command(text: str, status: str | None) -> str | None:
 
 
 _PLAY = re.compile(r"^(?:please |can you |could you )?(?:play|watch|put on|start|restart)\s+(?P<what>.+)$")
+_FILLER = re.compile(r"^(?:(?:well|so|ok|okay|um|uh|and|now|alright|oh)\s+)+")  # "Well play Jimmy..." (live 2026-10-28)
 _FROM_START = re.compile(r"\s+(?:over(?: from the (?:start|beginning))?|(?:again )?from the (?:start|beginning))$")
 
 
 def play_request(text: str) -> str | None:
-    found = _PLAY.match(words(text))
+    found = _PLAY.match(_FILLER.sub("", words(text)))
     return _FROM_START.sub("", found.group("what")) if found else None
 
 
 def from_start(text: str) -> bool:
     """'restart Spirited Away' / 'play Spirited Away from the beginning' / 'start Ponyo over'."""
-    said = words(text)
+    said = _FILLER.sub("", words(text))
     return bool(re.match(r"^(?:please |can you |could you )?restart\s", said) or
                 (_PLAY.match(said) and _FROM_START.search(said)))
 
@@ -408,6 +415,21 @@ def saved_position(path: Path, folder: Path | None) -> float | None:
         return None
     found = re.search(r"^start=([\d.]+)", text, re.M)
     return float(found.group(1)) if found else None
+
+
+def keep_only_position(path: Path, folder: Path | None) -> None:
+    """A saved place from before 2026-10-28 also held the volume (25 % when stopped right after "Hey BMO"); mpv would
+    bring it back, so only the start line stays."""
+    if not folder:
+        return
+    entry = Path(folder) / hashlib.md5(str(path).encode()).hexdigest().upper()
+    try:
+        lines = entry.read_text().splitlines()
+    except OSError:
+        return
+    kept = [line for line in lines if line.startswith("start=")]
+    if kept != lines:
+        entry.write_text("".join(line + "\n" for line in kept))
 
 
 def forget_position(path: Path, folder: Path | None) -> None:

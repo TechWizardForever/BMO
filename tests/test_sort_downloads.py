@@ -150,6 +150,14 @@ class ChatTests(unittest.TestCase):
         self.assertTrue((self.games / "Custom Robo (USA).rvz").exists())
         self.assertEqual(self.refreshed, [1])
 
+    def test_one_file_is_it(self):
+        touch(self.downloads / "Ponyo.2008.mkv")
+        self.answer = False
+        self.chat._handle_sort_downloads("sort my downloads")
+        self.assertEqual(self.asked[-1], "I found a movie in Downloads. Should I move it where it goes? "
+                                         "Say, Hey BMO, yes.")
+        self.assertEqual(self.said[-1], "Okay, I left it where it is.")
+
     def test_nothing_to_sort_and_downloads_in_progress(self):
         touch(self.downloads / "Big.Movie.2020.mkv", when=time.time())
         self.assertTrue(self.chat._handle_sort_downloads("sort my downloads"))

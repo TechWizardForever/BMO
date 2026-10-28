@@ -321,6 +321,42 @@ class ResumeTests(unittest.TestCase):
                                           "objectpath '/io/github/CelluloidPlayer/Celluloid/Track/0'", "int64 0"])
 
 
+class VolumeTests(unittest.TestCase):
+    """Live 2026-10-28: the movies came on silent. Celluloid starts at the volume it was last closed at (0 after a
+    test, 25 % after "stop" said while BMO had turned it down for "Hey BMO"), and the saved place kept 25 % too."""
+    setUp, save = ResumeTests.setUp, ResumeTests.save
+
+    def test_full_player_volume_and_only_the_place_is_saved(self):
+        self.assertIn("--mpv-volume=100", m.PLAYER)
+        movie = m.find("spirited away", self.lib).path
+        self.save(movie, 70.362)
+        entry = next(self.later.iterdir())
+        entry.write_text("start=70.362000\nvolume=25.000000\n")  # as saved before the fix
+        started = []
+        m.Player(popen=lambda argv, **k: started.append(argv), watch_later=self.later).play_files([movie])
+        self.assertIn("--mpv-watch-later-options=start", started[0])
+        self.assertEqual(entry.read_text(), "start=70.362000\n")
+        self.assertEqual(m.saved_position(movie, self.later), 70.362)
+
+    def test_stop_turns_the_movie_back_up_before_closing(self):
+        from unittest import mock
+        import config
+        from systems.chat import Chat
+        chat, order = Chat.__new__(Chat), []
+        chat._say_local = lambda command, text: True
+        chat._ducker = type("D", (), {"restore": lambda s: order.append("restore")})()
+        chat._media_player = type("P", (), {"running": lambda s: True,
+                                            "quit": lambda s: order.append("quit") or True})()
+        with mock.patch.object(config, "MEDIA_DIRS", [self.videos]):
+            self.assertTrue(chat._handle_media_command("stop"))
+        self.assertEqual(order, ["restore", "quit"])
+
+    def test_well_play_it(self):
+        self.assertEqual(m.play_request("Well Play Jimmy Neutron Season 1 Episode 1"),
+                         "jimmy neutron season 1 episode 1")
+        self.assertTrue(m.from_start("well restart ponyo"))
+
+
 class PlayVideoTests(unittest.TestCase):
     """The chat side: resume with the time said, the credits count as finished, restart forgets the place."""
     def setUp(self):
