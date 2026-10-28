@@ -1060,6 +1060,9 @@ class Chat:
             spoken = {"Pause": "Paused.", "Next": "Next episode.", "Previous": "Previous episode.",
                       "Seek": "Okay."}.get(method, "Okay.")
             return self._say_local(command, spoken if ok else "The player didn't answer.")
+        from systems import media_phrases
+        if not running and media_phrases.continue_watching(command):
+            return self._continue_watching(command)
         wanted = media.play_request(command)
         if not wanted:
             return False
@@ -1173,8 +1176,8 @@ class Chat:
                 return True
             return self._say_local(command, "That's the end of the list." if action == "down"
                                    else "That's the top of the list.")
-        if action == "top":
-            view.to_top()
+        if action in ("top", "bottom"):
+            view.to_top() if action == "top" else view.to_bottom()
             self.state = State.READY
             return True
         if action == "close":
@@ -1200,6 +1203,21 @@ class Chat:
         else:
             played = self._play_video(command, path=item.key)
         return played or self._say_local(command, f"I couldn't find {item.title} any more.")
+
+    def _game_running(self):
+        try:
+            return "game-session" in (self.supervisor.status().get("apps") or {})
+        except (SupervisorError, AttributeError):
+            return False
+
+    def _continue_watching(self, command):
+        """'continue watching' / 'pick up where I left off' / 'resume my show': the last thing that was on."""
+        from systems import media
+        last = media.LastPlayed(config.MEDIA_STATE_PATH).last()
+        if not last or not Path(last).exists():
+            return self._say_local(command, "I don't know what you were watching yet. Say play, and its name.")
+        video = media.describe(Path(last))
+        return self._play_video(command, show=video.show) if video.show else self._play_video(command, path=last)
 
     def _player(self):
         """BMO's movie player (systems/media.Player); it saves its place in ~/.bemo/watch-later on closing."""
@@ -1757,7 +1775,7 @@ class Chat:
             # 2026-10-20: while a game or video is on, only game, movie, sound and sleep commands work;
             # nothing else, and nothing goes to a brain. Live: Smash Bros' announcer, heard as "Thun away." and
             # "Melee", got two answers from Main; 2026-10-22 "what's the weather?" was answered during both.
-            if self._WATCHING_COMMAND.search(self._plain_words(request)) and self._handle_local_command(request):
+            if self._watching_command(request) and self._handle_local_command(request):
                 return
             logger.info("WATCHING: not a game or video command ({} words)", len(str(request).split()))
             self._say_local(request, "I'll answer that once the game or video is off.")
@@ -1796,6 +1814,13 @@ class Chat:
         r"cloze|post|quit|exit|end|turn|volume|mute|unmute|louder|quieter|go (?:back )?to sleep|"
         r"shut ?down yourself)\b"
         r"|\b(?:volume|louder|quieter|mute|unmute|episode|game|games|movie|show|video|film|restart|beginning)\b")
+
+    def _watching_command(self, request):
+        """A game, movie, sound or sleep command, said any of the ways BMO knows (2026-10-28)."""
+        if self._WATCHING_COMMAND.search(self._plain_words(request)):
+            return True
+        from systems import media, media_phrases
+        return bool(media.control_command(request) or media_phrases.close_game(request, game_on=True))
 
     @staticmethod
     def _plain_words(text):
@@ -3620,9 +3645,11 @@ class Chat:
             self._archive_local_exchange(command, response)
             return True
 
-        # Over the game's sound Whisper hears "close" as post/clothes/closed (live 2026-10-20: "post the game").
-        if re.fullmatch(r"(?:close|closes|closed|clothes|cloze|post|quit|stop|exit|end)(?: the| current| this)? game",
-                        normalized):
+        # Over the game's sound Whisper hears "close" as post/clothes/closed (live 2026-10-20: "post the game"); many
+        # ways to say it, and while a game is on a plain "close" / "quit" / "close again" too (2026-10-28).
+        from systems import media_phrases
+        if media_phrases.close_game(command) or (media_phrases.close_game(command, game_on=True)
+                                                 and self._game_running()):
             try:
                 result = self.supervisor.close_game()
                 self._watch_started_at = None
@@ -3634,9 +3661,20 @@ class Chat:
             self._archive_local_exchange(command, response)
             return True
 
-        play = re.match(r"^(?:play|play game|launch game|start game)\s+(.+)$", normalized)
-        if play and play.group(1).strip() not in {"games", "game library", "gamecube", "game cube", "dolphin"}:
-            query = play.group(1).strip()
+        # "play Zelda", "let's play Smash Bros", "fire up Custom Robo" (2026-10-28): with "play" / "launch" a game was
+        # meant; with "start", "open", "boot", "load" only if it is one of BMO's games (so "open Firefox" stays an app).
+        game = media_phrases.game_request(command)
+        if game and not game[1]:
+            try:
+                from systems.games import GameLibrary
+                found, _ = GameLibrary(config.GAME_ROOT, config.APP_ROOT).find(game[0])
+            except Exception:
+                logger.exception("Could not look through the games")
+                found = None
+            if found is None:
+                game = None
+        if game:
+            query = game[0]
             try:
                 result = self.supervisor.launch_game(query)
                 if result.get("ok"):
@@ -3651,7 +3689,7 @@ class Chat:
                         names = ", ".join(item.get("title", "") for item in candidates[:4])
                         response = f"I found more than one possible match: {names}. Say the more specific game name."
                     else:
-                        response = str(result.get("error") or f"I couldn't find {query}.")
+                        response = f"I couldn't find {query} in your movies or games."
             except SupervisorError:
                 response = "The supervisor is not responding."
             self.state = State.RESPONDING

@@ -62,12 +62,12 @@ class GameLibraryTests(unittest.TestCase):
 
 class WiringTests(unittest.TestCase):
     def test_ways_to_close_a_game(self):
-        chat = (ROOT / "systems" / "chat.py").read_text()
-        pattern = re.search(r're\.fullmatch\(r"(\(\?:close[^"]+)",\s*normalized\)', chat).group(1)
+        from systems.media_phrases import close_game
         for said in ("close the game", "quit game", "stop the game", "exit current game", "close current game",
                      "post the game", "clothes the game", "closed the game"):  # misheard over Melee
-            self.assertRegex(said, "^" + pattern + "$")
-        self.assertNotRegex("close the movie", "^" + pattern + "$")
+            self.assertTrue(close_game(said), said)
+        self.assertFalse(close_game("close the movie"))
+        self.assertIn("media_phrases.close_game(command)", (ROOT / "systems" / "chat.py").read_text())
 
     def test_flatpak_dolphin_may_write_its_save_folder(self):
         # The Flatpak sees home read-only, so saves in ~/.bemo/games/dolphin-user were lost without this.

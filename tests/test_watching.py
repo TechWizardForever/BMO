@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 import config
 
 SOURCE = (ROOT / "systems" / "chat.py").read_text()
-METHODS = {"_handle_one_request", "_game_or_video_open", "_open_answer_followup", "managed_display_active", "_player",
+METHODS = {"_handle_one_request", "_game_or_video_open", "_open_answer_followup", "managed_display_active", "_player", "_watching_command",
            "_plain_words", "_WATCHING_COMMAND", "_PART_WORDS", "_3D_REQUEST", "_show_parts_menu"}
 
 

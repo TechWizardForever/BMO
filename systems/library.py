@@ -225,6 +225,11 @@ class LibraryView:
         with self._lock:
             self.top, self._touched = 0, self._clock()
 
+    def to_bottom(self) -> None:
+        with self._lock:
+            self.top = max(0, (len(self.items) - 1) // self.per_page * self.per_page)
+            self._touched = self._clock()
+
     def item(self, number: int) -> Item | None:
         with self._lock:
             self._touched = self._clock()
@@ -251,89 +256,120 @@ class LibraryView:
 
 
 # --- What was said -------------------------------------------------------------------------------------
+# Many ways to say each (owner 2026-10-28); systems/media_phrases.clean() has already dropped "Hey BMO", "can you",
+# "I want to", "please" and the rest, and put Whisper's "Clothes" / "Say number one" right.
 
-# "open games" / "open the game library" stay the ES-DE game frontend (its app names), so "open" is only for movies.
+# "open games" / "open the game library" stay the ES-DE game frontend (its app names), and "list games" stays the
+# spoken count, so those two verbs need "my" / "the movies".
+_WHAT = (r"(?P<what>movies?|films?|shows?|tv shows?|videos?|movie library|movies and shows|shows and movies|cartoons|"
+         r"movie list|games?|game library|gamecube games|video games|game list)")
 _OPEN = re.compile(
-    r"^(?:can you |could you |please )?(?:(?:show|bring up|pull up|see)(?: me)?(?: (?:my|the|our|all the|all my))?\s*"
-    r"(?P<what>movies?|films?|shows?|tv shows?|videos?|movie library|movies and shows|cartoons|"
-    r"games?|game library|gamecube games|video games)(?: library| list)?|"
-    r"open(?: up)?(?: (?:my|the|our))?\s*(?P<opened>movies|films|shows|tv shows|movie library|movie list|video library)|"
-    r"what (?P<asked>movies|games|shows) do (?:i|we) have)$")
+    r"^(?:(?:show|bring up|pull up|see|browse|go to|let me see|give me|display|check out|look at)(?: me)?"
+    r"(?: (?:my|the|our|all the|all my|all of my|all our|all of the))?\s*" + _WHAT +
+    r"(?: library| list| collection| menu)?|"
+    r"(?:list|open|open up) (?:my|all my|all the|our|all of my) " + _WHAT.replace("<what>", "<what2>") + r"|"
+    r"open(?: up)?(?: (?:the|our))?\s*(?P<opened>movies|films|shows|tv shows|movie library|movie list|video library)|"
+    r"what (?P<asked>movies|games|shows|films|cartoons|videos) (?:do (?:i|we) have|are there|have (?:i|we) got|"
+    r"can (?:i|we) (?:watch|play)|are on here|have you got|do you have)|"
+    r"what (?:can|could|should) (?:i|we) (?P<verb>watch|play)|whats there to (?P<verb2>watch|play)|"
+    r"what is there to (?P<verb3>watch|play)|(?:my|our) (?P<mine>movies|games|shows|movie list|game list))$")
 _NUMBER_WORDS = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
                  "sixteen seventeen eighteen nineteen twenty").split()
+_ORDINALS = ("zeroth first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth "
+             "fourteenth fifteenth sixteenth seventeenth eighteenth nineteenth twentieth").split()
 _TENS = {"twenty": 20, "thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80,
          "ninety": 90}
-
-
-# Whisper's spellings (live 2026-10-28: "close" came back as "Clothes" five times; "play number one" as "Say
-# number one").
-_HEARD_AS = {"clothes": "close", "cloze": "close", "clothe": "close", "closed": "close", "closes": "close",
-             "claws": "close", "say": "play", "pay": "play", "played": "play", "plays": "play"}
+_TENTHS = {"thirtieth": 30, "fortieth": 40, "fiftieth": 50}
 
 
 def _plain(text: str) -> str:
-    said = re.sub(r"^\W*h[aeiy]+\s*b[e]?e?mo\b[\s,.!]*", "", str(text), flags=re.I)
-    said = " ".join(re.findall(r"[a-z0-9]+", said.lower().replace("'", "")))
-    said = re.sub(r"^(?:(?:please|ok|okay|now|just|um|uh|well|so)\s+)+", "", said)
-    words = said.split()
-    if words:
-        words[0] = _HEARD_AS.get(words[0], words[0])
-    return " ".join(words)
+    from systems.media_phrases import clean
+    return clean(text)
 
 
 def open_request(text: str) -> str | None:
-    """'movies' or 'games' for "show my movies" / "open the game library" / "what games do we have"."""
-    found = _OPEN.match(_plain(text))
+    """'movies' or 'games' for "show my movies" / "what can I watch" / "let me see my games" / "my movies"."""
+    from systems.media_phrases import first
+    found = first(text, _OPEN.match)
     if not found:
         return None
-    what = found.group("what") or found.group("opened") or found.group("asked")
+    if found.group("verb") or found.group("verb2") or found.group("verb3"):
+        return "games" if "play" in (found.group("verb"), found.group("verb2"), found.group("verb3")) else "movies"
+    what = (found.group("what") or found.group("what2") or found.group("opened") or found.group("asked")
+            or found.group("mine"))
     return "games" if what.startswith(("game", "video game")) else "movies"
 
 
+def _one_word_number(word: str) -> int | None:
+    if re.fullmatch(r"\d+(?:st|nd|rd|th)?", word):
+        return int(re.match(r"\d+", word).group())
+    for table in (_NUMBER_WORDS, _ORDINALS):
+        if word in table:
+            return table.index(word)
+    return _TENS.get(word) or _TENTHS.get(word) or {"to": 2, "too": 2, "for": 4}.get(word)
+
+
 def spoken_number(text: str) -> int | None:
+    """'3', '3rd', 'three', 'third', 'twenty one', 'twenty first' -> the number ("one second" is not one)."""
     words = text.split()
-    if len(words) == 1 and words[0].isdigit():
-        return int(words[0])
-    total = 0
-    for word in words:
-        if word in _TENS:
-            total += _TENS[word]
-        elif word in _NUMBER_WORDS:
-            total += _NUMBER_WORDS.index(word)
-        elif word in ("to", "too"):
-            total += 2
-        elif word in ("for",):
-            total += 4
-        else:
-            return None
-    return total or None
+    if len(words) == 1:
+        return _one_word_number(words[0]) or None
+    if len(words) == 2 and words[0] in _TENS:
+        unit = _one_word_number(words[1])
+        if unit and unit < 10:
+            return _TENS[words[0]] + unit
+    return None
 
 
-_SCROLL_DOWN = re.compile(r"^(?:scroll|page|go|move)? ?(?:down|forward|ahead)(?: (?:a|one) page)?$|"
-                          r"^(?:next|the next) page$|^(?:show )?more$|^keep going$|^scroll$")
-_SCROLL_UP = re.compile(r"^(?:scroll|page|go|move)? ?(?:up|back|backward|backwards)(?: (?:a|one) page)?$|"
-                        r"^(?:previous|last|the previous|the last) page$|^go back up$")
-_TOP = re.compile(r"^(?:go |scroll |back )?(?:to )?the (?:top|start|beginning)(?: of the list)?$|^top$|^back to the top$")
-_CLOSE = re.compile(r"^(?:close|hide|exit|quit|leave)(?: (?:it|this|that|the|my))?(?: (?:list|library|movies|games|"
-                    r"movie library|game library|screen|menu))?$|^(?:im |i am |were )?done$|^never ?mind$|^thats all$|"
-                    r"^no thanks?(?: you)?$")
-_PLAY_NUMBER = re.compile(r"^(?:(?:play|watch|start|open|pick|choose|put on)(?: the one)?(?: number)?|number)\s+(.+)$")
+_SCROLL_DOWN = re.compile(
+    r"^(?:(?:scroll|page|go|move|swipe|flip)(?: it)? )?(?:down|forward|ahead|further|onward)(?: (?:a|one) page| some| more| a bit)?$|"
+    r"^(?:next|the next|another) (?:page|ones|bunch|set|screen|lot)$|^(?:show(?: me)? )?(?:more|some more|the rest)"
+    r"(?: (?:movies|games|shows|of them))?$|^keep (?:going|scrolling)$|^scroll$|^next$|^more please$|"
+    r"^what else(?: is there| do (?:i|we) have| have (?:i|we) got)?$|^anything else$|^(?:turn|flip) the page$")
+_SCROLL_UP = re.compile(
+    r"^(?:(?:scroll|page|go|move|swipe|flip)(?: it)? )?(?:up|back|backward|backwards)(?: (?:a|one) page| up| a bit)?$|"
+    r"^(?:previous|the previous) (?:page|ones|bunch|set|screen)$|^go back up$|^previous$|^back up$|"
+    r"^(?:go )?back a page$")
+_TOP = re.compile(r"^(?:go |scroll |jump |back |take me )?(?:to )?the (?:top|start|beginning|first page)"
+                  r"(?: of the list)?$|^top$|^back to the top$|^first page$|^start of the list$")
+_BOTTOM = re.compile(r"^(?:go |scroll |jump |take me )?(?:to )?the (?:bottom|end|last page)(?: of the list)?$|"
+                     r"^(?:bottom|last page|end of the list)$")
+_CLOSE = re.compile(
+    r"^(?:close|hide|exit|quit|leave|dismiss|put away)(?: (?:it|this|that|the|my))?(?: (?:list|library|movies|games|"
+    r"shows|movie library|game library|movie list|game list|screen|menu|thing))?(?: away)?$|"
+    r"^(?:im |i am |were |we are |all )?done$|^never ?mind$|^forget it$|^(?:thats|that is) (?:all|it)$|"
+    r"^no thanks?(?: you)?$|^nothing$|^none(?: of (?:them|these|those))?$|^not (?:now|right now)$|^go away$|"
+    r"^put it away$|^(?:go )?back to (?:your|the|bmos?|my) face$|^show (?:your|me your) face$")
+# "play number 3", "number three", "the third one", "I'll take 5", "let's do 2", "go with four", and a plain "three"
+_PLAY_NUMBER = re.compile(
+    r"^(?:(?:play|watch|start|open|pick|choose|select|put on|launch|load|show me|go with|do|give me|try|"
+    r"ill take|i will take|ill have|i want|how about|what about)(?: the one)?(?: (?:number|no))? |number |no )?"
+    r"(?:the )?(?P<n>.+?)(?: please)?$")
 
 
 def command(text: str) -> tuple[str, int] | None:
-    """For an open library: ('down', 0), ('up', 0), ('top', 0), ('close', 0) or ('play', n); else None."""
-    said = _plain(text)
+    """For an open library: ('down', 0), ('up', 0), ('top', 0), ('bottom', 0), ('close', 0) or ('play', n)."""
+    from systems.media_phrases import first
+    return first(text, _command)
+
+
+def _command(said: str) -> tuple[str, int] | None:
     if _SCROLL_DOWN.match(said):
         return "down", 0
     if _SCROLL_UP.match(said):
         return "up", 0
     if _TOP.match(said):
         return "top", 0
+    if _BOTTOM.match(said):
+        return "bottom", 0
     if _CLOSE.match(said):
         return "close", 0
     found = _PLAY_NUMBER.match(said)
     if found:
-        number = spoken_number(found.group(1))
+        said_number = found.group("n")
+        if said_number.endswith(" one") and said_number.split()[-2] in _ORDINALS:
+            said_number = said_number[:-4]  # "the third one"; "twenty one" stays 21
+        number = spoken_number(said_number)
         if number:
             return "play", number
     return None

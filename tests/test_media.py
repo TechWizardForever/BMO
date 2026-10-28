@@ -72,7 +72,8 @@ class MediaTests(unittest.TestCase):
                                ("go back two minutes", ("Seek", -120.0)), ("rewind 10 seconds", ("Seek", -10.0)),
                                ("stop the movie", ("Stop", 0.0))):
             self.assertEqual(m.control_command(said), expected, said)
-        for said in ("pause for a second okay", "play spirited away", "what's next", "stop talking"):
+        self.assertEqual(m.control_command("pause for a second okay"), ("Pause", 0.0))  # many ways now (2026-10-28)
+        for said in ("play spirited away", "what's next", "stop talking"):
             self.assertIsNone(m.control_command(said), said)
 
     def test_the_owners_phrases_from_the_live_test(self):

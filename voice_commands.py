@@ -213,20 +213,21 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("Talking to BMO", "Hey Bemo, what can you do on this computer?", "What works on this computer, what doesn't, and why."),
 
     VoiceCommand("Movies and shows", "Hey Bemo, show my movies", "Your movies and shows on BMO's screen, each with a picture and its name. A show has one tile."),
-    VoiceCommand("Movies and shows", "Hey Bemo, scroll down / scroll up", "Next or previous page of the movies or games on the screen. No need for Hey BMO while they're showing."),
-    VoiceCommand("Movies and shows", "Hey Bemo, play number <n>", "Plays that number from the movies or games on the screen. No need for Hey BMO while they're showing."),
+    VoiceCommand("Movies and shows", "Hey Bemo, scroll down / scroll up", "Next or previous page of the movies or games on the screen; \"next\", \"more\" and \"back\" work too. No need for Hey BMO while they're showing."),
+    VoiceCommand("Movies and shows", "Hey Bemo, play number <n>", "Plays that number from the movies or games on the screen; \"the third one\" or just \"three\" works too. No need for Hey BMO while they're showing."),
     VoiceCommand("Movies and shows", "Hey Bemo, close the library", "Puts BMO's face back. Plain \"close\" works too, and it closes by itself after 3 minutes."),
-    VoiceCommand("Movies and shows", "Hey Bemo, play <movie or show>", "Plays it full screen, in English when there's a choice. A movie picks up where you stopped it; a show carries on from the last episode you watched."),
+    VoiceCommand("Movies and shows", "Hey Bemo, play <movie or show>", "Plays it full screen, in English when there's a choice. A movie picks up where you stopped it; a show carries on from the last episode you watched. \"Watch\", \"put on\" and \"I want to watch\" work too."),
+    VoiceCommand("Movies and shows", "Hey Bemo, continue watching", "The last thing you were watching, from where you stopped. \"Pick up where I left off\" works too."),
     VoiceCommand("Movies and shows", "Hey Bemo, play <show> season <n> episode <n>", "That episode, then the rest of the season. \"The first episode of <show>\" and \"season 2 of <show>\" work too."),
     VoiceCommand("Movies and shows", "Hey Bemo, restart / play <movie> from the beginning", "Starts over. Say restart while it's playing, or ask for it from the beginning to start fresh."),
-    VoiceCommand("Movies and shows", "Hey Bemo, pause / resume", "While something is playing. Plain \"pause\" and \"play\" work without Hey BMO."),
+    VoiceCommand("Movies and shows", "Hey Bemo, pause / resume", "While something is playing; \"hold on\" or \"wait a second\" pauses too, and \"keep going\" carries on. Plain \"pause\" and \"play\" work without Hey BMO."),
     VoiceCommand("Movies and shows", "Hey Bemo, next episode / previous episode", "While a show is playing."),
-    VoiceCommand("Movies and shows", "Hey Bemo, skip / rewind / skip ahead 30 seconds / go back 2 minutes", "Skip goes 30 seconds ahead and rewind 10 seconds back, or say how far."),
-    VoiceCommand("Movies and shows", "Hey Bemo, stop / stop the show / close <title> / turn it off", "Closes the player and brings BMO's face back. He remembers where you stopped."),
+    VoiceCommand("Movies and shows", "Hey Bemo, skip / rewind / skip ahead 30 seconds / go back 2 minutes", "Skip goes 30 seconds ahead and rewind 10 seconds back, or say how far. \"What did he say?\" goes back 10 seconds."),
+    VoiceCommand("Movies and shows", "Hey Bemo, stop / stop the show / close <title> / turn it off", "Closes the player and brings BMO's face back; \"that's enough\" and \"I'm done watching\" work too. He remembers where you stopped."),
 
     VoiceCommand("Games", "Hey Bemo, show my games", "Your games on BMO's screen, with their covers if there are any, otherwise as a list. Scroll and pick by number like the movies."),
-    VoiceCommand("Games", "Hey Bemo, play <game>", "Starts the game. Controllers that are plugged in are players 1 to 4; with none, the keyboard is player 1."),
-    VoiceCommand("Games", "Hey Bemo, close the game", "Closes the game."),
+    VoiceCommand("Games", "Hey Bemo, play <game>", "Starts the game; \"let's play\", \"fire up\" and \"start\" work too. Controllers that are plugged in are players 1 to 4; with none, the keyboard is player 1."),
+    VoiceCommand("Games", "Hey Bemo, close the game", "Closes the game. While a game is on, a plain \"close\" or \"quit\" does too."),
     VoiceCommand("Games", "Hey Bemo, boot games", "Opens the full game menu (ES-DE), which works with a controller."),
     VoiceCommand("Games", "Hey Bemo, list games", "How many games BMO has."),
     VoiceCommand("Games", "Hey Bemo, import games from USB", "Copies the GameCube games from a USB stick into BMO's games. The stick stays as it was."),
@@ -383,7 +384,9 @@ def markdown_catalog() -> str:
         "",
         "Words in [square brackets] are yours to fill in. A slash means you can say either one.",
         "",
-        "These are the set phrases BMO always handles the same way. For anything else, just ask him in your own words.",
+        "These are the set phrases BMO always handles the same way. The movie, game and library ones also work "
+        "said other ways, like \"put on Ponyo\", \"hold on\" or \"the third one\". For anything else, just ask him "
+        "in your own words.",
         "",
     ]
     for category in categories():

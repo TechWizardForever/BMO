@@ -110,6 +110,7 @@ def _number(word: str | None) -> int | None:
 def _episode_phrase(said: str) -> str:
     """'the first episode of jimmy neutron' / 'episode 3 of season 2 of jimmy neutron' / 'season 2 of jimmy
     neutron' -> 'jimmy neutron season N episode N' (live 2026-10-20: "play the first episode of Jimmy Neutron")."""
+    said = re.sub(r"\bs ?(\d{1,2}) ?e ?(\d{1,3})\b", r"season \1 episode \2", said)  # "s2e3", "s 2 e 3"
     found = re.match(r"^(?:the )?(\w+) episode (?:of season (\w+) )?(?:of|from) (.+)$", said)
     if found and _number(found.group(1)):
         return f"{found.group(3)} season {found.group(2) or 1} episode {found.group(1)}"
@@ -304,46 +305,93 @@ class Player:
         return self.control("Seek", str(int(seconds * 1_000_000)))
 
 
-_THING = r"(?:movie|video|show|episode|film|player|media player|celluloid|playback|playing|tv|cartoon)"
+_THING = r"(?:movie|video|show|episode|film|player|media player|celluloid|playback|playing|tv|cartoon|thing)"
+_OBJ = r"(?: (?:it|this|that|(?:the|this|that|my) " + _THING + r"|" + _THING + r"))?"
+_A_BIT = r"(?: (?:a (?:bit|little|little bit|second|sec|moment|minute)|for a (?:bit|second|sec|moment|minute)))?"
+# Many ways to say each (owner 2026-10-28: not just one exact phrase). Checked in this order.
 _CONTROL = (
-    ("Restart", re.compile(r"^(?:restart|start over|start (?:it|this|that) over|go back to the (?:start|beginning)|"
-                           r"(?:start|play|watch) (?:it |this |that |the " + _THING + " )?(?:again )?from the "
-                           r"(?:start|beginning)|from the (?:start|beginning))(?: (?:it|this|the " + _THING + "))?$")),
-    ("Pause", re.compile(r"^(?:pause|hold on|hold up|hold it)(?: (?:it|this|that|the " + _THING + "))?$")),
-    ("Play", re.compile(r"^(?:resume|unpause|continue|keep (?:playing|going|watching)|go on|play|start it again)"
-                        r"(?: (?:it|the " + _THING + "))?$")),
-    ("Stop", re.compile(r"^(?:stop|close|quit|exit|end|turn off|shut off)(?: (?:the|this|that|my))?(?: " + _THING
-                        + ")?(?: (?:now|please))?$|^(?:stop|close|turn) it off$|^(?:stop|close) (?:it|that|this)$")),
-    ("Next", re.compile(r"^(?:next|next episode|play the next (?:episode|one)|skip (?:this|the) episode|next one|"
-                        r"go to the next episode)$")),
-    ("Previous", re.compile(r"^(?:previous episode|last episode|go back an episode|play the previous episode|"
-                            r"the episode before)$")),
-    ("Seek+", re.compile(r"^(?:skip|skip (?:ahead|forward)|fast forward|forward|jump ahead)$")),
-    ("Seek-", re.compile(r"^(?:rewind|go back|back up|skip back|jump back)$")),
+    ("Restart", re.compile(
+        r"^(?:restart" + _OBJ + r"|start over|begin again|start" + _OBJ + r" over|"
+        r"(?:go|rewind|skip|jump|take it) (?:back )?to the (?:start|beginning|top)|back to the (?:start|beginning|top)|"
+        r"(?:start|play|watch)" + _OBJ + r"(?: again)? from the (?:start|beginning|top)|"
+        r"from the (?:start|beginning|top)" + _OBJ + r")$")),
+    ("Pause", re.compile(
+        r"^(?:pause|hold on|hold up|hold it|hang on|wait|freeze|one (?:second|sec|moment|minute)|"
+        r"(?:stop|pause) for a (?:second|sec|moment|minute|bit)|give me a (?:second|sec|moment|minute))"
+        + _OBJ + _A_BIT + r"$")),
+    ("Play", re.compile(
+        r"^(?:resume|unpause|continue|keep (?:playing|going|watching)|go on|carry on|play|start it again|start again|"
+        r"start it back up|press play|hit play|let it play|back on|go ahead)" + _OBJ + r"$")),
+    ("Stop", re.compile(
+        r"^(?:stop|close|quit|exit|end|turn off|shut off|kill|stop watching|stop playing)" + _OBJ + r"(?: now| again)?$|"
+        r"^(?:stop|close|turn|shut|switch) (?:it|this|that|the " + _THING + r") off$|"
+        r"^(?:im|were|i am|we are) done(?: watching)?" + _OBJ + r"$|^(?:thats|that is) enough$|^enough$|"
+        r"^no more (?:movies?|shows?|tv|cartoons?|watching)$|^turn off the tv$|^close the player$")),
+    ("Next", re.compile(
+        r"^(?:next|next (?:episode|one|please)|"
+        r"(?:play|start|put on|go to|skip to|move on to|move to|on to) the next(?: (?:episode|one))?|"
+        r"skip(?: (?:this|the))? episode|the next (?:one|episode)|another (?:one|episode)|"
+        r"play another(?: (?:one|episode))?|next show|move on)$")),
+    ("Previous", re.compile(
+        r"^(?:previous|previous (?:episode|one)|last episode|the (?:episode|one) before|(?:go )?back (?:one|an?) episode|"
+        r"(?:play|go to|start|put on|go back to) the (?:previous|last) (?:episode|one)|the previous (?:episode|one))$")),
+    ("Seek+", re.compile(
+        r"^(?:skip|skip (?:ahead|forward)|fast forward|forward|jump (?:ahead|forward)|go (?:ahead|forward)|"
+        r"move (?:ahead|forward))(?: a (?:bit|little|little bit))?$")),
+    ("Seek-", re.compile(
+        r"^(?:rewind|go back|back up|skip back(?:wards?)?|jump back|go backwards?|rewind (?:it|that)|"
+        r"what did (?:he|she|they|it) (?:just )?say|say that again|replay that|play that again|i missed that|"
+        r"run (?:it|that) back)(?: a (?:bit|little|little bit))?$")),
 )
-_SEEK = re.compile(r"^(?:skip|jump|go|fast forward|rewind|go back|back up)(?: (ahead|forward|back|backward|backwards))?"
-                   r"(?: by)? (\w+) (seconds?|minutes?)$")
+_SEEK = re.compile(r"^(?:skip|jump|go|fast forward|forward|rewind|go back|back up|move|seek|skip back|jump back)"
+                   r"(?: (ahead|forward|back|backward|backwards))?(?: by| about| like)? (?P<amount>.+?) "
+                   r"(seconds?|secs?|minutes?|mins?|hours?)(?: (ahead|forward|back|backward|backwards))?$")
 _VERB_FORMS = {"stops": "stop", "stopped": "stop", "stopping": "stop", "clothes": "close", "closed": "close",
                "closes": "close", "pauses": "pause", "paused": "pause", "skips": "skip", "skipped": "skip"}
 SKIP_SECONDS, BACK_SECONDS = 30.0, 10.0
 
 
 def _plain(text: str) -> str:
-    """The words without "Hey BMO" (also as one word: "Hibemo"), fillers or "we must" (live 2026-10-20)."""
-    from systems.voice_intents import canonical
-    said = re.sub(r"^\W*h[aeiy]+\s*b[e]?e?mo\b[\s,.!]*", "", str(text), flags=re.I)
-    said = re.sub(r"^\W*(?:he|hey|hi|hit|a)\s+be\s+my\b[\s,.!]*", "", said, flags=re.I)  # "He be my pause."
-    said = canonical(said, mishearings=False)
-    said = words(said)
-    said = re.sub(r"^(?:(?:we|you|i)\s+(?:must|need to|should|have to|want to)|please|ok|okay|alright|now|just)\s+",
-                  "", said)
+    """The words without "Hey BMO" (misheard too), fillers, politeness or "we must", with Whisper's usual mishearings
+    put right (systems/media_phrases.py; live 2026-10-20 to 10-28)."""
+    from systems.media_phrases import clean
+    said = re.sub(r"^\W*(?:he|hey|hi|hit|a)\s+be\s+my\b[\s,.!]*", "", str(text), flags=re.I)  # "He be my pause."
+    said = clean(said)
+    said = re.sub(r"^(?:(?:we|you|i)\s+(?:must|need to|should|have to|want to|gotta|got to))\s+", "", said)
     return " ".join(_VERB_FORMS.get(w, w) for w in said.split())
 
 
+def _amount(text: str) -> float | None:
+    """'30', 'thirty', 'twenty five', 'a', 'half a', 'a couple of', 'a few' -> a number."""
+    text = text.strip()
+    special = {"a": 1, "an": 1, "one": 1, "half a": 0.5, "half an": 0.5, "a half": 0.5, "a couple": 2,
+               "a couple of": 2, "couple": 2, "couple of": 2, "a few": 3, "few": 3}
+    if text in special:
+        return float(special[text])
+    if re.fullmatch(r"\d+(?:\.\d+)?", text):
+        return float(text)
+    total = 0
+    for word in text.split():
+        value = _number(word)
+        if value is None:
+            return None
+        total += value
+    return float(total) or None
+
+
 def control_command(text: str, titles=()) -> tuple[str, float] | None:
-    """('Pause', 0) / ('Seek', -30.0) for a player command, else None. `titles`: names of what's in the library,
-    so "stop Jimmy Neutron" / "close Spirited Away" close the player too."""
-    said = _plain(text)
+    """('Pause', 0) / ('Seek', -30.0) for a player command, else None (a stray first word is tried without)."""
+    from systems.media_phrases import variants
+    for said in variants(text):
+        found = _control(" ".join(_VERB_FORMS.get(w, w) for w in re.sub(
+            r"^(?:(?:we|you|i)\s+(?:must|need to|should|have to|want to|gotta|got to))\s+", "", said).split()), titles)
+        if found:
+            return found
+    return None
+
+
+def _control(said: str, titles=()) -> tuple[str, float] | None:
+    """`titles`: names of what's in the library, so "stop Jimmy Neutron" / "close Spirited Away" close the player."""
     for method, pattern in _CONTROL:
         if pattern.match(said):
             if method == "Seek+":
@@ -353,10 +401,13 @@ def control_command(text: str, titles=()) -> tuple[str, float] | None:
             return method, 0.0
     found = _SEEK.match(said)
     if found:
-        amount = _number(found.group(2))
+        amount = _amount(found.group("amount"))
         if amount:
-            seconds = amount * (60 if found.group(3).startswith("minute") else 1)
-            backwards = (found.group(1) or "").startswith("back") or said.startswith(("rewind", "go back", "back up"))
+            unit = found.group(3)
+            seconds = amount * (3600 if unit.startswith("hour") else 60 if unit.startswith("min") else 1)
+            direction = found.group(1) or found.group(4) or ""
+            backwards = direction.startswith("back") or said.startswith(
+                ("rewind", "go back", "back up", "skip back", "jump back"))
             return "Seek", -float(seconds) if backwards else float(seconds)
     closing = re.match(r"^(?:stop|close|quit|exit|end|turn off)\s+(?:watching\s+)?(.+)$", said)
     if closing and titles:
@@ -385,20 +436,32 @@ def bare_command(text: str, status: str | None) -> str | None:
     return None
 
 
-_PLAY = re.compile(r"^(?:please |can you |could you )?(?:play|watch|put on|start|restart)\s+(?P<what>.+)$")
-_FILLER = re.compile(r"^(?:(?:well|so|ok|okay|um|uh|and|now|alright|oh)\s+)+")  # "Well play Jimmy..." (live 2026-10-28)
+# Ways in to playing a title (owner 2026-10-28); systems/media_phrases.clean() has already dropped "can you", "I want
+# to", "let's" and the rest. A title still has to match a movie or show here.
+_PLAY = re.compile(
+    r"^(?:play|watch|put on|throw on|turn on|pull up|bring up|load|load up|queue up|start|start up|restart|open|open up|"
+    r"see|show me|continue|resume|keep watching|pick up|go back to|finish|go watch|play me|watch me)\s+(?P<what>.+)$")
+_PLAY_TAIL = re.compile(r"\s+(?:on (?:the )?(?:tv|screen|telly)|where (?:i|we) left off|from where (?:i|we) (?:left off|stopped)|"
+                        r"where (?:i|we) stopped|for a (?:bit|while)|tonight|for the kids?)$")
 _FROM_START = re.compile(r"\s+(?:over(?: from the (?:start|beginning))?|(?:again )?from the (?:start|beginning))$")
 
 
 def play_request(text: str) -> str | None:
-    found = _PLAY.match(_FILLER.sub("", words(text)))
-    return _FROM_START.sub("", found.group("what")) if found else None
+    """What was asked for after "play" / "watch" / "put on" / "I want to watch"...; BMO plays it only if it matches
+    a movie or show he has (find), so the broad verbs are safe."""
+    from systems.media_phrases import first
+    found = first(text, _PLAY.match)
+    if not found:
+        return None
+    what = _PLAY_TAIL.sub("", _FROM_START.sub("", found.group("what")))
+    return what or None
 
 
 def from_start(text: str) -> bool:
     """'restart Spirited Away' / 'play Spirited Away from the beginning' / 'start Ponyo over'."""
-    said = _FILLER.sub("", words(text))
-    return bool(re.match(r"^(?:please |can you |could you )?restart\s", said) or
+    from systems.media_phrases import clean
+    said = clean(text)
+    return bool(re.match(r"^restart\s", said) or
                 (_PLAY.match(said) and _FROM_START.search(said)))
 
 
@@ -499,11 +562,15 @@ class LastPlayed:
     def length(self, path: Path) -> float | None:
         return (self._all().get("lengths") or {}).get(str(path))
 
+    def last(self) -> str | None:
+        """The last thing that was on, movie or episode ("continue watching")."""
+        return self._all().get("last")
+
     def remember(self, video: Video) -> None:
-        if not video.show:
-            return
         data = self._all()
-        data.setdefault("last_played", {})[video.show] = str(video.path)
+        data["last"] = str(video.path)
+        if video.show:
+            data.setdefault("last_played", {})[video.show] = str(video.path)
         self._save(data)
 
     def watched(self, path: Path, position: float = 0.0, length: float | None = None) -> None:
@@ -512,6 +579,9 @@ class LastPlayed:
         changed = False
         if video.show and (data.get("last_played") or {}).get(video.show) != str(path):
             data.setdefault("last_played", {})[video.show] = str(path)
+            changed = True
+        if data.get("last") != str(path):
+            data["last"] = str(path)
             changed = True
         if length and (data.get("lengths") or {}).get(str(path)) != round(length, 1):
             data.setdefault("lengths", {})[str(path)] = round(length, 1)
