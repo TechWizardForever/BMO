@@ -189,7 +189,7 @@ class PlayerTests(unittest.TestCase):
         player = m.Player(run=run, popen=lambda argv, **k: started.append(argv))
         self.assertTrue(player.running())
         self.assertTrue(player.seek(-30))
-        self.assertIn("-30000000", calls[-1])
+        self.assertIn("int64 -30000000", calls[-1])  # typed, or gdbus takes it for an option (live 2026-10-28)
         self.assertIn("org.mpris.MediaPlayer2.Player.Seek", calls[-1])
         player.play_files([Path("/v/a.mkv")])
         self.assertEqual(started[0][:4], ["celluloid", "--mpv-fs=yes", "--mpv-alang=eng,en,english", "--mpv-sid=no"])

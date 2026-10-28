@@ -343,7 +343,7 @@ _CLOSE = re.compile(
 # "play number 3", "number three", "the third one", "I'll take 5", "let's do 2", "go with four", and a plain "three"
 _PLAY_NUMBER = re.compile(
     r"^(?:(?:play|watch|start|open|pick|choose|select|put on|launch|load|show me|go with|do|give me|try|"
-    r"ill take|i will take|ill have|i want|how about|what about)(?: the one)?(?: (?:number|no))? |number |no )?"
+    r"take|have|ill take|i will take|ill have|i want|how about|what about)(?: the one)?(?: (?:number|no))? |number |no )?"
     r"(?:the )?(?P<n>.+?)(?: please)?$")
 
 

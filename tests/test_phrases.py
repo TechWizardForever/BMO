@@ -132,7 +132,8 @@ class PlayTests(unittest.TestCase):
             self.assertIsNone(self.found(said), said)
 
     def test_carrying_on(self):
-        for said in ("continue watching", "keep watching", "pick up where I left off", "resume my show",
+        for said in ("continue watching", "We will continue watching.", "we should keep watching",  # live 2026-10-28
+                     "I'll continue watching", "keep watching", "pick up where I left off", "resume my show",
                      "go back to watching", "Hey BMO, can we continue watching?", "play where we left off"):
             self.assertTrue(mp.continue_watching(said), said)
         self.assertFalse(mp.continue_watching("continue Jimmy Neutron"))

@@ -24,7 +24,9 @@ _POLITE = re.compile(
     r"^(?:would you mind|do you mind|(?:can|could|would|will) you(?: please)?(?: just)?|(?:can|could|shall) we|"
     r"i want(?: you)? to|i wanna|i want|id like(?: you)? to|i would like(?: you)? to|i need(?: you)? to|you need to|"
     r"you can|lets|let us|go ahead and|how about we|we want to|we wanna|i feel like|im gonna|im going to|"
-    r"i am going to|time to|try to|please)\s+")
+    r"i am going to|time to|try to|please|"
+    r"(?:we|i|you) (?:will|shall|can|could|should|would|must|wanna|want to|gotta|got to|have to|need to|"
+    r"are going to|am going to|are gonna|might as well)|well|ill|were gonna|were going to)\s+")
 _END = re.compile(
     r"\s+(?:please|now|thanks|thank you|for me|for us|right now|real quick|if you can|if you could|okay|ok|"
     r"would you|will you|bemo|bmo|beemo)$")

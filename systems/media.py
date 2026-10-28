@@ -302,7 +302,9 @@ class Player:
                            f"<{max(0.0, min(1.5, value)):.3f}>").returncode == 0
 
     def seek(self, seconds: float) -> bool:
-        return self.control("Seek", str(int(seconds * 1_000_000)))
+        # Typed: gdbus takes a bare "-10000000" for an option and refuses the call, so going back never worked
+        # (live 2026-10-28: "what did he say?").
+        return self.control("Seek", f"int64 {int(seconds * 1_000_000)}")
 
 
 _THING = r"(?:movie|video|show|episode|film|player|media player|celluloid|playback|playing|tv|cartoon|thing)"
