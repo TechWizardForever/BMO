@@ -1714,6 +1714,62 @@ class Chat:
         finally:
             self._active_microphone = None
 
+    def _fit_tool_rounds(self, messages, tools):
+        """Before each round: if the messages outgrow the context (less the answer's room), the older tool results and
+        the arguments of older tool calls (written file contents) shrink to a short excerpt, oldest first. Calls and
+        results stay in pairs; the request and the newest result are never touched (handoff 2026-10-31 #4: ten
+        rounds could each add 10,000 characters unchecked). Returns how many characters were cut."""
+        per_token = float(config.PROMPT_CHAR_PER_TOKEN_BUDGET)
+        room = int(self._effective_context() * per_token
+                   - int(getattr(config, "ANSWER_RESERVE_TOKENS", 0) or 0) * per_token
+                   - len(json.dumps(tools or [], default=str)))
+
+        def size(message):
+            return len(str(message.get("content", ""))) + len(json.dumps(message.get("tool_calls") or [], default=str))
+
+        total = sum(size(m) for m in messages if isinstance(m, dict))
+        if total <= room:
+            return 0
+        before = total
+        last_tool = max((i for i, m in enumerate(messages) if isinstance(m, dict) and m.get("role") == "tool"),
+                        default=None)
+        note = "\n[... shortened to fit; this was used in an earlier step ...]"
+
+        def shrink(keep_result, keep_argument, newest=False):
+            nonlocal total
+            for i, message in enumerate(messages):
+                if total <= room:
+                    return
+                if not isinstance(message, dict) or (i == last_tool) != newest:
+                    continue
+                if message.get("role") == "tool" and len(str(message.get("content", ""))) > keep_result + len(note):
+                    old = size(message)
+                    messages[i] = dict(message, content=str(message["content"])[:keep_result] + note)
+                    total -= old - size(messages[i])
+                elif message.get("role") == "assistant" and message.get("tool_calls") and not newest:
+                    old = size(message)
+                    calls = []
+                    for call in message["tool_calls"]:
+                        function = dict((call or {}).get("function") or {})
+                        arguments = function.get("arguments")
+                        if isinstance(arguments, dict):
+                            function["arguments"] = {
+                                k: (v[:keep_argument] + note if isinstance(v, str) and len(v) > keep_argument + len(note)
+                                    else v) for k, v in arguments.items()}
+                        calls.append(dict(call, function=function))
+                    messages[i] = dict(message, tool_calls=calls)
+                    total -= old - size(messages[i])
+
+        shrink(500, 300)            # older results and written contents to an excerpt, oldest first
+        shrink(120, 80)             # then to a line
+        if total > room and last_tool is not None:  # last of all the newest result, to the room that's left
+            newest = messages[last_tool]
+            keep = max(400, len(str(newest.get("content", ""))) - (total - room) - len(note) - 200)
+            note = "\n[... the rest of this result didn't fit; ask for a narrower part if you need it ...]"
+            shrink(keep, 0, newest=True)
+        logger.warning("CONTEXT tool rounds outgrew the context: {} -> {} characters (room {})", before, total, room)
+        return before - total
+
     @staticmethod
     def _tool_args_summary(arguments):
         """What a tool was given, without the values: typed text, file contents and paths stay out of the log (the
@@ -5887,6 +5943,9 @@ class Chat:
         )
         if tool_mode:
             budget = max(4500, budget - int(config.PROJECT_TOOL_SCHEMA_CHAR_RESERVE))
+        # Room for the answer (handoff 2026-10-31 #4): it never had any, so a full prompt squeezed the reply.
+        budget = max(1800, budget - int(int(getattr(config, "ANSWER_RESERVE_TOKENS", 0) or 0)
+                                        * config.PROMPT_CHAR_PER_TOKEN_BUDGET))
 
         # STATIC PREFIX: never vary this for a given role unless its policy is
         # intentionally changed. Re-sending it through the chat API is harmless;
@@ -5917,13 +5976,36 @@ class Chat:
             # model. The RAM copy may be length-truncated, so role/order is a more
             # reliable identity check than exact string equality.
             last = prior_history.pop()
-            current_message = {"role": "user", "content": str(last.get("content", ""))}
+            recorded = str(last.get("content", ""))
+            # The RAM copy is cut at RECENT_MESSAGE_CHAR_LIMIT; the request itself is whole (handoff 2026-10-31 #4).
+            whole = str(user_input or "")
+            current_message = {"role": "user", "content": whole if len(whole) > len(recorded) else recorded}
+
+        # The CURRENT REQUEST comes first: it gets the room it needs and the older conversation gives way. One too
+        # big for the context keeps its start and its end (where "...and make sure it ..." usually is), and BMO is
+        # told to say the middle was left out; it was cut to 22 % of the budget from the front before (2026-10-31:
+        # a 12,065-character request kept its first 4,729 and lost its final constraint).
+        current_content = str(current_message.get("content", ""))
+        current_room = max(800, budget - used - 1600)
+        if len(current_content) > current_room:
+            keep_tail = current_room * 2 // 5
+            keep_head = max(400, current_room - keep_tail - 260)
+            left_out = len(current_content) - keep_head - keep_tail
+            logger.warning("CONTEXT request of {} characters is more than the {} that fit; kept the start and the "
+                           "end, {} from the middle left out", len(current_content), current_room, left_out)
+            current_content = (current_content[:keep_head]
+                               + f"\n[... {left_out} characters from the middle of this message were left out to fit. "
+                                 "Tell the user you could only read the start and the end of it ...]\n"
+                               + current_content[-keep_tail:])
+        current_message["content"] = current_content
+        current_used = len(current_content)
 
         # APPEND-ONLY CONVERSATION PREFIX: newest history wins within a bounded
         # budget. Dynamic retrieval no longer sits in front of this whole block.
         history_budget = min(
             int(config.HISTORY_CONTEXT_CHAR_BUDGET),
             max(1600, int(budget * 0.50)),
+            max(0, budget - used - current_used - 400),  # a long request squeezes the history, not itself
         )
         prior_selected = []
         prior_used = 0
@@ -5940,12 +6022,6 @@ class Chat:
         messages.extend(prior_selected)
         used += prior_used
 
-        current_content = str(current_message.get("content", ""))
-        current_cap = max(800, min(len(current_content), int(budget * 0.22)))
-        if len(current_content) > current_cap:
-            current_content = current_content[:current_cap] + "\n[prompt-truncated; full message is on disk]"
-        current_message["content"] = current_content
-        current_used = len(current_content)
 
         # TURN-SPECIFIC TAIL: task handoff state, query-specific project
         # retrieval, and older semantic memory are useful but change from turn to
@@ -7827,6 +7903,7 @@ class Chat:
                 if self._turn_cancelled() or getattr(self, "_turn_abort_reason", None):
                     return ""
 
+                self._fit_tool_rounds(messages, tools)
                 assistant_message, content, tool_calls = self._stream_chat_round(
                     messages, tools, allow_speech=allow_stream_speech
                 )

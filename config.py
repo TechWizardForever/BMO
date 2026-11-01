@@ -63,6 +63,8 @@ APP_VERSION = "supervisor-v1.32.1-more-ways-to-say-it"
 # live prompt. Historical summary and archive hits are retrieved on recall.
 MAX_RECENT_MESSAGES = 32
 HISTORY_CONTEXT_CHAR_BUDGET = 4800
+# Room kept for the answer in every prompt: without it a full prompt squeezed the reply (handoff 2026-10-31 #4).
+ANSWER_RESERVE_TOKENS = 1024
 HISTORY_COMPACTION_BATCH = 8
 RECENT_MESSAGE_CHAR_LIMIT = 4000
 SUMMARY_ARCHIVE_BATCH_MESSAGES = 12
