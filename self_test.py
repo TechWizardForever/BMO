@@ -322,13 +322,12 @@ def main():
     assert (four_core.ollama_threads, four_core.stt_threads, four_core.torch_threads) == (4, 3, 3)
     assert (eight_core.ollama_threads, eight_core.stt_threads, eight_core.torch_threads) == (8, 7, 7)
     assert (measured.ollama_threads, measured.stt_threads, measured.torch_threads) == (18, 11, 11)
-    assert candidate_thread_counts(4, 8) == [4, 6, 8]
-    assert candidate_thread_counts(8, 16) == [8, 12, 16]
+    assert candidate_thread_counts(4, 8) == [2, 3, 4, 6]
+    assert candidate_thread_counts(8, 16) == [4, 6, 8, 12]
     assert candidate_thread_counts(8, 8) == [4, 6, 8]
 
     # A tiny performance gain must not consume extra threads. Here 6 and 8
-    # threads are within the 5% efficient window, so 6 wins. TTS slowdown can
-    # also knock a nominally-fast candidate out of the balanced-performance knee.
+    # threads are within the 5% window of the shortest wait for the first audio, so 6 wins.
     efficient_rows = [
         {"threads": 4, "generation_tps": 10.0, "prompt_tps": 40.0, "tts_overlap_ratio": 1.00},
         {"threads": 6, "generation_tps": 10.9, "prompt_tps": 42.0, "tts_overlap_ratio": 1.02},

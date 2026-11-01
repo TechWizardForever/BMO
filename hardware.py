@@ -22,7 +22,7 @@ except ImportError:  # Keeps config import readable before dependencies are inst
 
 
 GIB = 1024 ** 3
-AUTOTUNE_ALGORITHM_VERSION = 3
+AUTOTUNE_ALGORITHM_VERSION = 4
 
 
 def _data_root() -> Path:
