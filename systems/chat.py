@@ -2608,12 +2608,10 @@ class Chat:
                         {"role": "system", "content": "You are a strict project classifier. Output one PROJECT line only."},
                         {"role": "user", "content": prompt},
                     ],
-                    options={
-                        "num_ctx": min(self._effective_context(), 4096),
-                        "num_predict": int(config.PROJECT_CLASSIFIER_NUM_PREDICT),
-                        "num_thread": int(config.OLLAMA_NUM_THREAD),
-                        "temperature": 0.0,
-                    },
+                    # The main brain's own settings: a smaller context made Ollama reload it, twice (2026-11-01:
+                    # 21 s to 4096 and 24 s back to 8192).
+                    options=dict(self._ollama_options(),
+                                 num_predict=int(config.PROJECT_CLASSIFIER_NUM_PREDICT), temperature=0.0),
                     keep_alive=config.MODEL_PROFILES[config.MAIN_MODEL_PROFILE].get("keep_alive", -1),
                 )
                 text = self._response_content(response).strip()
@@ -6199,6 +6197,7 @@ class Chat:
             "num_ctx": self._effective_context(),
             "num_predict": num_predict,
             "num_thread": int(config.OLLAMA_NUM_THREAD),
+            "use_mmap": bool(config.OLLAMA_USE_MMAP),  # the same in every request, or Ollama reloads the brain
             "temperature": 0.1 if summary else float(profile.get("temperature", 0.7)),
         }
 

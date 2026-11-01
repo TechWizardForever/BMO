@@ -897,6 +897,10 @@ OLLAMA_NUM_THREAD = _auto_or(
     OLLAMA_THREAD_OVERRIDE,
     HARDWARE.ollama_threads if AUTO_TUNE_CPU else LEGACY_CPU_THREADS,
 )
+# Load a brain by mapping its file instead of copying it into memory (Ollama 0.40 stopped mapping by default).
+# 2026-11-01 on the 5700U: the main brain loaded in 22-27 s instead of 36 s, with the same answers word for word.
+# Every request to a brain sends the same value: a request with a different one makes Ollama reload it.
+OLLAMA_USE_MMAP = os.environ.get("BEMO_OLLAMA_USE_MMAP", "1") != "0"
 
 
 def refresh_ollama_threads():

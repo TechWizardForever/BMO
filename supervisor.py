@@ -500,6 +500,7 @@ class SupervisorService:
                     "num_ctx": int(config.OLLAMA_NUM_CTX),
                     "num_predict": 1,
                     "num_thread": int(config.OLLAMA_NUM_THREAD),
+                    "use_mmap": bool(config.OLLAMA_USE_MMAP),  # as BMO's requests send it, or Ollama reloads
                 },
             )
             # Empty-generate maps the weights, but on some Ollama/model builds
@@ -519,6 +520,7 @@ class SupervisorService:
                         "num_ctx": int(config.OLLAMA_NUM_CTX),
                         "num_predict": 4,
                         "num_thread": int(config.OLLAMA_NUM_THREAD),
+                        "use_mmap": bool(config.OLLAMA_USE_MMAP),
                         "temperature": 0.0,
                     },
                     keep_alive=keep_alive,
