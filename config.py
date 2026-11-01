@@ -565,6 +565,8 @@ VOICE_WAKE_ALIASES = (
     "hey people", "he'd be more",
     # "He'd be most switched to Maine.", "It'd be most switch to main brain." (live 2026-10-19)
     "he'd be most", "it'd be most",
+    # Parakeet tdt-0.6b-v2: "Hibimo switched to deep vision.", "Hibino mute." (tools/compare_stt_models.py 2026-10-31)
+    "hibimo", "heibimo", "hebemo", "hibino",
     # The robot's name itself is now an explicit wake trigger too. Keep this
     # list narrow: do not add ordinary phrases such as bare "be more".
     "bemo", "beemo", "bmo", "be mo",

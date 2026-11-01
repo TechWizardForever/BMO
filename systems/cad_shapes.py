@@ -9,6 +9,8 @@ which make_cad_model checks on the real STL. All sizes in millimeters.
 """
 from __future__ import annotations
 
+import math
+import re
 from dataclasses import dataclass
 from typing import Callable
 
@@ -55,10 +57,20 @@ class Settings:
         value = default if value in (None, "") else value
         if value in (None, ""):
             raise ShapeError(f"{self.kind} needs {key}")
+        if isinstance(value, str):
+            # "40 mm" is fine, everything is millimeters; any other unit the brain converts, never BMO by guessing
+            text = value.strip().lower()
+            unit = re.fullmatch(r"([-+0-9.e]+)\s*([a-z\"']+)", text)
+            if unit and unit.group(2) in ("mm", "millimeter", "millimeters", "millimetre", "millimetres"):
+                value = unit.group(1)
+            elif unit and unit.group(2) not in ("nan", "inf", "infinity", "e"):
+                raise ShapeError(f"{key} must be in millimeters (convert {value!r} to millimeters first)")
         try:
             value = float(value)
         except (TypeError, ValueError):
             raise ShapeError(f"{key} must be a number of millimeters") from None
+        if not math.isfinite(value):  # float("nan") passes "at least 0" and OpenSCAD gets "nan"
+            raise ShapeError(f"{key} must be a number of millimeters")
         if value < minimum:
             raise ShapeError(f"{key} must be at least {g(minimum)}")
         return value

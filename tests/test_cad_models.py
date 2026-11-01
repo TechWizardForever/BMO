@@ -176,6 +176,33 @@ class ShapeCheckTests(unittest.TestCase):
             with self.assertRaisesRegex(EngineeringToolError, why):
                 self.kit().make_cad_part({"shape": shape, "name": "x", "settings": settings})
 
+    def test_numbers_that_are_not_numbers_are_refused(self):
+        # handoff 2026-10-31: NaN passed the "at least 0" check and reached OpenSCAD as "nan"
+        for bad in ("nan", "NaN", "inf", "-inf", float("nan"), float("inf")):
+            with self.assertRaisesRegex(EngineeringToolError, "number of millimeters"):
+                self.kit().make_cad_part({"shape": "block", "name": "x",
+                                          "settings": {"width": bad, "depth": 10, "height": 10}})
+
+    def test_explicit_units(self):
+        from systems.cad_shapes import Settings
+        for given in ("40 mm", "40mm", "40 millimeters", " 40 MM "):
+            self.assertEqual(Settings("block", {"width": given}).num("width"), 40.0)
+        self.assertEqual(Settings("block", {"width": "40"}).num("width"), 40.0)
+        self.assertEqual(Settings("block", {"width": "1e1"}).num("width"), 10.0)
+        for other in ("4 cm", "2 in", '2"', "1.5 inches"):
+            with self.assertRaisesRegex(EngineeringToolError, "convert"):
+                self.kit().make_cad_part({"shape": "block", "name": "x",
+                                          "settings": {"width": other, "depth": 10, "height": 10}})
+
+    def test_engineering_numbers_must_be_finite(self):
+        from systems.engineering import _f, _positive
+        for bad in ("nan", "inf", float("nan")):
+            with self.assertRaisesRegex(EngineeringToolError, "finite"):
+                _f({"x": bad}, "x")
+        with self.assertRaises(EngineeringToolError):
+            _positive(float("nan"), "x")
+        self.assertEqual(_f({"x": "2.5"}, "x"), 2.5)
+
     def test_offered_for_3d_requests(self):
         from systems.context_policy import tool_names_for_request
         names = tool_names_for_request("make a 20 millimeter cube with a 5 millimeter hole", "engineering")

@@ -73,13 +73,16 @@ def _f(inputs: dict[str, Any], key: str, default: float | None = None) -> float:
     if value is None:
         raise EngineeringToolError(f"Missing required input: {key}")
     try:
-        return float(value)
+        number = float(value)
     except (TypeError, ValueError) as exc:
         raise EngineeringToolError(f"{key} must be numeric") from exc
+    if not math.isfinite(number):  # "nan" and "inf" parse, and NaN passes every "> 0" check
+        raise EngineeringToolError(f"{key} must be a finite number")
+    return number
 
 
 def _positive(value: float, name: str, allow_zero: bool = False) -> float:
-    if (value < 0 if allow_zero else value <= 0):
+    if not math.isfinite(value) or (value < 0 if allow_zero else value <= 0):
         op = ">= 0" if allow_zero else "> 0"
         raise EngineeringToolError(f"{name} must be {op}")
     return value
