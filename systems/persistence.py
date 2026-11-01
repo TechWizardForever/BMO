@@ -368,6 +368,7 @@ class MemoryStore:
         *,
         limit: int = 4,
         active_project_slug: str | None = None,
+        closed_projects_hidden: bool = False,
         exclude_ids: set[int] | None = None,
         heat_half_life_days: float = 30.0,
         heat_warm_threshold: float = 2.5,
@@ -398,6 +399,8 @@ class MemoryStore:
                     if active_project_slug:
                         clauses.append("(m.project_slug IS NULL OR m.project_slug = ?)")
                         params.append(active_project_slug)
+                    elif closed_projects_hidden:
+                        clauses.append("m.project_slug IS NULL")
                     params.append(fetch_limit)
                     try:
                         rows = self._conn.execute(
@@ -427,6 +430,8 @@ class MemoryStore:
                     if active_project_slug:
                         clauses.append("(project_slug IS NULL OR project_slug = ?)")
                         params.append(active_project_slug)
+                    elif closed_projects_hidden:
+                        clauses.append("project_slug IS NULL")
                     params.append(fetch_limit)
                     rows = self._conn.execute(
                         f"""

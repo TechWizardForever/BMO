@@ -113,5 +113,56 @@ class PromptTests(unittest.TestCase):
                 self.assertTrue(self.has_notes(chat(self.pm, profile), "why is the sky blue?"), profile)
 
 
+class ClosedProjectTests(unittest.TestCase):
+    """Nothing from a project reaches him unless it's open, and only the owner opens one (2026-11-01)."""
+
+    def test_a_question_never_opens_a_project(self):
+        self.assertFalse(config.AUTO_PROJECT_CLASSIFICATION)
+        pm = manager()
+        pm.close_project()
+        c = chat(pm)
+        self.assertIsNone(c._classify_project_for_request("how's the garden cup"))
+        self.assertTrue(not any("Active project" in str(m.get("content"))
+                                for m in c._ollama_messages("how thick is the cup wall")))
+
+    def store(self):
+        from systems.persistence import MemoryStore
+        s = MemoryStore(Path(tempfile.mkdtemp()) / "m.sqlite3")
+        session = s.start_session()
+        for text, slug in (("the zebra cup is green", "garden"), ("my zebra coat is warm", None)):
+            s.add_message(session_id=session, role="user", content=text, project_slug=slug, model_profile="normal",
+                          model_name="m")
+        return s
+
+    def test_long_term_memory_hides_closed_projects(self):
+        found = [m["content"] for m in self.store().search_messages("zebra", closed_projects_hidden=True)]
+        self.assertEqual(found, ["my zebra coat is warm"])
+
+    def test_the_open_project_and_plain_talk_are_both_found(self):
+        found = {m["content"] for m in self.store().search_messages("zebra", active_project_slug="garden",
+                                                                    closed_projects_hidden=True)}
+        self.assertEqual(found, {"the zebra cup is green", "my zebra coat is warm"})
+
+    def test_bmo_asks_for_it(self):
+        self.assertIn("closed_projects_hidden=True", (ROOT / "systems" / "chat.py").read_text())
+
+    def test_closing_clears_the_conversation_he_reads(self):
+        src = (ROOT / "systems" / "chat.py").read_text()
+        start = src.index("project_before = self.project_manager.active_slug")
+        self.assertIn("self.chat_history, self.chat_history_ids = [], []", src[start:start + 400])
+
+    def test_plain_chat_is_not_filed_under_the_project(self):
+        c = chat(manager())
+        self.assertEqual(c._project_for_message("user", "How thick is the cup wall?"), c.project_manager.active_slug)
+        self.assertEqual(c._project_for_message("assistant", "2 mm."), c.project_manager.active_slug)
+        self.assertIsNone(c._project_for_message("user", "who painted the Mona Lisa?"))
+        self.assertIsNone(c._project_for_message("assistant", "Leonardo."))
+
+    def test_no_project_files_nothing(self):
+        pm = manager()
+        pm.close_project()
+        self.assertIsNone(chat(pm)._project_for_message("user", "how thick is the cup wall"))
+
+
 if __name__ == "__main__":
     unittest.main()

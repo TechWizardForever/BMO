@@ -3110,13 +3110,22 @@ class Chat:
         elif reason == "USER_DECLINED_MODEL_SWITCH":
             logger.info("Specialist turn completed; user chose to remain on {}", completed_profile_name)
 
+    def _project_for_message(self, role, content):
+        """Only turns about the open project are filed under it (owner 2026-11-01): plain chat isn't project history,
+        and it stays findable after the project closes. An answer goes with its question."""
+        if not self.project_manager.active_slug:
+            return None
+        if role == "user":
+            self._turn_about_project = self._project_context_wanted(content)
+        return self.project_manager.active_slug if getattr(self, "_turn_about_project", True) else None
+
     def _record_message(self, role, content):
         """Persist the full message immediately, keep only a bounded RAM copy."""
         message_id = self.memory_store.add_message(
             session_id=self.session_id,
             role=role,
             content=content,
-            project_slug=self.project_manager.active_slug,
+            project_slug=self._project_for_message(role, content),
             model_profile=self.active_profile_name,
             model_name=self.active_model,
         )
@@ -5823,7 +5832,13 @@ class Chat:
 
         # Project commands are deliberately model-independent and work even if
         # the currently selected LLM is weak or a future model changes behavior.
-        if self._handle_project_command(command):
+        project_before = self.project_manager.active_slug
+        handled = self._handle_project_command(command)
+        if self.project_manager.active_slug != project_before:
+            # Another project or none: the last one's talk leaves this conversation too (owner 2026-11-01).
+            self.chat_history, self.chat_history_ids = [], []
+            self._last_turn_project = False
+        if handled:
             return True
 
         if not config.ENABLE_VOICE_MODEL_SWITCHING:
@@ -5920,6 +5935,7 @@ class Chat:
                 user_input,
                 limit=config.MEMORY_RETRIEVAL_COUNT,
                 active_project_slug=self.project_manager.active_slug,
+                closed_projects_hidden=True,  # a closed project's talk stays out of his answers (owner 2026-11-01)
                 exclude_ids=set(self.chat_history_ids),
                 heat_half_life_days=config.MEMORY_HEAT_HALF_LIFE_DAYS,
                 heat_warm_threshold=config.MEMORY_HEAT_WARM_THRESHOLD,

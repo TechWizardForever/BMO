@@ -118,7 +118,9 @@ PROJECT_FILE_EXPORT_REQUEST_TIMEOUT_SECONDS = 24 * 60 * 60  # large verified fil
 # Automatic task/project association. Explicit project commands always win.
 # Otherwise Bemo first uses deterministic name/keyword matching and may ask the
 # Main Brain for a tiny classifier response when the match is ambiguous.
-AUTO_PROJECT_CLASSIFICATION = True
+# A project opens only when the owner opens it (2026-11-01): a question that merely shares words with a saved project
+# used to open it silently, and it then stayed open.
+AUTO_PROJECT_CLASSIFICATION = False
 AUTO_PROJECT_CLASSIFICATION_USE_LLM = False  # no extra inference for ordinary conversation
 PROJECT_CLASSIFIER_NUM_PREDICT = 32
 PROJECT_CLASSIFIER_MEMORY_CHARS = 1200
