@@ -16,7 +16,7 @@ sys.path.insert(0,str(BASE))
 import config
 from systems.context_policy import (
     needs_archive_memory, direct_specialist_route, tool_names_for_request,
-    compact_history, authorize_route, requires_verified_computer_action,
+    compact_history, authorize_route, requires_verified_computer_action, PROJECT, PROJECT_FILE_QUESTION,
 )
 from systems.routing import parse_route_signal
 
@@ -32,13 +32,14 @@ source=(BASE/'systems/chat.py').read_text()
 tree=ast.parse(source)
 original_chat=next(c for c in tree.body if isinstance(c,ast.ClassDef) and c.name=='Chat')
 # Extract the actual production functions to test without GPU/ALSA/Whisper.
-method_names={'_shared_tool_schemas','_tool_schemas_for_active_profile','_ollama_messages','_execute_shared_tool','_recent_routing_context','_ground_execution_response','_main_response_token_budget','respond','_turn_cancelled','_save_code_blocks'}
+method_names={'_project_context_wanted','_shared_tool_schemas','_tool_schemas_for_active_profile','_ollama_messages','_execute_shared_tool','_recent_routing_context','_ground_execution_response','_main_response_token_budget','respond','_turn_cancelled','_save_code_blocks'}
 method_names|={'_offer_just_accepted'}  # v1.28.58: _save_code_blocks asks it (review 2026-10-19)
 methods=[m for m in original_chat.body if isinstance(m,ast.FunctionDef) and m.name in method_names
          or isinstance(m,ast.Assign) and getattr(m.targets[0],'id','') in {'_AGREEMENT','_OFFER_TO_WRITE'}]
 classnode=ast.ClassDef(name='ChatUnderTest',bases=[],keywords=[],body=methods,decorator_list=[])
 exec(compile(ast.fix_missing_locations(ast.Module(body=[classnode],type_ignores=[])),'bemo-actual-chat-methods','exec'),{
     'config':config,'logger':logger,'time':time,'json':json,'re':re,'os':os,'Path':Path,
+    'PROJECT':PROJECT,'PROJECT_FILE_QUESTION':PROJECT_FILE_QUESTION,
     'tool_names_for_request':tool_names_for_request,'needs_archive_memory':needs_archive_memory,
     'direct_specialist_route':direct_specialist_route,'parse_route_signal':parse_route_signal,'authorize_route':authorize_route,'requires_verified_computer_action':requires_verified_computer_action,
     'engineering_tool_schemas':lambda:[{'function':{'name':n}} for n in ['calculate_python','solve_math','convert_units','mechanical_calculator','inspect_cad','thermal_calculator','electrical_calculator']],

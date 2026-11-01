@@ -31,7 +31,7 @@ from systems.autostart import AutostartManager
 from systems.supervisor import SupervisorClient, SupervisorError
 from systems.routing import parse_route_signal
 from systems.context_policy import (
-    READ_ONLY_PROJECT_TOOLS,
+    PROJECT, PROJECT_FILE_QUESTION, READ_ONLY_PROJECT_TOOLS,
     needs_archive_memory, tool_names_for_request, direct_specialist_route,
     compact_history, authorize_route, requires_verified_computer_action,
     coding_work_request,
@@ -6129,6 +6129,7 @@ class Chat:
             config.PROJECT_CONTEXT_ENABLED
             and self.project_manager.active_slug
             and turn_budget - turn_used > 300
+            and self._project_context_wanted(user_input)
         ):
             try:
                 project_context = self.project_manager.context_for_query(user_input)
@@ -6185,6 +6186,22 @@ class Chat:
             len(messages),
         )
         return messages
+
+    # "it" / "that" and friends carry on from the turn before; words that always mean the project or its files.
+    _CARRIES_ON = re.compile(r"\b(?:it|its|it's|that|this|those|these|them|one|again|also|too|instead)\b", re.I)
+
+    def _project_context_wanted(self, user_input):
+        """The open project's notes go to the main brain only when the request is about the project, or carries on
+        from a turn that was (live 2026-11-01: "what's the capital of Australia?" got the cup's wall thickness, and
+        every plain question spent seconds re-reading the notes). The specialists always get them: it's their work."""
+        if self.active_profile_name != config.MAIN_MODEL_PROFILE:
+            return True
+        text = str(user_input or "")
+        wanted = bool(PROJECT.search(text) or PROJECT_FILE_QUESTION.search(text)
+                      or self.project_manager.about_project(text)
+                      or (getattr(self, "_last_turn_project", False) and self._CARRIES_ON.search(text)))
+        self._last_turn_project = wanted
+        return wanted
 
     def _effective_context(self):
         profile_ctx = self.active_profile.get("num_ctx")

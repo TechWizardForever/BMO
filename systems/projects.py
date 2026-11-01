@@ -76,6 +76,15 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+# Words every request and every file share: they say nothing about whether a request is about the project.
+_COMMON_WORDS = frozenset("""
+the and for are but not you your yours all any can could would should will shall may might must had has have was were
+been being does did doing done with from into onto over under about after before between out off that this these
+those there here then than them they their what what's whats when where which who whom whose why how many much more
+most some such only own same very just also get got give gave good make made let let's tell told say said see
+know think want need like please one two three four five six seven eight nine ten bmo bemo hey okay yes
+""".split())
+
 class ProjectManager:
     def __init__(
         self,
@@ -871,6 +880,32 @@ class ProjectManager:
         if not candidate.is_file():
             raise FileNotFoundError(str(candidate))
         return candidate
+
+    def about_project(self, query: str) -> bool:
+        """Does this request share a real word with the open project: its name, memory, facts, file names, or the
+        text of its files? (Live 2026-11-01: with Garden's notes in front of it, Main answered "what's the capital of
+        Australia?" with the cup's wall thickness, 5 times in 6.)"""
+        slug = self._active_slug
+        if not slug:
+            return False
+        words = set(re.findall(r"[a-z0-9][a-z0-9_-]{2,}", str(query).lower())) - _COMMON_WORDS
+        if not words:
+            return False
+        metadata = self._read_metadata(slug)
+        # The memory file's headings and boilerplate ("Known Issues", "Pending Work") are in every project: only its
+        # entries count.
+        entries = [line for line in self.project_memory_for_context(slug).splitlines() if line.startswith("- ")]
+        known = " ".join([str(metadata.get("name", "")), slug, *entries, self.current_facts_text(slug)]).lower()
+        known_words = set(re.findall(r"[a-z0-9][a-z0-9_-]{2,}", known))
+        if words & known_words:
+            return True
+        for item in self.search_assets(query, slug=slug, limit=6):
+            if words & set(re.findall(r"[a-z0-9][a-z0-9_-]{2,}", str(item.get("path", "")).lower())):
+                return True
+        for item in self.search_project(query, slug=slug, limit=self.retrieval_chunks):
+            if words & set(re.findall(r"[a-z0-9][a-z0-9_-]{2,}", str(item.get("content", "")).lower())):
+                return True
+        return False
 
     def context_for_query(self, query: str) -> str:
         slug = self._active_slug
