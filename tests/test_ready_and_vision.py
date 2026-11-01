@@ -18,7 +18,7 @@ class ReadyTests(unittest.TestCase):
         self.assertTrue(config.RUNTIME_WARM_ACTIVE_PROMPT_ON_START)
         src = (ROOT / "systems" / "chat.py").read_text()
         self.assertLess(src.index("                self._warm_runtime_prompt()\n"),
-                        src.index("self.speak(config.VOICE_STARTUP_READY_ANNOUNCEMENT)"))
+                        src.index("config.VOICE_STARTUP_READY_ANNOUNCEMENT)"))
 
     def test_standby_unload_waits_for_a_switch_in_progress(self):
         src = (ROOT / "supervisor.py").read_text()

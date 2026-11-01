@@ -585,6 +585,9 @@ VOICE_WAKE_FOLLOWUP_SECONDS = 12.0
 VOICE_WAKE_ACKNOWLEDGEMENT = "Yeah?"
 VOICE_STARTUP_LOADING_ANNOUNCEMENT = "Hi friend! Give me a couple minutes to full boot up and I'll let you know when Im ready!"
 VOICE_STARTUP_READY_ANNOUNCEMENT = "Hi friend I am all ready to talk to! All done loading"
+# Woken with the brain still loaded (STANDBY_KEEP_BRAIN_MINUTES): he isn't booting, so he doesn't say so (owner 2026-11-01).
+VOICE_QUICK_WAKE_ANNOUNCEMENT = "One sec!"
+VOICE_QUICK_WAKE_READY_ANNOUNCEMENT = "I'm ready!"
 VOICE_SLEEP_ACKNOWLEDGEMENT = "Going to sleep."
 VOICE_SLEEP_PHRASES = (CANONICAL_SLEEP_PHRASE, "go back to sleep")
 

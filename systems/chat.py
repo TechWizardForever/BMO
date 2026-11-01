@@ -775,6 +775,19 @@ class Chat:
                     config.PIPER_MODEL_PATH, self.tts.sample_rate)
         return self.tts
 
+    def _woke_with_brain_loaded(self):
+        """A wake from sleep with the main brain still in memory: no boot to announce."""
+        if not self._booted_from_standby_wake:
+            return False
+        try:
+            model = str(config.MODEL_PROFILES[config.MAIN_MODEL_PROFILE]["model"])
+            loaded = ollama.ps()
+            names = [str(item.get("model") or item.get("name") or "") for item in (loaded.get("models") or [])]
+            return model in names
+        except Exception:
+            logger.exception("Could not ask Ollama what's loaded; giving the full greeting")
+            return False
+
     def _load_models(self):
         self._log_hardware_profile()
         if self.interface_settings.tts_enabled:
@@ -783,7 +796,9 @@ class Chat:
             self._ensure_tts_loaded()
             if not self.setup_view.active:  # the install screen greets the person itself
                 self.state = State.RESPONDING
-                self.speak(config.VOICE_STARTUP_LOADING_ANNOUNCEMENT)
+                self._quick_wake = self._woke_with_brain_loaded()
+                self.speak(config.VOICE_QUICK_WAKE_ANNOUNCEMENT if self._quick_wake
+                           else config.VOICE_STARTUP_LOADING_ANNOUNCEMENT)
                 self.state = State.THINKING
                 logger.info("Startup loading announcement played; preparing STT and Ollama")
         else:
@@ -1678,7 +1693,8 @@ class Chat:
                 self.note_user_activity()
                 if self.interface_settings.tts_enabled:
                     self.state = State.RESPONDING
-                    self.speak(config.VOICE_STARTUP_READY_ANNOUNCEMENT)
+                    self.speak(config.VOICE_QUICK_WAKE_READY_ANNOUNCEMENT if getattr(self, "_quick_wake", False)
+                               else config.VOICE_STARTUP_READY_ANNOUNCEMENT)
                     self.state = State.DONE
                 if not config.RUNTIME_WARM_ACTIVE_PROMPT_ON_START and getattr(config, "WARM_PROMPT_AFTER_SWITCH", True):
                     self._warm_runtime_prompt(background=True)
