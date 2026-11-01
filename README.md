@@ -25,8 +25,9 @@ He can also:
   and a show carries on from the last episode you watched. Like the games, no videos come with him
 - show your movies or games on his screen ("show my movies", "show my games"), so you can scroll through them
   and say "play number 3"
-- sort the games and movies in your Downloads folder into the right places ("sort my downloads"), after you
-  say yes
+- sort the games and movies in your Downloads folder or on a USB stick into the right places ("sort my downloads",
+  "sort my USB"), after you say yes, and eject the stick when you're done ("eject the USB")
+- find the fastest settings for your computer ("run the speed test")
 - set timers and reminders, which still go off when he's asleep
 - remember things you tell him ("remember that my sister's birthday is May 3rd")
 - keep projects, check the weather, back himself up to a USB stick, and a bunch more. Everything he understands
