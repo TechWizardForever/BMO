@@ -1284,6 +1284,26 @@ class Chat:
             except Exception:
                 logger.exception("Could not restore the movie's volume")
 
+    @staticmethod
+    def _voice_check_stamp():
+        try:
+            return (Path(config.WAKEWORD_MODEL_PATH).parent / "personal.json").stat().st_mtime
+        except OSError:
+            return None
+
+    def _movie_false_alarm(self):
+        """The movie was turned down for "Hey BMO" but the phrase had none: it was the movie talking. Back up at
+        once; without the owner's voice check, no more ducking for two minutes (live 2026-10-30: it pumped every
+        10 to 15 seconds until the microphone was unplugged)."""
+        ducker = getattr(self, "_ducker", None)
+        if not ducker or not ducker.ducked:
+            return
+        if getattr(ducker, "personal", False):
+            ducker.restore()
+        else:
+            ducker.hold_off(120)
+            logger.info("MEDIA that duck was the movie's own sound; no ducking for 2 minutes")
+
     def _movie_ducker(self):
         """While a video plays, a Ducker that turns it down on "Hey BMO" (systems/media.Ducker); restores the
         volume from the previous turn first. None when nothing plays."""
@@ -1312,17 +1332,34 @@ class Chat:
             cached = self._movie_status = (now, status)
         if cached[1] != "Playing":
             return None
+        stamp = self._voice_check_stamp()
+        if ducker and getattr(ducker, "voice_stamp", None) != stamp:
+            ducker = self._ducker = None  # "learn my voice" was done (again): use the new voice check
         if ducker is None:
             try:
                 from openwakeword.model import Model
                 from systems import media
+                from systems.wake_enrollment import load_personal
+                # The owner's voice check from "learn my voice", like the standby wake (systems/wakeword.py):
+                # 2026-10-31 the plain detector took movie dialogue for "Hey BMO" 4 times in 15 minutes.
+                directory = Path(config.WAKEWORD_MODEL_PATH).parent
+                personal = load_personal(directory)
+                verifier = directory / personal["verifier"] if personal.get("verifier") else None
+                extra = {}
+                if verifier is not None and verifier.is_file():
+                    extra = {"custom_verifier_models": {Path(config.WAKEWORD_MODEL_PATH).stem: str(verifier)},
+                             "custom_verifier_threshold": float(personal.get("verifier_gate", 0.2))}
                 model = Model(wakeword_models=[str(config.WAKEWORD_MODEL_PATH)], inference_framework="onnx",
                               melspec_model_path=str(config.WAKEWORD_MELSPEC_PATH),
-                              embedding_model_path=str(config.WAKEWORD_EMBEDDING_PATH))
+                              embedding_model_path=str(config.WAKEWORD_EMBEDDING_PATH), **extra)
                 ducker = self._ducker = media.Ducker(
                     self._media_player, lambda frame: float(next(iter(model.predict(frame).values()))))
                 ducker.model = model
+                ducker.personal = bool(extra)
+                ducker.voice_stamp = stamp
                 ducker.log = logger.info
+                logger.info("MEDIA ducking {}", "with the owner's voice check" if extra
+                            else "without a voice check (say 'learn my voice')")
             except Exception:
                 logger.exception("Movie ducking unavailable")
                 self._ducker = False
@@ -1540,6 +1577,7 @@ class Chat:
                         continue
                     if gated_prompt is None:
                         self._current_turn_explicit_wake = False
+                        self._movie_false_alarm()
                         logger.trace("Ignored speech without Hey Bemo prefix: {!r}", prompt)
                         self.state = State.READY
                         continue

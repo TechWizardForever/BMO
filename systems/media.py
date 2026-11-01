@@ -597,13 +597,19 @@ class Ducker:
 
     Movie dialogue is speech too, so ducking on any voice would pump all through the film; this listens for the
     wake phrase itself, on the live audio while BMO captures a phrase, and turns the player to DUCK_TO of its
-    volume. restore() puts it back (BMO calls it when he listens again, after his answer)."""
+    volume. restore() puts it back (BMO calls it when he listens again, after his answer).
+
+    The scorer should be the owner's voice check when "learn my voice" was done (2026-10-31: movie dialogue fooled the
+    plain detector 4 times in 15 minutes at a score of 1.0, the voice check 0 times, and it still caught 9 of the
+    owner's 10 recorded wakes). Without one, a false alarm holds ducking off for a while (hold_off)."""
     DUCK_TO = 0.25
     THRESHOLD = 0.5   # a wrong duck only makes the movie quieter for a moment
 
-    def __init__(self, player, scorer):
+    def __init__(self, player, scorer, clock=time.monotonic):
         self.player, self.scorer = player, scorer   # scorer: callable(int16 frame of 1280 samples) -> score
         self.original = None
+        self.quiet_until = 0.0
+        self._clock = clock
         self._buffer = np.zeros(0, dtype=np.int16) if np is not None else None
 
     @property
@@ -611,7 +617,7 @@ class Ducker:
         return self.original is not None
 
     def feed(self, raw: bytes, rate: int, width: int) -> None:
-        if self.ducked or width != 2:
+        if self.ducked or width != 2 or self._clock() < self.quiet_until:
             return
         samples = np.frombuffer(raw, dtype="<i2")
         if rate != 16000:
@@ -620,19 +626,27 @@ class Ducker:
         self._buffer = np.concatenate([self._buffer, samples])
         while len(self._buffer) >= 1280 and not self.ducked:
             frame, self._buffer = self._buffer[:1280], self._buffer[1280:]
-            if self.scorer(frame) >= self.THRESHOLD:
-                self.duck()
+            score = self.scorer(frame)
+            if score >= self.THRESHOLD:
+                self.duck(score)
 
     log = staticmethod(lambda *args: None)
 
-    def duck(self) -> None:
+    def hold_off(self, seconds: float) -> None:
+        """No ducking for a while: the last one was the movie's own sound."""
+        self.restore()
+        self.quiet_until = self._clock() + float(seconds)
+
+    def duck(self, score: float | None = None) -> None:
         volume = self.player.volume()
         if volume is None:
             self.log("MEDIA duck: the player didn't report its volume")
             return
         self.original = volume
         ok = self.player.set_volume(volume * self.DUCK_TO)
-        self.log(f"MEDIA duck on Hey BMO: volume {volume:.2f} -> {volume * self.DUCK_TO:.2f} ({'ok' if ok else 'refused'})")
+        heard = f" (score {score:.2f})" if score is not None else ""
+        self.log(f"MEDIA duck on Hey BMO{heard}: volume {volume:.2f} -> {volume * self.DUCK_TO:.2f} "
+                 f"({'ok' if ok else 'refused'})")
 
     def restore(self) -> None:
         if self.ducked:

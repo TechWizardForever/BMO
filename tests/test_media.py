@@ -147,6 +147,37 @@ class DuckerTests(unittest.TestCase):
         self.assertEqual(player.sets, [0.2, 0.8])
         self.assertFalse(ducker.ducked)
 
+    def test_a_false_alarm_holds_ducking_off_for_a_while(self):
+        # Live 2026-10-30: without a voice check the movie's own dialogue ducked it every 10 to 15 seconds.
+        import numpy as np
+        player, now = FakeVolumePlayer(), [100.0]
+        ducker = m.Ducker(player, lambda frame: 0.9, clock=lambda: now[0])
+        frame = np.zeros(1280, dtype="<i2").tobytes()
+        ducker.feed(frame, 16000, 2)
+        self.assertTrue(ducker.ducked)
+        ducker.hold_off(120)
+        self.assertEqual((ducker.ducked, player.sets), (False, [0.2, 0.8]))  # back up at once
+        now[0] += 60
+        ducker.feed(frame, 16000, 2)
+        self.assertFalse(ducker.ducked)  # held off
+        now[0] += 61
+        ducker.feed(frame, 16000, 2)
+        self.assertTrue(ducker.ducked)  # and on again after two minutes
+
+    def test_the_chat_restores_a_false_alarm_and_holds_off_only_without_a_voice_check(self):
+        from systems.chat import Chat
+        for personal, held in ((False, True), (True, False)):
+            chat = Chat.__new__(Chat)
+            calls = []
+            chat._ducker = type("D", (), {"ducked": True, "personal": personal,
+                                         "restore": lambda s: calls.append("restore"),
+                                         "hold_off": lambda s, seconds: calls.append(("hold", seconds))})()
+            chat._movie_false_alarm()
+            self.assertEqual(calls, [("hold", 120)] if held else ["restore"])
+        chat = (ROOT / "systems" / "chat.py").read_text()
+        self.assertIn('"custom_verifier_models": {Path(config.WAKEWORD_MODEL_PATH).stem: str(verifier)}', chat)
+        self.assertLess(chat.index("self._movie_false_alarm()"), chat.index('logger.trace("Ignored speech without'))
+
     def test_movie_dialogue_alone_does_not_duck(self):
         import numpy as np
         player = FakeVolumePlayer()
