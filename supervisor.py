@@ -1053,6 +1053,42 @@ def _launch_bemo_child(command: list[str], *, woke_from_standby: bool = False) -
     return subprocess.Popen(command, cwd=str(Path(__file__).resolve().parent), env=env)
 
 
+def _available_gb() -> float:
+    try:
+        import psutil
+        return psutil.virtual_memory().available / 1024 ** 3
+    except Exception:
+        return 99.0
+
+
+def _enter_standby(service: SupervisorService) -> None:
+    """BMO went to sleep. His main brain stays loaded for STANDBY_KEEP_BRAIN_MINUTES, so a wake in that time skips
+    the load and the warm-up (2026-10-31: 36 s + 12 s of a 49 s wake); 0 unloads it at once, as before."""
+    minutes = float(getattr(config, "STANDBY_KEEP_BRAIN_MINUTES", 0) or 0)
+    if minutes <= 0:
+        service.standby_unload_at = None
+        _unload_active_model_for_standby(service)
+        return
+    service.standby_unload_at = time.monotonic() + minutes * 60
+    LOG.info("Standby: keeping the brain loaded for %.0f minutes", minutes)
+
+
+def _standby_brain_check(service: SupervisorService, now: float | None = None, free_gb: float | None = None) -> bool:
+    """While BMO sleeps: unload the kept brain once its time is up, or at once if memory runs low. True when unloaded."""
+    due = getattr(service, "standby_unload_at", None)
+    if due is None:
+        return False
+    now = time.monotonic() if now is None else now
+    free = _available_gb() if free_gb is None else free_gb
+    low = free < float(getattr(config, "STANDBY_KEEP_BRAIN_MIN_FREE_GB", 3.0))
+    if now < due and not low:
+        return False
+    LOG.info("Standby: unloading the brain (%s)", f"only {free:.1f} GB free" if low else "its time is up")
+    service.standby_unload_at = None
+    _unload_active_model_for_standby(service)
+    return True
+
+
 def _unload_active_model_for_standby(service: SupervisorService) -> None:
     # No model name here: unload_model() picks the active model only after any switch still in
     # progress has finished. Passing service.active_model (read before) unloaded Coding while a
@@ -1225,8 +1261,10 @@ def run_supervised(command: list[str], *, standby: bool = False) -> int:
                     service.request_start_bemo("restart")
 
                 if not service.start_bemo_requested.wait(0.2):
+                    _standby_brain_check(service)
                     continue
                 reason = service.consume_start_reason()
+                service.standby_unload_at = None  # awake again: the kept brain is his
                 if (
                     reason == "standby_wake"
                     and bool(getattr(config, "SUPERVISOR_PARALLEL_PRELOAD_ON_STANDBY_WAKE", True))
@@ -1270,7 +1308,7 @@ def run_supervised(command: list[str], *, standby: bool = False) -> int:
                 _terminate_child(child)
                 child = None
                 service.set_bemo_pid(None)
-                _unload_active_model_for_standby(service)
+                _enter_standby(service)
                 restarts = 0
                 continue
 
@@ -1285,7 +1323,7 @@ def run_supervised(command: list[str], *, standby: bool = False) -> int:
 
             if exit_code == 0:
                 LOG.info("Bemo exited normally; Supervisor remains in standby.")
-                _unload_active_model_for_standby(service)
+                _enter_standby(service)
                 restarts = 0
                 continue
 
@@ -1302,6 +1340,7 @@ def run_supervised(command: list[str], *, standby: bool = False) -> int:
                     "Bemo exceeded crash restart limit (%s); returning to standby.",
                     config.SUPERVISOR_MAX_CRASH_RESTARTS,
                 )
+                service.standby_unload_at = None  # after a crash loop the memory goes back at once
                 _unload_active_model_for_standby(service)
                 restarts = 0
                 continue

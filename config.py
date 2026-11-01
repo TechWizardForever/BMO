@@ -274,6 +274,11 @@ SUPERVISOR_SOCKET_PATH = SUPERVISOR_RUNTIME_DIR / "supervisor.sock"
 SUPERVISOR_STATE_PATH = SUPERVISOR_RUNTIME_DIR / "supervisor_state.json"
 SUPERVISOR_LOG_DIR = DATA_ROOT / "logs"
 TURN_TRACE_PATH = SUPERVISOR_LOG_DIR / "turn-trace.jsonl"  # the per-turn stopwatch (systems/turn_trace.py); "" = off
+# After "go to sleep" the main brain stays loaded this long, so a wake skips the ~36 s load and the ~12 s warm-up
+# (measured 2026-10-31: a wake took 49 s, 48 of it those); 0 unloads it at once as before. It unloads sooner if free
+# memory drops under STANDBY_KEEP_BRAIN_MIN_FREE_GB.
+STANDBY_KEEP_BRAIN_MINUTES = float(os.environ.get("BEMO_STANDBY_KEEP_BRAIN_MINUTES", "60"))
+STANDBY_KEEP_BRAIN_MIN_FREE_GB = 3.0
 SUPERVISOR_REQUEST_TIMEOUT_SECONDS = 3.0
 SUPERVISOR_MODEL_SWITCH_TIMEOUT_SECONDS = 180.0
 SUPERVISOR_PRELOAD_ACTIVE_MODEL_ON_START = True
