@@ -319,6 +319,7 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("BMO himself", "Hey Bemo, voice status", "Which voice BMO is using."),
     VoiceCommand("BMO himself", "Hey Bemo, test voice", "BMO says a short test sentence."),
     VoiceCommand("BMO himself", "Hey Bemo, text mode", "The conversation as text, in place of BMO's face."),
+    VoiceCommand("BMO himself", "Hey Bemo, show your face / come back", "Brings BMO's face to the front, on top of other windows. Nothing gets closed."),
     VoiceCommand("BMO himself", "Hey Bemo, face mode", "BMO's face again, with his voice on."),
     VoiceCommand("BMO himself", "Hey Bemo, TTS off / TTS on", "In text mode, turns his spoken answers off or back on."),
     VoiceCommand("BMO himself", "Hey Bemo, interface status", "Whether he's showing his face or text, and if his voice is on."),

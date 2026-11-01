@@ -1258,6 +1258,25 @@ class Chat:
         except Exception:
             logger.exception("Could not bring the face back")
 
+    _SHOW_FACE = re.compile(r"^(?:(?:go|come) )?back to (?:your|the|bmos?|my) face$|^(?:show|bring up) (?:me )?(?:your|the|bmos?) face$"
+                            r"|^bring (?:your|the|bmos?) face (?:back|up)(?: up)?$|^bring back (?:your|the|bmos?) face$"
+                            r"|^come back$|^show yourself$|^(?:where is|wheres) your face$|^(?:i (?:want to|wanna) )?see your face$"
+                            r"|^put your face (?:back )?(?:up|on)(?: the screen)?$")
+
+    def _handle_show_face(self, command):
+        """'Hey BMO, show your face' (owner 2026-11-01): his window in front, from anywhere. Nothing else closes. A
+        movie or game keeps the screen: those have their own stop."""
+        from systems.media_phrases import clean
+        if not self._SHOW_FACE.match(clean(command)):
+            return False
+        if self.managed_display_active():
+            return self._say_local(command, "I'm behind the movie or game right now. Stop it and I'll be back.")
+        if self.interface_settings.display_mode != "face":
+            self.set_display_mode("face")
+        self.note_user_activity()
+        self._back_to_face()
+        return self._say_local(command, "Here I am!")
+
     def _handle_eject_usb(self, command):
         """'Hey BMO, eject the USB' (owner 2026-11-01): really unmounts it (systems/usb_eject.py) and says so only
         once it has let go."""
@@ -5797,6 +5816,9 @@ class Chat:
 
         # The movie and game libraries (2026-10-28): before the player and the games, which also hear "play".
         if self._handle_library_command(command):
+            return True
+
+        if self._handle_show_face(command):
             return True
 
         if self._handle_sort_downloads(command):

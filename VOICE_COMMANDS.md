@@ -181,6 +181,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | **voice status** | Which voice BMO is using. |
 | **test voice** | BMO says a short test sentence. |
 | **text mode** | The conversation as text, in place of BMO's face. |
+| **show your face / come back** | Brings BMO's face to the front, on top of other windows. Nothing gets closed. |
 | **face mode** | BMO's face again, with his voice on. |
 | **TTS off / TTS on** | In text mode, turns his spoken answers off or back on. |
 | **interface status** | Whether he's showing his face or text, and if his voice is on. |

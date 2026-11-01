@@ -161,6 +161,48 @@ class NoPopupTests(unittest.TestCase):
         self.assertIn("no_usb_popup()", (ROOT / "systems" / "chat.py").read_text())
 
 
+class ShowFaceTests(unittest.TestCase):
+    def chat(self, display="face", busy=False):
+        c = Chat.__new__(Chat)
+        c.said, c.raised, c.modes = [], [], []
+        c._say_local = lambda command, text: c.said.append(text) or True
+        c._back_to_face = lambda closing=(): c.raised.append(True)
+        c.managed_display_active = lambda: busy
+        c.note_user_activity = lambda: None
+        c.interface_settings = types.SimpleNamespace(display_mode=display)
+        c.set_display_mode = lambda mode: c.modes.append(mode)
+        return c
+
+    def test_asks(self):
+        for said in ("Hey BMO, show your face.", "show me your face", "back to your face", "go back to your face",
+                     "come back", "bring your face back", "bring back your face", "bring up your face", "show yourself",
+                     "where's your face", "I want to see your face", "put your face back up"):
+            c = self.chat()
+            self.assertTrue(c._handle_show_face(said), said)
+            self.assertEqual(c.raised, [True], said)
+            self.assertEqual(c.said, ["Here I am!"], said)
+
+    def test_not_asks(self):
+        for said in ("what does your face look like", "come back later", "show my movies", "face the wall", "go back"):
+            self.assertFalse(self.chat()._handle_show_face(said), said)
+
+    def test_a_movie_or_game_keeps_the_screen(self):
+        c = self.chat(busy=True)
+        c._handle_show_face("show your face")
+        self.assertEqual(c.raised, [])
+        self.assertIn("Stop it", c.said[0])
+
+    def test_text_mode_goes_back_to_his_face(self):
+        c = self.chat(display="text")
+        c._handle_show_face("show your face")
+        self.assertEqual(c.modes, ["face"])
+
+    def test_the_library_still_hears_it_first(self):
+        src = (ROOT / "systems" / "chat.py").read_text()
+        self.assertLess(src.index("if self._handle_library_command(command):"), src.index("if self._handle_show_face(command):"))
+        self.assertIn("show your face", (ROOT / "VOICE_COMMANDS.md").read_text())
+
+
 class ClaimTests(unittest.TestCase):
     def test_the_brain_cant_claim_it(self):
         for text in ("USB ejected.", "Your USB stick is ejected now.", "The drive is unmounted.", "I ejected the USB.",
