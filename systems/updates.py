@@ -179,11 +179,11 @@ class Updater:
                   "to": update.tag, "to_version": list(update.version), "started_at": self.clock(),
                   "backup": str(backup)}
         if not self._packages(previous, update.tag):
-            self.roll_back(record, "the new package list didn't install")
-            return {"ok": False, "reason": "packages"}
+            back = self.roll_back(record, "the new package list didn't install")
+            return {"ok": False, "reason": "packages", "rolled_back": back}
         if not self._self_test():
-            self.roll_back(record, "the new version failed its self-test")
-            return {"ok": False, "reason": "self-test"}
+            back = self.roll_back(record, "the new version failed its self-test")
+            return {"ok": False, "reason": "self-test", "rolled_back": back}
         self.save(record)
         return {"ok": True, "tag": update.tag}
 
@@ -193,8 +193,14 @@ class Updater:
         if not previous:
             return False
         current = self.git("rev-parse", "HEAD").stdout.strip()
-        self.git("checkout", "--quiet", "--detach", previous)
-        self._packages(current, previous)
+        # Both steps are checked (handoff 2026-10-31 #3): a rollback that didn't happen must not be announced as one.
+        checked_out = self.git("checkout", "--quiet", "--detach", previous).returncode == 0
+        restored = checked_out and self._packages(current, previous)
+        if not restored:
+            step = "packages" if checked_out else "checkout"
+            record.update(status=FAILED, reason=reason, rollback_failed=step, failed_at=self.clock(), announced=False)
+            self.save(record)
+            return False
         record.update(status=ROLLED_BACK, reason=reason, rolled_back_at=self.clock(), announced=False)
         self.save(record)
         return True
@@ -244,6 +250,14 @@ class Updater:
                 line += (f" This version also needs {', '.join(missing)}, which I can't install myself. "
                          f"Open the Terminal and type: sudo apt install {' '.join(missing)}.")
             return line
+        if record.get("status") == FAILED and record.get("rollback_failed") and not record.get("announced"):
+            record["announced"] = True
+            self.save(record)
+            step = ("my folder couldn't be switched back" if record["rollback_failed"] == "checkout"
+                    else "the old package list didn't install again")
+            return (f"The update to version {spoken_version(tuple(record.get('to_version') or ()))} didn't work, "
+                    f"because {record.get('reason') or 'something went wrong'}, and going back to the version before "
+                    f"failed too: {step}. I may not work properly until that's sorted out.")
         if record.get("status") == ROLLED_BACK and not record.get("announced"):
             record["announced"] = True
             self.save(record)

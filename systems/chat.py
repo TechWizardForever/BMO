@@ -57,7 +57,7 @@ from systems.apps import (
     AppMatch, sounds_like_app, spoken_app_name, wait_for_window, wait_for_windows_gone, window_matches,
 )
 from systems.turn_speech import complete_sentences, ends_in_sentence, completed_prefix, speakable_units
-from systems.grounding import CLOCK_TOPICS, HONEST_REPLIES, clock_reply, fabricated_live_claim, live_data_topic
+from systems.grounding import CLOCK_TOPICS, HONEST_REPLIES, clock_reply, live_data_topic, unbacked_claim
 from systems.engineering import EngineeringToolkit, ENGINEERING_TOOL_NAMES, engineering_tool_schemas
 from systems.vision_tools import VisionToolkit, VISION_TOOL_NAMES, vision_tool_schemas
 from systems.diagnostics import HardwareDiagnostics, diagnostics_tool_schema
@@ -953,6 +953,10 @@ class Chat:
             reason = {"self-test": "the new version failed its self-test", "packages": "its packages didn't install",
                       "local_changes": "my folder has changes that aren't saved in Git"}.get(result.get("reason"),
                                                                                          "something went wrong")
+            if result.get("rolled_back") is False:  # going back failed too: say so, never "I'm still on ..."
+                return self._say_local(command, f"The update didn't work, because {reason}, and going back to the "
+                                                "version before failed too. I may not work properly until that's "
+                                                "sorted out.")
             return self._say_local(command, f"The update didn't work, because {reason}. I'm still on the version I had.")
         self._archive_local_exchange(command, f"Installed {found.update.tag}; restarting.")
         self.speak("The new version passed its test. I'll restart now.")
@@ -4350,9 +4354,17 @@ class Chat:
             return "STOPPED: the owner did not approve that step."
         if not result.get("ok"):
             return f"FAILED to {doing}: {result.get('error') or 'the action failed'}. Do not claim it happened."
-        if result.get("verified"):
+        level = result.get("level") or ("goal" if result.get("verified") else "sent")
+        if level == "goal":
             task.setdefault("done", []).append(doing)
             outcome = f"VERIFIED: {doing} ({result.get('note') or 'confirmed'}). Done so far: {'; '.join(task['done'])}."
+        elif level == "changed":
+            # Only the screen or the controls changed (handoff 2026-10-31 #8): something happened, not proof that it
+            # did what was asked. The brain looks again before saying it worked.
+            task.setdefault("done", []).append(doing + " (the screen changed; not confirmed)")
+            outcome = (f"CHANGED: {doing}, and {result.get('note') or 'the screen changed'}. That shows something "
+                       "happened, not that it did what was wanted: look again to check before saying it worked. "
+                       f"Done so far: {'; '.join(task['done'])}.")
         else:
             outcome = (f"NOT VERIFIED: I did {doing}, but {result.get('note') or 'nothing visible changed'}. "
                        "Do not say it worked.")
@@ -7327,11 +7339,13 @@ class Chat:
         )
         spoken_units = []
         stopped_at_sentence = False
-        # Without a tool result in this request, any live weather/GPS/sensor
-        # reading in the reply is invented and must never be spoken.
-        guard_live_claims = not any(
-            isinstance(m, dict) and m.get("role") == "tool" for m in messages
-        )
+        # A live reading, saved setting, made file or done action in the reply needs a tool result in this request
+        # that can back it; otherwise it is invented and never spoken. Any tool at all used to count (handoff
+        # 2026-10-31 #7: a file list let an invented temperature through).
+        tools_used = {str(m.get("tool_name") or "") for m in messages if isinstance(m, dict) and m.get("role") == "tool"}
+
+        def unbacked(text):
+            return unbacked_claim(text, tools_used)
         grounding_blocked = False
         llm_started = time.monotonic()
         first_text_logged = False
@@ -7453,7 +7467,7 @@ class Chat:
                 # The pending tail remains buffered while Ollama keeps decoding.
                 ready, speech_tail = speakable_units(speech_tail)
                 for sentence in ready:
-                    if guard_live_claims and fabricated_live_claim(sentence):
+                    if unbacked(sentence):
                         grounding_blocked = True
                         break
                     if speech.enqueue(sentence):
@@ -7467,7 +7481,7 @@ class Chat:
                                 sum(len(u.split()) for u in spoken_units))
                 if stopped_at_sentence or grounding_blocked:
                     break
-                if guard_live_claims and not tool_calls and fabricated_live_claim(full_text):
+                if not tool_calls and unbacked(full_text):
                     # Caught mid-sentence; stop before the claim is completed.
                     grounding_blocked = True
                     break
@@ -7497,16 +7511,16 @@ class Chat:
                 except (AttributeError, RuntimeError):
                     pass
             full_text = "".join(content_parts)
-            if guard_live_claims and not tool_calls and (grounding_blocked or fabricated_live_claim(full_text)):
+            if not tool_calls and (grounding_blocked or unbacked(full_text)):
                 # Keep only the honest sentences before the invented claim.
                 sentences, tail = complete_sentences(full_text)
                 kept, kind = [], None
                 for sentence in sentences + ([tail] if tail.strip() else []):
-                    kind = fabricated_live_claim(sentence)
+                    kind = unbacked(sentence)
                     if kind:
                         break
                     kept.append(sentence)
-                honest = HONEST_REPLIES[kind or fabricated_live_claim(full_text) or "fabricated"]
+                honest = HONEST_REPLIES[kind or unbacked(full_text) or "fabricated"]
                 full_text = " ".join(kept + [honest]).strip()
                 content_parts = [full_text]
                 speech_tail = honest

@@ -151,6 +151,29 @@ def live_data_topic(user_text: str) -> str | None:
     return None
 
 
+# Which tools can back each kind of claim (handoff 2026-10-31 #7). Others (file searches, calculators, references)
+# back none: the guard stays on for them.
+CLAIM_EVIDENCE = {
+    "fabricated": {"instrument_telemetry", "computer_control", "gui", "ocr_image", "crop_zoom_image", "select_image",
+                   "select_project_image"},
+    "unsaved": {"computer_control", "gui", "write_project_file", "replace_project_text", "set_project_fact",
+                "supersede_project_fact"},
+    "unswitched": {"request_capability_handoff"},
+    "unmade": {"make_cad_part", "make_cad_model", "write_project_file", "computer_control"},
+    "untimed": set(),  # timers are BMO's own commands, never a tool
+    "undone": {"computer_control", "gui", "write_project_file", "replace_project_text", "run_project_check",
+               "checkpoint_task", "make_cad_part", "make_cad_model"},
+}
+
+
+def unbacked_claim(text: str, tools_used) -> str | None:
+    """The kind of claim in `text` that none of this turn's tools can back, else None."""
+    kind = fabricated_live_claim(text)
+    if kind and not (set(tools_used or ()) & CLAIM_EVIDENCE.get(kind, set())):
+        return kind
+    return None
+
+
 def fabricated_live_claim(text: str) -> str | None:
     """Kind of claim ('fabricated' or 'unsaved') no tool backed, else None.
 

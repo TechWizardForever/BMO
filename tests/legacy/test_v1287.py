@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 import config
 from voice_commands import VoiceSessionGate
 from systems.turn_speech import complete_sentences, ends_in_sentence, completed_prefix, speakable_units
-from systems.grounding import HONEST_REPLIES, fabricated_live_claim
+from systems.grounding import HONEST_REPLIES, fabricated_live_claim, unbacked_claim
 from systems.stt_guard import output_is_looping
 
 SRC = (ROOT/'systems/chat.py').read_text()
@@ -91,7 +91,7 @@ namespace = dict(
     completed_prefix=completed_prefix,
     sr=types.SimpleNamespace(WaitTimeoutError=FakeTimeout),
     # v1.28.8 stream dependencies
-    fabricated_live_claim=fabricated_live_claim, HONEST_REPLIES=HONEST_REPLIES,
+    fabricated_live_claim=fabricated_live_claim, unbacked_claim=unbacked_claim, HONEST_REPLIES=HONEST_REPLIES,
     output_is_looping=output_is_looping, speakable_units=speakable_units,
 )
 exec(compile(ast.fix_missing_locations(ast.Module(body=[mini],type_ignores=[])), '<chat-regression>', 'exec'), namespace)

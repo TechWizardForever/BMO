@@ -240,6 +240,20 @@ def verify(action: str, before: dict, after: dict | None, value=None) -> tuple[b
     return None, ""
 
 
+_CLOSES = re.compile(r"\b(?:close|quit|exit|discard|don'?t save|cancel)\b", re.I)
+
+
+def step_level(control: dict, *, changed: bool, gone: bool) -> str:
+    """For a button or menu (no value to read back): 'goal' when what changed is the point of the control (a menu
+    opened its items, a Close / Quit / Discard closed the window), else 'changed' (something happened, not
+    necessarily the right thing), or 'sent' when nothing changed (handoff 2026-10-31 #8)."""
+    if gone:
+        return "goal" if _CLOSES.search(display_name(control) or "") else "changed"
+    if not changed:
+        return "sent"
+    return "goal" if control.get("role") in ("menu", "menu bar item") else "changed"
+
+
 def snapshot_changed(before: dict, after: dict) -> bool:
     """Any visible difference: texts, states, values, or which controls exist."""
     def key(snap):

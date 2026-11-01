@@ -176,7 +176,7 @@ class UpdateTests(unittest.TestCase):
         self.release("1.1.0", self_test_ok=False)
         updater = self.updater()
         result = updater.install(updater.check().update)
-        self.assertEqual(result, {"ok": False, "reason": "self-test"})
+        self.assertEqual(result, {"ok": False, "reason": "self-test", "rolled_back": True})
         self.assertEqual(self.head(), before)
         self.assertIn("didn't work, because the new version failed its self-test", updater.mark_ready())
         self.assertIsNone(updater.mark_ready())  # said once
@@ -195,6 +195,30 @@ class UpdateTests(unittest.TestCase):
         updater.mark_started()
         self.assertTrue(updater.roll_back_after_crash())  # a crash in the setup still counts
         self.assertEqual(self.head(), before)
+
+    def test_a_failed_rollback_says_so(self):
+        # Handoff 2026-10-31 #3: roll_back ignored both steps and always announced "I went back".
+        import subprocess as sp
+        self.release("1.1.0")
+        updater = self.updater()
+        updater.install(updater.check().update)
+        real_git = updater.git
+        updater.git = lambda *args, **kw: (sp.CompletedProcess(args, 1, "", "error") if args[:1] == ("checkout",)
+                                           else real_git(*args, **kw))
+        self.assertFalse(updater.roll_back_after_crash())
+        state = updater.state()
+        self.assertEqual((state["status"], state["rollback_failed"]), (up.FAILED, "checkout"))
+        said = updater.mark_ready()
+        self.assertIn("going back to the version before failed too", said)
+        self.assertIn("my folder couldn't be switched back", said)
+        self.assertIsNone(updater.mark_ready())  # said once
+        # the packages step
+        updater.git = real_git
+        self.release("1.2.0")
+        updater.install(updater.check().update)
+        updater._packages = lambda before, after: False
+        self.assertFalse(updater.roll_back(None, "the new version crashed"))
+        self.assertEqual(updater.state()["rollback_failed"], "packages")
 
     def test_a_long_setup_never_undoes_an_update(self):
         # Owner 2026-10-27: give it all the time it needs. The other PC's setup (downloads, Enter, the screen)

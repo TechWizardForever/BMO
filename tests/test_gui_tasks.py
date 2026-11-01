@@ -110,7 +110,8 @@ class FakeSupervisor:
         if action == "gui_click_point":
             self.desktop.points.append((payload["x"], payload["y"], payload["target"]))
             self.desktop.signatures.append(payload.get("seen_signature"))
-            return {"ok": True, "verified": True, "note": "the screen changed (3.0% of the window, 40% near the click)"}
+            return {"ok": True, "verified": True, "level": "changed",  # as systems/computer.gui_click_point says now
+                    "note": "the screen changed (3.0% of the window, 40% near the click)"}
         if action == "gui_close":
             return self.desktop.close(int(payload["pid"]))
         return self.cc.execute(action, payload)
@@ -363,7 +364,9 @@ class GuiToolTests(unittest.TestCase):
                 mock.patch("systems.gui_vision.raise_window"):
             self.assertIn("does not share its controls", c._gui_tool({"action": "observe", "app": "Firefox"}))
             out = c._gui_tool({"action": "click_seen", "app": "Firefox", "target": "the Say hello button"})
-        self.assertTrue(out.startswith("VERIFIED: click the Say hello button"), out)
+        # Pixels changing shows something happened, not that it worked (handoff 2026-10-31 #8): CHANGED, not VERIFIED.
+        self.assertTrue(out.startswith("CHANGED: click the Say hello button"), out)
+        self.assertIn("look again to check before saying it worked", out)
         self.assertEqual(c.questions, ["I'll click the Say hello button in Firefox. Say Hey BMO, yes, or just say no."])
         self.assertEqual(located, ["Click the Say hello button."])
         self.assertEqual(c.desktop.points, [(144, 330, "the Say hello button")])

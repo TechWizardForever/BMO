@@ -192,6 +192,34 @@ class LibraryTests(unittest.TestCase):
             self.assertIsNone(lib.command(said), said)
 
 
+class ClaimGuardTests(unittest.TestCase):
+    def test_a_tool_only_backs_the_claims_it_can(self):
+        # Handoff 2026-10-31 #7: any tool result at all used to switch the guard off.
+        from systems.grounding import unbacked_claim
+        weather = "It's 72 degrees and sunny outside right now."
+        self.assertEqual(unbacked_claim(weather, set()), "fabricated")
+        self.assertEqual(unbacked_claim(weather, {"find_files", "list_project_files"}), "fabricated")  # a file list
+        self.assertIsNone(unbacked_claim(weather, {"instrument_telemetry"}))   # a real reading backs it
+        self.assertEqual(unbacked_claim("I've opened Firefox for you.", {"read_project_file"}), "undone")
+        self.assertIsNone(unbacked_claim("I've opened Firefox for you.", {"computer_control"}))
+        self.assertIsNone(unbacked_claim("The answer is 42.", set()))
+        chat = (ROOT / "systems" / "chat.py").read_text()
+        self.assertNotIn("guard_live_claims", chat)
+        self.assertIn("return unbacked_claim(text, tools_used)", chat)
+
+
+class GuiLevelTests(unittest.TestCase):
+    def test_done_only_when_the_point_of_the_control_happened(self):
+        # Handoff 2026-10-31 #8: "the screen changed" isn't "it worked".
+        from systems.gui_control import step_level
+        button = {"role": "push button", "name": "Apply"}
+        self.assertEqual(step_level(button, changed=True, gone=False), "changed")
+        self.assertEqual(step_level(button, changed=False, gone=False), "sent")
+        self.assertEqual(step_level({"role": "menu", "name": "View"}, changed=True, gone=False), "goal")
+        self.assertEqual(step_level({"role": "push button", "name": "Close without Saving"}, changed=False, gone=True), "goal")
+        self.assertEqual(step_level(button, changed=False, gone=True), "changed")  # an unexpected close
+
+
 class ChatTests(unittest.TestCase):
     def setUp(self):
         import config

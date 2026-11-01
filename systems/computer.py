@@ -22,7 +22,7 @@ import psutil
 
 from systems.gui_control import (
     CHANGE, CRITICAL, NAVIGATE, action_summary, classify, compact_view, host_accessibility_backend,
-    snapshot_changed, verify,
+    snapshot_changed, step_level, verify,
 )
 
 
@@ -203,7 +203,7 @@ class ComputerController:
         self._input(lambda d: d.click(1))
         time.sleep(float(payload.get("settle", 0.9)))
         if not any(w[0] == window_id for w in window_regions(int(payload["pid"]))):
-            return {"ok": True, "verified": True, "note": "the window closed"}
+            return {"ok": True, "verified": True, "level": "changed", "note": "the window closed"}
         after = capture(region)
         local = (x - region[0], y - region[1])
         near, whole = changed_pixels(before, after, around=local), changed_pixels(before, after)
@@ -213,7 +213,9 @@ class ComputerController:
         verified = near >= 120 or whole >= 400
         note = (f"the screen changed ({whole} pixels, {near} near the click)" if verified
                 else f"nothing on screen changed after the click ({whole} pixels)")
-        return {"ok": True, "verified": verified, "note": note, "changed_pixels": whole, "changed_near": near}
+        # Pixels changing shows something happened, not that it was the right thing (handoff 2026-10-31 #8).
+        return {"ok": True, "verified": verified, "level": "changed" if verified else "sent", "note": note,
+                "changed_pixels": whole, "changed_near": near}
 
     def gui_close(self, payload: dict) -> dict:
         """Ask an app's windows to close (like the title-bar X), then report what happened.
@@ -238,8 +240,8 @@ class ComputerController:
         while time.monotonic() < deadline:
             time.sleep(0.3)
             if not set(ids) & desk.all_window_ids():
-                return {"ok": True, "verified": True, "note": "the window closed"}
-        return {"ok": True, "verified": False,
+                return {"ok": True, "verified": True, "level": "goal", "note": "the window closed"}
+        return {"ok": True, "verified": False, "level": "sent",
                 "note": "the window is still open; it may be asking about unsaved work (look at it again)"}
 
     def gui_snapshot(self, payload: dict) -> dict:
@@ -258,19 +260,22 @@ class ComputerController:
         if not result.get("ok"):
             raise ComputerControlError(result.get("error") or "the action failed")
         verified, note = verify(action, result["before"], result.get("after"), payload.get("value"))
+        level = "goal" if verified else "sent"  # the control itself ended up as asked (text, value, switch, tab)
         if verified is None:  # buttons/menu items: did anything visible change at all?
             after_snap = backend.snapshot(pid)
             changed = after_snap.get("ok") and before_snap.get("ok") and snapshot_changed(before_snap, after_snap)
             gone = not after_snap.get("ok")  # e.g. the window closed
             verified = bool(changed or gone)
             note = "the window closed" if gone else ("something changed" if changed else "nothing visible changed")
+            level = step_level(result["before"], changed=bool(changed), gone=gone)
             if changed:
                 old_texts = {c["path"]: c.get("text") for c in before_snap.get("controls", [])}
                 changed_texts = [c["text"] for c in after_snap.get("controls", [])
                                  if c.get("text") and c.get("text") != old_texts.get(c["path"]) and len(c["text"]) <= 40]
-                return {"ok": True, "verified": True, "note": note, "changed_texts": changed_texts[:2],
+                return {"ok": True, "verified": True, "level": level, "note": note, "changed_texts": changed_texts[:2],
                         "control": result.get("after") or result["before"]}
-        return {"ok": True, "verified": verified, "note": note, "control": result.get("after") or result["before"]}
+        return {"ok": True, "verified": verified, "level": level, "note": note,
+                "control": result.get("after") or result["before"]}
 
     # ------------------------------------------------------------------
     # Path + command validation
