@@ -217,5 +217,15 @@ class WakeTests(unittest.TestCase):
                 self.assertEqual(command, row["command"], row)
 
 
+class SleepPhraseTests(unittest.TestCase):
+    def test_whispers_versions_of_go_to_sleep(self):
+        for said in ("go to sleep", "go back to sleep", "good asleep", "go asleep", "got to sleep", "good to sleep"):
+            self.assertIn(said, config.VOICE_SLEEP_PHRASES)
+
+    def test_a_question_about_sleep_is_not_one(self):
+        for said in ("how much sleep do I need", "good night", "is it good to sleep late"):
+            self.assertNotIn(said, config.VOICE_SLEEP_PHRASES)
+
+
 if __name__ == "__main__":
     unittest.main()

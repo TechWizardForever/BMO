@@ -589,7 +589,9 @@ VOICE_STARTUP_READY_ANNOUNCEMENT = "Hi friend I am all ready to talk to! All don
 VOICE_QUICK_WAKE_ANNOUNCEMENT = "One sec!"
 VOICE_QUICK_WAKE_READY_ANNOUNCEMENT = "I'm ready!"
 VOICE_SLEEP_ACKNOWLEDGEMENT = "Going to sleep."
-VOICE_SLEEP_PHRASES = (CANONICAL_SLEEP_PHRASE, "go back to sleep")
+# Whisper's versions too: live 2026-11-01 "go to sleep" came back "good asleep", went to the brain, and got a joke.
+VOICE_SLEEP_PHRASES = (CANONICAL_SLEEP_PHRASE, "go back to sleep", "good asleep", "go asleep", "go to asleep",
+                       "got to sleep", "good to sleep", "good sleep")
 
 # Standby wake listener.  When the full Bemo process is stopped, the permanent
 # Supervisor loads one small speech model and waits for "Hey Bemo".  Hearing it
