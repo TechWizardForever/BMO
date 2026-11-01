@@ -192,6 +192,20 @@ class LibraryTests(unittest.TestCase):
             self.assertIsNone(lib.command(said), said)
 
 
+class ToolLogTests(unittest.TestCase):
+    def test_tool_calls_are_logged_without_what_was_typed(self):
+        # Handoff 2026-10-31 #10: the full arguments (typed text, file contents, paths) went into the log.
+        from systems.chat import Chat
+        summary = Chat._tool_args_summary({"text": "SECRET-7f3a typed into an app", "path": "/home/someone/notes.txt",
+                                           "count": 3, "submit": True})
+        self.assertNotIn("SECRET-7f3a", summary)
+        self.assertNotIn("/home/someone", summary)
+        self.assertEqual(summary, "text: 29 characters, path: 23 characters, count=3, submit=True")
+        chat = (ROOT / "systems" / "chat.py").read_text()
+        self.assertIn('logger.info("Bemo tool call: {}({})", name, self._tool_args_summary(arguments))', chat)
+        self.assertNotIn('logger.info("Bemo tool call: {}({})", name, arguments)', chat)
+
+
 class ClaimGuardTests(unittest.TestCase):
     def test_a_tool_only_backs_the_claims_it_can(self):
         # Handoff 2026-10-31 #7: any tool result at all used to switch the guard off.

@@ -271,6 +271,7 @@ SUPERVISOR_RUNTIME_DIR = DATA_ROOT / "runtime"
 SUPERVISOR_SOCKET_PATH = SUPERVISOR_RUNTIME_DIR / "supervisor.sock"
 SUPERVISOR_STATE_PATH = SUPERVISOR_RUNTIME_DIR / "supervisor_state.json"
 SUPERVISOR_LOG_DIR = DATA_ROOT / "logs"
+TURN_TRACE_PATH = SUPERVISOR_LOG_DIR / "turn-trace.jsonl"  # the per-turn stopwatch (systems/turn_trace.py); "" = off
 SUPERVISOR_REQUEST_TIMEOUT_SECONDS = 3.0
 SUPERVISOR_MODEL_SWITCH_TIMEOUT_SECONDS = 180.0
 SUPERVISOR_PRELOAD_ACTIVE_MODEL_ON_START = True
@@ -345,6 +346,7 @@ ENABLE_SOUND_COMMANDS = True
 # Movies and shows by voice (systems/media.py, 2026-10-20): the library and the player's settings.
 ENABLE_MEDIA_COMMANDS = True
 MEDIA_DIRS = [Path(p).expanduser() for p in os.environ.get("BEMO_MEDIA_DIRS", str(Path.home() / "Videos")).split(":")]
+LOG_TOOL_ARGUMENTS = False  # True logs what tools are given in full (typed text, file contents): debugging only
 MEDIA_STATE_PATH = DATA_ROOT / "media.json"
 MEDIA_WATCH_LATER_DIR = DATA_ROOT / "watch-later"  # where the player saves its place (systems/media.py)
 LIBRARY_STILLS_DIR = DATA_ROOT / "library-stills"  # stills for the movie library (systems/library.py)

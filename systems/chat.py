@@ -200,6 +200,7 @@ class _StreamingSpeechPipeline:
                         if self._stop_requested():
                             break
                         if first_pcm:
+                            self.chat._tracer().mark("first_audio")
                             logger.info(
                                 "TTS utterance {} first PCM in {:.2f}s ({} words)",
                                 utterance_index,
@@ -353,6 +354,9 @@ class Chat:
         self.setup_view = SetupView()  # the install screen while the first boot is open (systems/first_boot.py)
         from systems.library import LibraryView
         self.library_view = LibraryView()  # "show my movies" / "show my games" (systems/library.py)
+        from systems.turn_trace import TurnTrace
+        trace_path = getattr(config, "TURN_TRACE_PATH", "")
+        self.turn_trace = TurnTrace(trace_path) if trace_path else None  # where each turn's time goes
         self._last_user_activity_monotonic = time.monotonic()
         self._model_switch_generation = 0
         self._model_switch_active = False
@@ -586,7 +590,15 @@ class Chat:
         return (now < float(getattr(self, "_awaiting_answer_until", 0.0) or 0.0)
                 or (gate is not None and float(getattr(gate, "followup_armed_until", 0.0) or 0.0) > now))
 
+    def _tracer(self):
+        trace = getattr(self, "turn_trace", None)
+        if trace is None:
+            from systems.turn_trace import NoTrace
+            return NoTrace()
+        return trace
+
     def _heard_speech_start(self):
+        self._tracer().heard("speech_start")
         if self._armed():
             self._woken = True  # speech after "Hey BMO": the ear stays while he takes it in
 
@@ -1636,6 +1648,7 @@ class Chat:
                         continue
 
                     self._awaiting_answer_until = 0.0
+                    self._tracer().finish()  # the last turn is over: its stopwatch line is written
                     prompt = self.listen(source)
                     if not prompt:
                         self.state = State.READY
@@ -1684,6 +1697,7 @@ class Chat:
                     self._set_live_user_text(gated_prompt)
                     from systems.voice_intents import split_requests
                     requests = split_requests(gated_prompt)
+                    self._tracer().begin(kind="local", requests=len(requests), words=len(gated_prompt.split()))
                     if len(requests) > 1:
                         logger.info("VOICE {} requests in one breath: {}", len(requests), requests)
                     for request in requests:
@@ -1699,6 +1713,22 @@ class Chat:
             self.state = State.DONE
         finally:
             self._active_microphone = None
+
+    @staticmethod
+    def _tool_args_summary(arguments):
+        """What a tool was given, without the values: typed text, file contents and paths stay out of the log (the
+        owner's rule; handoff 2026-10-31 #10). config.LOG_TOOL_ARGUMENTS = True logs them in full for debugging."""
+        if getattr(config, "LOG_TOOL_ARGUMENTS", False):
+            return repr(arguments)
+        if not isinstance(arguments, dict):
+            return f"{type(arguments).__name__}, {len(str(arguments))} characters"
+        parts = []
+        for key, value in arguments.items():
+            if isinstance(value, (int, float, bool)) or value is None:
+                parts.append(f"{key}={value}")
+            else:
+                parts.append(f"{key}: {len(str(value))} characters")
+        return ", ".join(parts)
 
     def _open_answer_followup(self):
         """After BMO has answered (speech has finished playing), one follow-up within a few seconds needs no
@@ -2019,7 +2049,9 @@ class Chat:
         self._resume_microphone_capture(source)
         self.state = State.LISTENING
         self._woken = False
+        self._tracer().listen_started()
         listen_started = time.monotonic()
+        waiting_for_answer = time.monotonic() < float(getattr(self, "_awaiting_answer_until", 0.0) or 0.0)
         self._last_capture_started = listen_started
         heard = False
         ducker = self._movie_ducker()  # the movie goes back up here, after BMO's answer
@@ -2064,10 +2096,14 @@ class Chat:
                 self._suspend_microphone_capture(source)
 
         captured_at = time.monotonic()
+        self._tracer().heard("speech_end")
         try:
             text = self._transcribe_local(audio)
             text = self._recover_dropped_wake(audio, text, listen_started)
             text = self._wakeword_rescue(audio, text)
+            self._tracer().heard("stt_done")
+            if waiting_for_answer:
+                self._tracer().approval(time.monotonic() - listen_started)  # the owner's time, not the machine's
             # Words only once they are a request to BMO ("Heard accepted speech"); room speech is not BMO's to
             # keep (audit 2026-10-24: 616 lines of it in a week's journal). Standby already logs only its size.
             logger.debug(
@@ -7370,9 +7406,14 @@ class Chat:
             client = client_class() if client_class else None
             self._active_ollama_client = client
             stream = (client.chat if client else ollama.chat)(**kwargs)
+            self._tracer().mark("ollama_sent")
+            self._tracer().note(model=kwargs.get("model"), ctx=(kwargs.get("options") or {}).get("num_ctx"),
+                                threads=(kwargs.get("options") or {}).get("num_thread"),
+                                warmup_running=getattr(self, "_background_warmup", None) is not None)
             for chunk in stream:
                 if not first_event_logged:
                     first_event_logged = True
+                    self._tracer().mark("ollama_first_event")
                     logger.info("LATENCY first Ollama stream event {:.3f}s", time.monotonic() - llm_started)
                 # Ollama sends final usage accounting on the done=True chunk.
                 def _meta(name):
@@ -7471,6 +7512,8 @@ class Chat:
                         grounding_blocked = True
                         break
                     if speech.enqueue(sentence):
+                        if first_spoken_chunk:
+                            self._tracer().mark("first_sentence")
                         first_spoken_chunk = False
                         spoken_units.append(sentence)
                 if chat_word_cap and not grounding_blocked and sum(len(u.split()) for u in spoken_units) >= chat_word_cap:
@@ -7492,6 +7535,9 @@ class Chat:
                 eg = int(completed_metadata.get("eval_count") or 0)
                 pd = ms("prompt_eval_duration")
                 ed = ms("eval_duration")
+                self._tracer().note(load_s=ms("load_duration"), prefill_s=pd, prefill_tokens=pe,
+                                    cached_tokens=completed_metadata.get("prompt_eval_cached_count"),
+                                    decode_s=ed, decode_tokens=eg)
                 logger.info(
                     "LATENCY Ollama result wall={:.3f}s total={:.3f}s load={:.3f}s prefill={:.3f}s "
                     "prompt_tokens={} cached_tokens={} prefill_tok_s={:.1f} decode={:.3f}s output_tokens={} decode_tok_s={:.1f}",
@@ -7843,9 +7889,13 @@ class Chat:
                 part_saved = None
                 for call in tool_calls:
                     name, arguments = self._tool_call_parts(call)
-                    logger.info("Bemo tool call: {}({})", name, arguments)
+                    logger.info("Bemo tool call: {}({})", name, self._tool_args_summary(arguments))
+                    started = time.monotonic()
                     output = self._execute_tool(name, arguments)
                     output_text = str(output)
+                    logger.info("Bemo tool done: {} in {:.2f} s ({} characters back)", name,
+                                time.monotonic() - started, len(output_text))
+                    self._tracer().tool(name, time.monotonic() - started)
                     if name in ("make_cad_part", "make_cad_model"):
                         part_saved = self._part_saved_line(output_text) or part_saved
                     max_chars = int(config.MODEL_TOOL_RESULT_CHAR_BUDGET)
@@ -7927,6 +7977,8 @@ class Chat:
     def respond(self, user_input, *, resume_task_id=None, preserve_project=False):
         # Only original user text can authorize model routing; never a fabricated
         # model-generated tool-call reason or document-analysis claim.
+        if getattr(self, "turn_trace", None) is not None:
+            self.turn_trace.note(kind="brain")  # the stopwatch: this turn went to a brain
         self._active_user_text = str(user_input or "")
         if self.cancel_turn_event is not None:
             self.cancel_turn_event.clear()

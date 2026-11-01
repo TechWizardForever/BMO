@@ -29,6 +29,7 @@ NAMES = {
     '_response_message', '_message_tool_calls', '_turn_cancelled',
     '_recover_dropped_wake', '_wakeword_rescue',  # v1.28.64
     '_movie_ducker',  # v1.28.92
+    '_tracer',  # the turn stopwatch
 }
 mini = ast.ClassDef(name='MiniChat', bases=[], keywords=[], body=[
     n for n in chat.body if isinstance(n, ast.FunctionDef) and n.name in NAMES
