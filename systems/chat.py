@@ -1125,6 +1125,54 @@ class Chat:
         logger.info("SORT moved {}", moved)
         return self._say_local(command, line)
 
+    def _handle_sort_usb(self, command):
+        """'Hey BMO, sort my USB' (owner 2026-10-31): games, movies and shows off a USB stick to where they go,
+        copied, once the owner says yes (systems/sort_downloads.py)."""
+        from systems import sort_downloads as sorter
+        if not sorter.is_usb_request(command):
+            return False
+        from systems.games import discover_removable_drives
+        roots = discover_removable_drives()
+        if not roots:
+            return self._say_local(command, "I can't find a USB stick. Plug it in, give it a moment to show up, "
+                                            "and ask me again.")
+        plan = sorter.Plan()
+        for root in roots:
+            found = sorter.plan(root, Path(config.MEDIA_DIRS[0]), Path(config.GAME_GAMECUBE_ROM_DIR),
+                                skip=[config.APP_ROOT, config.DATA_ROOT], settle=0)
+            plan.moves += found.moves
+            plan.skipped += found.skipped
+        logger.info("SORT USB {}: {} to copy, skipped {}", [str(r) for r in roots], len(plan.moves),
+                    [why for _, why in plan.skipped])
+        if not plan.moves:
+            there = " Everything on it is already here." if plan.skipped else ""
+            return self._say_local(command, "I didn't find any games or movies to copy on the USB stick." + there)
+        one = sum(len(m.members) or 1 for m in plan.moves) == 1
+        them, they, go = ("it", "it", "goes") if one else ("them", "they", "go")
+        question = (f"I found {plan.summary()} on the USB stick. Should I copy {them} where {they} {go}? "
+                    "The stick stays as it is. Say, Hey BMO, yes.")
+        if not self._confirm_by_voice(question, tag="SORT", target="USB"):
+            return self._say_local(command, f"Okay, I left {them} on the stick.")
+        self.speak(f"Copying {them} now. Big ones take a while.")
+        result = sorter.run(plan, copy=True)
+        moved, failed = result["moved"], result["failed"]
+        places = []
+        if moved["movie"] or moved["episode"]:
+            places.append("the movies and shows are in your Videos folder")
+        if moved["game"]:
+            places.append("the games are in my games folder")
+            try:
+                self.supervisor.refresh_games()
+            except SupervisorError:
+                logger.warning("SORT USB: the Supervisor didn't refresh the game list")
+        said = " and ".join(places)
+        line = f"Done. {said[:1].upper()}{said[1:]}." if places else "I couldn't copy them."
+        if failed:
+            line += f" {len(failed)} didn't copy: {', '.join(path.name for path, _ in failed[:3])}."
+            logger.warning("SORT USB failures: {}", failed)
+        logger.info("SORT USB copied {}", moved)
+        return self._say_local(command, line)
+
     def _bare_library_command(self, heard):
         """Scroll, 'play number 3' and close without Hey BMO while a library is on the screen."""
         view = getattr(self, "library_view", None)
@@ -5509,6 +5557,9 @@ class Chat:
             return True
 
         if self._handle_sort_downloads(command):
+            return True
+
+        if self._handle_sort_usb(command):
             return True
 
         if self._PARTS_MENU_QUESTION.match(normalized.strip(" .!?")):

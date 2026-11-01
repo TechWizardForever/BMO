@@ -113,6 +113,35 @@ class PlanTests(unittest.TestCase):
             self.assertFalse(sd.is_request(said), said)
 
 
+class UsbTests(unittest.TestCase):
+    """'Hey BMO, sort my USB' (owner 2026-10-31): the same sorting, copied, so the stick stays as it is."""
+    def setUp(self):
+        PlanTests.setUp(self)
+        self.usb = self.root / "media" / "STICK"
+
+    def test_copies_and_leaves_the_stick_alone(self):
+        game = touch(self.usb / "Games" / "Custom Robo (USA).rvz", when=time.time())  # just copied onto the stick
+        movie = touch(self.usb / "Ponyo.2008.mkv", b"movie", when=time.time())
+        touch(self.usb / "Ponyo.2008.srt")
+        plan = sd.plan(self.usb, self.videos, self.games, settle=0)
+        self.assertEqual(sorted(m.kind for m in plan.moves), ["game", "movie"])
+        result = sd.run(plan, copy=True, trash=lambda path: self.fail("nothing on a stick goes to the Trash"))
+        self.assertEqual(result["moved"], {"game": 1, "movie": 1, "episode": 0})
+        self.assertTrue(game.exists() and movie.exists())  # still on the stick
+        self.assertEqual((self.videos / "Movies" / "Ponyo.2008.mkv").read_bytes(), b"movie")
+        self.assertTrue((self.videos / "Movies" / "Ponyo.2008.srt").exists())
+        self.assertEqual(sd.plan(self.usb, self.videos, self.games, settle=0).moves, [])  # again: all there
+
+    def test_phrases(self):
+        for said in ("sort my USB", "Hey BMO, sort the USB stick", "import the movies from the usb",
+                     "take the movies and games off my stick", "copy everything off the usb drive",
+                     "get the shows off my thumb drive"):
+            self.assertTrue(sd.is_usb_request(said), said)
+        for said in ("import games from usb", "copy the games from this usb",   # the games-only import keeps these
+                     "import project from usb", "sort my downloads", "export project to usb"):
+            self.assertFalse(sd.is_usb_request(said), said)
+
+
 class ChatTests(unittest.TestCase):
     def setUp(self):
         from unittest import mock
@@ -165,6 +194,22 @@ class ChatTests(unittest.TestCase):
                                         "downloading, so I'll leave it.")
         self.assertEqual(self.asked, [])
         self.assertFalse(self.chat._handle_sort_downloads("what's the weather"))
+
+    def test_sort_my_usb_asks_then_copies(self):
+        from unittest import mock
+        usb = self.root / "media" / "STICK"
+        touch(usb / "Ponyo.2008.mkv", b"movie", when=time.time())
+        with mock.patch("systems.games.discover_removable_drives", lambda: []):
+            self.assertTrue(self.chat._handle_sort_usb("sort my USB"))
+        self.assertIn("I can't find a USB stick", self.said[-1])
+        with mock.patch("systems.games.discover_removable_drives", lambda: [usb]):
+            self.assertTrue(self.chat._handle_sort_usb("Hey BMO, sort my USB"))
+        self.assertEqual(self.asked[-1], "I found a movie on the USB stick. Should I copy it where it goes? "
+                                         "The stick stays as it is. Say, Hey BMO, yes.")
+        self.assertEqual(self.said[-1], "Done. The movies and shows are in your Videos folder.")
+        self.assertTrue((usb / "Ponyo.2008.mkv").exists())
+        self.assertTrue((self.videos / "Movies" / "Ponyo.2008.mkv").exists())
+        self.assertFalse(self.chat._handle_sort_usb("import games from usb"))
 
     def test_wired_before_the_player(self):
         chat = (ROOT / "systems" / "chat.py").read_text()

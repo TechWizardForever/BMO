@@ -47,11 +47,12 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | **import games from USB** | Copies the GameCube games from a USB stick into BMO's games. The stick stays as it was. |
 | **rescan games** | Looks for new games in BMO's games folder. |
 
-## Downloads
+## Downloads and USB sticks
 
 | Say | What it does |
 |---|---|
 | **sort my downloads** | Finds the games, movies and shows in your Downloads folder and says what he found. Say Hey BMO, yes, and he moves them where they go. Anything still downloading is left alone. |
+| **sort my USB** | The same for a USB stick: games, movies and shows on it are copied where they go after you say yes. The stick stays as it is. "Import the movies from the USB" works too. |
 
 ## Timers and reminders
 

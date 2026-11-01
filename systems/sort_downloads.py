@@ -8,6 +8,9 @@ BMO looks first and says what he found; nothing moves until "Hey BMO, yes" (owne
 Left alone: anything still downloading (a .part / .crdownload / .!qB file next to it, or changed in the last two
 minutes), "sample" clips, something already there, hidden folders, and any folder with code in it (.git) such as
 BMO's own.
+
+"Hey BMO, sort my USB" (owner 2026-10-31) does the same for a USB stick, but copies: the stick stays as it is,
+like "import games from USB".
 """
 from __future__ import annotations
 
@@ -145,7 +148,9 @@ def _taken(target: Path, size: int) -> bool:
         return False
 
 
-def plan(downloads: Path, videos_root: Path, games_dir: Path, *, skip=(), now=time.time) -> Plan:
+def plan(downloads: Path, videos_root: Path, games_dir: Path, *, skip=(), now=time.time,
+         settle: float = SETTLE_SECONDS) -> Plan:
+    """What would go where. settle: a file changed this recently may still be downloading (0 for a USB stick)."""
     out = Plan()
     downloads, skip = Path(downloads), [Path(s).resolve() for s in skip]
     if not downloads.is_dir():
@@ -168,7 +173,7 @@ def plan(downloads: Path, videos_root: Path, games_dir: Path, *, skip=(), now=ti
                 stat = path.stat()
             except OSError:
                 continue
-            if busy or now() - stat.st_mtime < SETTLE_SECONDS:
+            if busy or now() - stat.st_mtime < settle:
                 out.skipped.append((path, "downloading"))
                 continue
             if suffix in GAMECUBE_EXTENSIONS:
@@ -256,8 +261,10 @@ def _unpack(move: Move, run=subprocess.run) -> list[Path]:
     return done
 
 
-def run(plan: Plan, *, trash=_trash, unpack=_unpack) -> dict:
-    """Do the moves. {"moved": {"game": n, "movie": n, "episode": n}, "failed": [(path, reason)]}."""
+def run(plan: Plan, *, trash=_trash, unpack=_unpack, copy: bool = False) -> dict:
+    """Do the moves (copies with copy=True, for a USB stick).
+    {"moved": {"game": n, "movie": n, "episode": n}, "failed": [(path, reason)]}."""
+    carry = shutil.copy2 if copy else shutil.move
     moved = {"game": 0, "movie": 0, "episode": 0}
     failed = []
     for move in plan.moves:
@@ -267,17 +274,18 @@ def run(plan: Plan, *, trash=_trash, unpack=_unpack) -> dict:
                 if len(placed) != len(move.members):
                     raise OSError("not every game came out of the archive")
                 moved["game"] += len(placed)
-                trash(move.source)
+                if not copy:
+                    trash(move.source)
                 continue
             size = move.source.stat().st_size
             target = _unique(move.target)
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.move(str(move.source), str(target))
+            carry(str(move.source), str(target))
             if target.stat().st_size != size:
                 raise OSError("the moved file isn't the same size")
             for extra, where in move.extras:
                 if extra.exists() and not where.exists():
-                    shutil.move(str(extra), str(where))
+                    carry(str(extra), str(where))
             moved[move.kind] += 1
         except (OSError, shutil.Error, subprocess.CalledProcessError, zipfile.BadZipFile) as exc:
             failed.append((move.source, str(exc) or exc.__class__.__name__))
@@ -287,6 +295,21 @@ def run(plan: Plan, *, trash=_trash, unpack=_unpack) -> dict:
 _ASK = re.compile(r"^(?:can you |could you |please )?(?:sort|organi[sz]e|tidy(?: up)?|put away|file away|sort out)"
                   r"(?: (?:my|the|all my|all the))?(?: (?:games and movies|movies and games|games|movies|roms))?"
                   r"(?: (?:in|from) (?:my|the))? ?(?:downloads?|downloads folder|download folder)$")
+
+
+_USB = r"(?:usb|usb stick|usb drive|stick|thumb drive|flash drive|drive|memory stick)"
+# "import games from USB" / "copy the games off this drive" stay the games-only import (supervisor, checksummed).
+_USB_ASK = re.compile(
+    r"^(?:(?:sort|organi[sz]e|tidy|sort out|go through)(?: up)?(?: (?:my|the|this|that))? " + _USB + r"|"
+    r"(?:import|copy|take|get|grab|bring in|add|put away)(?: (?:all|everything))?(?: (?:the|my|all the|all my))? "
+    r"(?:movies|shows|tv shows|videos|films|movies and games|games and movies|movies and shows|everything|stuff)"
+    r"(?: (?:from|off|off of|on) (?:the |my |this |that )?" + _USB + r"))$")
+
+
+def is_usb_request(text: str) -> bool:
+    """'sort my USB' / 'import the movies from the USB' / 'take the movies and games off my stick'."""
+    from systems.media_phrases import clean
+    return bool(_USB_ASK.match(clean(text)))
 
 
 def is_request(text: str) -> bool:
