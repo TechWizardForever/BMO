@@ -422,22 +422,6 @@ def _control(said: str, titles=()) -> tuple[str, float] | None:
     return None
 
 
-_BARE_PAUSE = re.compile(r"^(?:pause|pause it|pause (?:the )?(?:movie|video|show|film))$")
-_BARE_PLAY = re.compile(r"^(?:play|resume|unpause|play it|resume (?:the )?(?:movie|video|show|film)|keep playing)$")
-
-
-def bare_command(text: str, status: str | None) -> str | None:
-    """Pause or play said WITHOUT "Hey BMO" while a video is open (2026-10-20: it took a few tries).
-    Only these two, and only when they make sense: "pause" while playing (a wrong pause is harmless), "play" while
-    paused (the movie is silent then, so its own dialogue can't say it). Stop, skip, next still need Hey BMO."""
-    said = _plain(text)
-    if status == "Playing" and _BARE_PAUSE.match(said):
-        return "Pause"
-    if status == "Paused" and _BARE_PLAY.match(said):
-        return "Play"
-    return None
-
-
 # Ways in to playing a title (owner 2026-10-28); systems/media_phrases.clean() has already dropped "can you", "I want
 # to", "let's" and the rest. A title still has to match a movie or show here.
 _PLAY = re.compile(

@@ -96,22 +96,21 @@ class MediaTests(unittest.TestCase):
 
 
 class BareCommandTests(unittest.TestCase):
-    def test_pause_and_play_without_hey_bmo_only_when_they_make_sense(self):
-        # 2026-10-20: pause/play took a few tries; these two now work without Hey BMO during a video.
-        self.assertEqual(m.bare_command("Pause", "Playing"), "Pause")
-        self.assertEqual(m.bare_command("Play?", "Paused"), "Play")
-        self.assertEqual(m.bare_command("resume the movie", "Paused"), "Play")
-        self.assertIsNone(m.bare_command("Pause", "Paused"))
-        self.assertIsNone(m.bare_command("Play", "Playing"))   # the movie's own dialogue can't restart it
-        self.assertIsNone(m.bare_command("Stop!", "Playing"))  # closing still needs Hey BMO
-        self.assertIsNone(m.bare_command("Pause", None))       # no player open
+    def test_movie_commands_always_need_hey_bmo(self):
+        # Owner 2026-10-31: a movie's or game's own sound talks too, so nothing for them works without "Hey BMO"
+        # (plain "pause" / "play" did from 2026-10-20). Only the library's scroll / pick / close do (nothing plays then).
+        chat = (ROOT / "systems" / "chat.py").read_text()
+        self.assertNotIn("_bare_player_command", chat)
+        self.assertFalse(hasattr(m, "bare_command"))
+        self.assertIn("if gated_prompt is None and self._bare_library_command(prompt):", chat)
+        self.assertIn("return  # the game's or movie's own sound would count as the follow-up", chat)
 
     def test_misheard_wake_before_a_command(self):
         self.assertEqual(m.control_command("He be my pause."), ("Pause", 0.0))
 
     def test_checked_before_speech_without_hey_bmo_is_ignored(self):
         chat = (ROOT / "systems" / "chat.py").read_text()
-        self.assertLess(chat.index("if gated_prompt is None and (self._bare_player_command(prompt)"),
+        self.assertLess(chat.index("if gated_prompt is None and self._bare_library_command(prompt):"),
                         chat.index('logger.trace("Ignored speech without Hey Bemo prefix'))
 
 

@@ -259,7 +259,7 @@ class ChatTests(unittest.TestCase):
         chat = (ROOT / "systems" / "chat.py").read_text()
         self.assertLess(chat.index("if self._handle_library_command(command):"),
                         chat.index("if self._handle_media_command(command):"))
-        self.assertIn("or self._bare_library_command(prompt)", chat)
+        self.assertIn("if gated_prompt is None and self._bare_library_command(prompt):", chat)
         self.assertIn('status["library"] = library_view.snapshot()', chat)
 
 

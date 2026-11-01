@@ -1459,28 +1459,6 @@ class Chat:
         ducker.model.reset()
         return ducker
 
-    def _bare_player_command(self, heard):
-        """'pause' / 'play' without Hey BMO while a video is open (systems/media.bare_command)."""
-        if not getattr(config, "ENABLE_MEDIA_COMMANDS", True) or len(str(heard).split()) > 4:
-            return False
-        try:
-            from systems import media
-            player = self._player()
-            method = media.bare_command(heard, player.status())
-            if not method:
-                return False
-            if method == "Play":
-                self._say_local(heard, "Okay.")
-                player.control("Play")
-            else:
-                player.control("Pause")
-                self._say_local(heard, "Paused.")
-            logger.info("MEDIA {} without Hey BMO", method)
-            return True
-        except Exception:
-            logger.exception("Bare player command failed")
-            return False
-
     def _handle_downloads_question(self, command):
         """'Hey BMO, how are the downloads?' (installer plan I4); answered from the saved progress."""
         from systems.downloads import DownloadState, is_progress_question, report
@@ -1661,8 +1639,10 @@ class Chat:
 
                     self._current_turn_explicit_wake = self.voice_gate.has_wake_prefix(prompt)
                     gated_prompt = self._apply_command_gate(prompt)
-                    if gated_prompt is None and (self._bare_player_command(prompt)
-                                                 or self._bare_library_command(prompt)):
+                    # Without "Hey BMO" only the library's scroll / pick / close (nothing plays while it's open).
+                    # Movie and game commands always need it: the movie's or game's own sound talks too (owner
+                    # 2026-10-31; plain "pause" / "play" during a video, 2026-10-20 to 10-31, went).
+                    if gated_prompt is None and self._bare_library_command(prompt):
                         self._current_turn_explicit_wake = False
                         self.state = State.READY
                         continue

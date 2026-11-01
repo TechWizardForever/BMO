@@ -220,7 +220,7 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("Movies and shows", "Hey Bemo, continue watching", "The last thing you were watching, from where you stopped. \"Pick up where I left off\" works too."),
     VoiceCommand("Movies and shows", "Hey Bemo, play <show> season <n> episode <n>", "That episode, then the rest of the season. \"The first episode of <show>\" and \"season 2 of <show>\" work too."),
     VoiceCommand("Movies and shows", "Hey Bemo, restart / play <movie> from the beginning", "Starts over. Say restart while it's playing, or ask for it from the beginning to start fresh."),
-    VoiceCommand("Movies and shows", "Hey Bemo, pause / resume", "While something is playing; \"hold on\" or \"wait a second\" pauses too, and \"keep going\" carries on. Plain \"pause\" and \"play\" work without Hey BMO."),
+    VoiceCommand("Movies and shows", "Hey Bemo, pause / resume", "While something is playing; \"hold on\" or \"wait a second\" pauses too, and \"keep going\" carries on. Movie and game commands always need Hey BMO, so the movie's own voices can't give them."),
     VoiceCommand("Movies and shows", "Hey Bemo, next episode / previous episode", "While a show is playing."),
     VoiceCommand("Movies and shows", "Hey Bemo, skip / rewind / skip ahead 30 seconds / go back 2 minutes", "Skip goes 30 seconds ahead and rewind 10 seconds back, or say how far. \"What did he say?\" goes back 10 seconds."),
     VoiceCommand("Movies and shows", "Hey Bemo, stop / stop the show / close <title> / turn it off", "Closes the player and brings BMO's face back; \"that's enough\" and \"I'm done watching\" work too. He remembers where you stopped."),
