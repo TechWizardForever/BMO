@@ -575,8 +575,50 @@ class Chat:
         status["setup"] = self.setup_view.snapshot() if self.setup_view.active else None
         library_view = getattr(self, "library_view", None)
         status["library"] = library_view.snapshot() if library_view is not None else None
+        status["indicator"] = self._indicator()
         status["idle_seconds"] = self.desktop_idle_monitor.idle_seconds(internal_idle)
         return status
+
+    def _armed(self):
+        """Woken and waiting: after a bare "Hey BMO", in the follow-up window after an answer, or for a yes/no."""
+        now = time.monotonic()
+        gate = getattr(self, "voice_gate", None)
+        return (now < float(getattr(self, "_awaiting_answer_until", 0.0) or 0.0)
+                or (gate is not None and float(getattr(gate, "followup_armed_until", 0.0) or 0.0) > now))
+
+    def _heard_speech_start(self):
+        if self._armed():
+            self._woken = True  # speech after "Hey BMO": the ear stays while he takes it in
+
+    def _heard_wake(self):
+        self._woken = True  # "Hey BMO" heard live, mid-phrase
+
+    def _live_wake(self):
+        """The live "Hey BMO" watcher for the ear (systems/wakeword.LiveWake); a new one after "learn my voice"."""
+        try:
+            from systems.wakeword import LiveWake, detector
+            source = detector(config)
+        except Exception:
+            logger.exception("Live wake watch unavailable")
+            return None
+        live = getattr(self, "_live_wake_watch", None)
+        if source is None:
+            return None
+        if live is None or live.source is not source:
+            live = self._live_wake_watch = LiveWake(source, self._heard_wake)
+        return live
+
+    def _indicator(self):
+        """The corner symbol on BMO's face (owner 2026-10-31): 'ready'; 'listening' once he's been woken by "Hey BMO"
+        (waiting for the command, or taking in what you say after it, or waiting for your yes/no); 'thinking';
+        None while he talks (his microphone is paused then)."""
+        if self.state is State.THINKING:
+            return "thinking"
+        if self.state in (State.RESPONDING, State.TALKING):
+            return None
+        if getattr(self, "_woken", False) or self._armed():
+            return "listening"
+        return "ready"
 
     def managed_display_active(self):
         """Return True while Supervisor-managed fullscreen media/games own the CRT.
@@ -1611,6 +1653,7 @@ class Chat:
                         self.stop_event.wait(0.03)
                         continue
 
+                    self._awaiting_answer_until = 0.0
                     prompt = self.listen(source)
                     if not prompt:
                         self.state = State.READY
@@ -1991,6 +2034,7 @@ class Chat:
             self.cancel_turn_event.clear()
         self._resume_microphone_capture(source)
         self.state = State.LISTENING
+        self._woken = False
         listen_started = time.monotonic()
         self._last_capture_started = listen_started
         heard = False
@@ -1998,7 +2042,14 @@ class Chat:
         try:
             endpointer = getattr(self, "_endpointer", None)
             if endpointer is not None:
-                endpointer.on_audio = ducker.feed if ducker is not None else None
+                live = self._live_wake()
+                if live is not None:
+                    live.reset()
+                feeds = [feed for feed in (ducker.feed if ducker is not None else None,
+                                           live.feed if live is not None else None) if feed is not None]
+                endpointer.on_audio = (lambda raw, rate, width: [feed(raw, rate, width) for feed in feeds]
+                                       ) if feeds else None
+                endpointer.on_speech_start = self._heard_speech_start
                 audio = endpointer.capture(source)
                 if audio is None:
                     peak = float(endpointer.last_stats.get("peak_voice_prob", 0.0))
@@ -2750,6 +2801,7 @@ class Chat:
         self.state = State.RESPONDING
         self.speak(question)
         deadline = time.monotonic() + float(timeout or config.SPECIALIST_SWITCH_APPROVAL_TIMEOUT_SECONDS)
+        self._awaiting_answer_until = deadline  # the ear on BMO's face while he waits for the answer
         hinted = False
         while not self.stop_event.is_set() and time.monotonic() < deadline:
             # listen() performs the existing local Whisper transcription, no

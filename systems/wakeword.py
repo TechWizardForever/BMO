@@ -81,6 +81,42 @@ class WakeWordDetector:
         return hit if hit.score >= self.threshold else None
 
 
+class LiveWake:
+    """Listens for "Hey BMO" on the live microphone while BMO captures a phrase and calls on_wake once: the ear on
+    his face (owner 2026-10-31: the ear means he's been woken). Its own copy of the detector's model, with the
+    owner's voice check when there is one, so it never disturbs the detector's own checks."""
+
+    def __init__(self, source: WakeWordDetector, on_wake):
+        self.source = source
+        self._twin = WakeWordDetector(*source.paths, source.threshold, verifier_path=source.verifier_path,
+                                      verifier_gate=source.verifier_gate)
+        self.threshold = source.threshold
+        self.on_wake = on_wake
+        self.fired = False
+        self._buffer = np.zeros(0, dtype=np.int16)
+
+    def reset(self) -> None:
+        self.fired = False
+        self._buffer = np.zeros(0, dtype=np.int16)
+        if self._twin._model is not None:
+            self._twin._model.reset()
+
+    def feed(self, raw: bytes, rate: int, width: int) -> None:
+        if self.fired or width != 2:
+            return
+        samples = np.frombuffer(raw, dtype="<i2")
+        if rate != RATE:
+            from scipy.signal import resample_poly
+            samples = resample_poly(samples.astype(np.float32), RATE, rate).astype(np.int16)
+        self._buffer = np.concatenate([self._buffer, samples])
+        model = self._twin._load()
+        while len(self._buffer) >= FRAME and not self.fired:
+            frame, self._buffer = self._buffer[:FRAME], self._buffer[FRAME:]
+            if float(next(iter(model.predict(frame).values()))) >= self.threshold:
+                self.fired = True
+                self.on_wake()
+
+
 _DETECTOR = None
 _PERSONAL_STAMP = None
 

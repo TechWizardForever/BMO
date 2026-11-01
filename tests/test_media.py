@@ -199,7 +199,8 @@ class DuckerTests(unittest.TestCase):
 
     def test_wired_into_listening(self):
         chat = (ROOT / "systems" / "chat.py").read_text()
-        self.assertIn("endpointer.on_audio = ducker.feed if ducker is not None else None", chat)
+        self.assertIn("ducker.feed if ducker is not None else None", chat)
+        self.assertIn("endpointer.on_audio = (lambda raw, rate, width: [feed(raw, rate, width) for feed in feeds]", chat)
         self.assertIn("self.on_audio(b\"\".join(step), rate, width)", (ROOT / "systems" / "vad_capture.py").read_text())
 
 

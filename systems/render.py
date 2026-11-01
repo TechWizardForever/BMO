@@ -24,6 +24,9 @@ def ui_font(size, bold=False):
     return pygame.font.SysFont(name, size, bold=bold)
 
 
+INDICATOR_PULSE_SECONDS = 2.6  # the corner symbol's slow pulse (owner 2026-10-31)
+
+
 class FaceRenderer:
     def __init__(self, app):
         self._app = app
@@ -1261,6 +1264,52 @@ class FaceRenderer:
         )
 
 
+    # The corner symbol (owner 2026-10-31, in place of the listening dot turned down on 2026-10-18): a small green
+    # circle when he's ready, a microphone once "Hey BMO" has woken him, a brain while he works on something;
+    # nothing while he talks. Pixel art, so it stays crisp on the CRT. It stays put (the static effect covers
+    # burn-in) and slowly pulses, never fading out completely. Both shapes the owner's picks.
+    _MIC = ("...XXX...",
+            "..XXXXX..",
+            "..XXXXX..",
+            "..XXXXX..",
+            "..XXXXX..",
+            "X.XXXXX.X",
+            "X..XXX..X",
+            ".X.....X.",
+            "..XXXXX..",
+            "....X....",
+            "..XXXXX..")
+    _BRAIN = ("....XXXXX....",
+              "..XX..X..XX..",
+              ".X..X..X...X.",
+              "X..X..X..X..X",
+              "X.X..XX.X...X",
+              "X...X...X.X.X",
+              ".X..X.XX..X.X",
+              "..XX..X...XX.",
+              "....XX.XXX...",
+              "......XX.....")
+    INDICATOR_COLORS = {"ready": (32, 150, 72), "listening": (38, 92, 78), "thinking": (38, 92, 78)}
+
+    def _draw_indicator(self, kind, now):
+        color = self.INDICATOR_COLORS.get(kind)
+        if color is None:
+            return
+        screen = self._app._screen
+        w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
+        px = max(1, round(h * 0.004))
+        x, y = int(w * 0.03), int(h * 0.03)
+        level = 0.625 + 0.375 * math.sin(now * 2 * math.pi / INDICATOR_PULSE_SECONDS)  # a quarter to full strength
+        color = tuple(int(back + (part - back) * level) for part, back in zip(color, self.BACKGROUND_COLOR))
+        if kind == "ready":
+            radius = px * 3
+            pygame.draw.circle(screen, color, (x + radius, y + radius), radius)
+            return
+        for j, row in enumerate(self._MIC if kind == "listening" else self._BRAIN):
+            for i, cell in enumerate(row):
+                if cell == "X":
+                    pygame.draw.rect(screen, color, (x + i * px, y + j * px, px, px))
+
     def render(self):
         if hasattr(self._app, "prepare_frame"):
             self._app.prepare_frame()
@@ -1383,6 +1432,7 @@ class FaceRenderer:
             self._stop_external_saver()
             self._saver_started = None
             self._render_face()
+            self._draw_indicator(status.get("indicator"), now)
 
         if hasattr(self._app, "present"):
             self._app.present()

@@ -69,6 +69,7 @@ class VoiceEndpointer:
         return float(probs[-3:].max())
 
     on_audio = None  # callable(raw_bytes, rate, width) or None
+    on_speech_start = None  # callable() when a phrase starts: the ear on BMO's face (2026-10-31)
 
     def reset(self):
         """Forget audio context; call when the microphone was paused."""
@@ -123,6 +124,11 @@ class VoiceEndpointer:
                     started_at = elapsed
                     last_voice = elapsed
                     frames = list(preroll)
+                    if self.on_speech_start is not None:
+                        try:
+                            self.on_speech_start()
+                        except Exception:
+                            self.on_speech_start = None
                 elif elapsed >= self.start_timeout_seconds and voiced_run == 0.0:
                     # Never time out while a voice is just starting.
                     self.last_stats = {"started": False, "peak_voice_prob": round(peak, 2)}

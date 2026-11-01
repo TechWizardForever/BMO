@@ -116,6 +116,22 @@ class VoiceEndpointerTests(unittest.TestCase):
                 peaks.append(ep.last_stats["peak_voice_prob"])
             self.assertLess(max(peaks), 0.2, (rms, peaks))  # well under the 0.30 start
 
+    def test_speech_start_is_reported_once_and_never_for_noise(self):
+        # 2026-10-31: the microphone symbol on BMO's face stays on while he takes in speech after "Hey BMO".
+        name, first, last = LOCAL_SPEECH[1]
+        speech = _local_speech(name)
+        starts = []
+        ep = self.endpointer(start_timeout_seconds=1.0)
+        ep.on_speech_start = lambda: starts.append(1)
+        self.assertIsNone(ep.capture(FakeMic(_room_noise(3.0)), ))
+        self.assertEqual(starts, [])
+        if speech is None:
+            self.skipTest("no local speech recordings on this machine")
+        ep = self.endpointer()
+        ep.on_speech_start = lambda: starts.append(1)
+        self.assertIsNotNone(ep.capture(FakeMic(np.concatenate([_room_noise(0.8), speech, _room_noise(8.0, seed=9)]))))
+        self.assertEqual(starts, [1])
+
     def test_the_start_of_the_voice_is_kept(self):
         name, first, last = LOCAL_SPEECH[1]
         speech = _local_speech(name)

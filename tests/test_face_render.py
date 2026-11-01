@@ -22,6 +22,7 @@ import visual_smoke_test as smoke
 from systems import first_boot as fb
 from systems import runner_game as runner
 from systems.chat import State
+from systems import render
 from systems.render import FaceRenderer
 
 
@@ -216,6 +217,89 @@ class FaceRenderTests(unittest.TestCase):
         app.chat.status["library"] = None
         app.chat.status["idle_seconds"] = 0.0
         self.assertEqual(self.frame(renderer, app), face)  # closed: the face is back as it was
+
+    def test_the_corner_symbol_is_the_only_mark_on_the_face(self):
+        # 2026-10-31 the owner asked for one: green circle ready, microphone once woken, brain thinking; nothing while
+        # he talks. Everything outside the top-left corner stays exactly the face.
+        app = smoke.FakeApp()
+        renderer = FaceRenderer(app)
+        w, h = app.SCREEN_WIDTH, app.SCREEN_HEIGHT
+        corner = pygame.Rect(0, 0, int(w * 0.03) + 13 * max(1, round(h * 0.004)) + 2,
+                             int(h * 0.03) + 11 * max(1, round(h * 0.004)) + 2)
+
+        def frame(kind):
+            app.chat.status["indicator"] = kind
+            renderer.render()
+            screen = app._screen.copy()
+            return screen, pygame.image.tostring(screen.subsurface(corner), "RGB")
+
+        plain, plain_corner = frame(None)
+        drawn = {}
+        for kind in ("ready", "listening", "thinking"):
+            screen, drawn[kind] = frame(kind)
+            self.assertNotEqual(drawn[kind], plain_corner, kind)
+            outside = screen.copy()
+            outside.fill((0, 0, 0), corner)
+            reference = plain.copy()
+            reference.fill((0, 0, 0), corner)
+            self.assertEqual(pygame.image.tostring(outside, "RGB"), pygame.image.tostring(reference, "RGB"), kind)
+        self.assertEqual(len(set(drawn.values())), 3)  # three different symbols
+
+        def lit(now):  # where the symbol is, and how strong, at a moment of its pulse
+            app._screen.fill(renderer.BACKGROUND_COLOR)
+            renderer._draw_indicator("listening", now)
+            spots = [(x, y) for x in range(corner.width) for y in range(corner.height)
+                     if tuple(app._screen.get_at((x, y)))[:3] != renderer.BACKGROUND_COLOR]
+            return spots, tuple(app._screen.get_at(spots[0]))[:3]
+        quarter = render.INDICATOR_PULSE_SECONDS / 4
+        (at_full, strong), (at_low, faint) = lit(quarter), lit(3 * quarter)
+        self.assertEqual(at_full, at_low)  # it stays put (no drift; the static covers burn-in)
+        self.assertNotEqual(strong, faint)  # and slowly pulses, never gone
+        self.assertNotEqual(faint, renderer.BACKGROUND_COLOR)
+
+    def test_which_symbol_when(self):
+        import threading
+        from systems.chat import Chat
+        chat = Chat.__new__(Chat)
+        chat._visual_lock = threading.Lock()
+        chat.voice_gate = type("Gate", (), {"followup_armed_until": 0.0})()
+        chat.state = State.LISTENING
+        chat._woken = False
+        self.assertEqual(chat._indicator(), "ready")       # waiting; room talk alone doesn't change it
+        chat._heard_speech_start()
+        self.assertEqual(chat._indicator(), "ready")
+        chat.voice_gate.followup_armed_until = time.monotonic() + 10  # after a bare "Hey BMO"
+        self.assertEqual(chat._indicator(), "listening")
+        chat._heard_speech_start()                                     # the command after it
+        chat.voice_gate.followup_armed_until = 0.0
+        self.assertEqual(chat._indicator(), "listening")               # stays while he takes it in
+        chat._woken = False
+        chat._heard_wake()                                             # "Hey BMO, play..." heard live
+        self.assertEqual(chat._indicator(), "listening")
+        chat.state = State.THINKING
+        self.assertEqual(chat._indicator(), "thinking")
+        chat.state = State.TALKING
+        self.assertIsNone(chat._indicator())
+        chat.state, chat._woken = State.LISTENING, False
+        chat._awaiting_answer_until = time.monotonic() + 30            # waiting for a yes or no
+        self.assertEqual(chat._indicator(), "listening")
+
+    def test_the_live_wake_watch_fires_once_per_phrase(self):
+        import numpy as np
+        from systems import wakeword
+        source = wakeword.WakeWordDetector("/x/hey_bmo.onnx", "/x/mel.onnx", "/x/emb.onnx", 0.5)
+        woke = []
+        live = wakeword.LiveWake(source, lambda: woke.append(1))
+        scores = iter([0.1, 0.2, 0.9] + [0.0] * 3 + [0.9] + [0.0] * 40)
+        fake = type("M", (), {"predict": lambda s, frame: {"hey_bmo": next(scores)}, "reset": lambda s: None})()
+        live._twin._model = fake
+        live.feed(np.zeros(1280 * 6, dtype="<i2").tobytes(), 16000, 2)
+        self.assertEqual(woke, [1])
+        live.reset()
+        live.feed(np.zeros(1280 * 3, dtype="<i2").tobytes(), 16000, 2)
+        self.assertEqual(woke, [1])  # nothing new heard
+        live.feed(np.zeros(1280 * 2, dtype="<i2").tobytes(), 16000, 2)
+        self.assertEqual(woke, [1, 1])  # the next phrase's "Hey BMO"
 
 if __name__ == "__main__":
     unittest.main()
