@@ -605,6 +605,23 @@ class Chat:
     def _heard_wake(self):
         self._woken = True  # "Hey BMO" heard live, mid-phrase
 
+    def _warm_listening(self):
+        """Load what the first listen needs before he says he's ready (owner 2026-11-01: green, but the first "Hey BMO"
+        didn't count). It used to load after the microphone came back on, so the start of a quick "Hey BMO" was lost."""
+        started = time.monotonic()
+        try:
+            live = self._live_wake()
+            if live is not None:
+                live.reset()
+                live.feed(bytes(2 * 4096), int(config.STT_SAMPLE_RATE), 2)  # silence: the watcher's own models load
+                live.reset()
+                live.source._load()
+            rate = int(config.STT_SAMPLE_RATE)
+            self._transcribe_local(sr.AudioData(bytes(2 * rate), rate, 2))  # Whisper's first run and its hotwords
+        except Exception:
+            logger.exception("Could not warm up listening; it will load when he first listens")
+        logger.info("LATENCY listening warm-up {:.2f}s", time.monotonic() - started)
+
     def _live_wake(self):
         """The live "Hey BMO" watcher for the ear (systems/wakeword.LiveWake); a new one after "learn my voice"."""
         try:
@@ -1730,6 +1747,7 @@ class Chat:
                 self._warm_runtime_prompt()
             except Exception:
                 logger.exception("Startup prompt warm-up failed; announcing ready anyway")
+            self._warm_listening()
 
             with sr.Microphone(device_index=config.DEVICE_INDEX) as source:
                 # Keep the calibrated, already-open microphone available for

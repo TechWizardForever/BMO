@@ -4,6 +4,7 @@ No overlays on BMO's face (a listening dot was tried and dropped, 2026-10-18): w
 state must draw exactly the same face.
 """
 import os
+import types
 from pathlib import Path
 import sys
 import time
@@ -288,6 +289,30 @@ class FaceRenderTests(unittest.TestCase):
         chat.state, chat._woken = State.LISTENING, False
         chat._awaiting_answer_until = time.monotonic() + 30            # waiting for a yes or no
         self.assertEqual(chat._indicator(), "listening")
+
+    def test_listening_loads_before_he_says_hes_ready(self):
+        import speech_recognition as sr
+        from systems.chat import Chat
+        calls = []
+        source = types.SimpleNamespace(_load=lambda: calls.append("detector"))
+        live = types.SimpleNamespace(reset=lambda: calls.append("reset"), source=source,
+                                     feed=lambda raw, rate, width: calls.append(("feed", len(raw), rate, width)))
+        chat = Chat.__new__(Chat)
+        chat._live_wake = lambda: live
+        chat._transcribe_local = lambda audio: calls.append(("whisper", isinstance(audio, sr.AudioData))) or ""
+        chat._warm_listening()
+        self.assertIn("detector", calls)
+        self.assertIn(("whisper", True), calls)
+        self.assertEqual(calls.count("reset"), 2)                      # no trace of the warm-up left in the watcher
+        self.assertTrue(any(call[0] == "feed" for call in calls if isinstance(call, tuple)))
+        src = (ROOT / "systems" / "chat.py").read_text()
+        self.assertLess(src.index("self._warm_listening()\n"), src.index("config.VOICE_STARTUP_READY_ANNOUNCEMENT)"))
+
+    def test_trouble_warming_up_never_stops_him(self):
+        from systems.chat import Chat
+        chat = Chat.__new__(Chat)
+        chat._live_wake = lambda: (_ for _ in ()).throw(RuntimeError("no"))
+        chat._warm_listening()
 
     def test_listening_windows(self):
         # Owner 2026-11-01: 4 s after a bare "Hey BMO", counted from when "Yeah?" ends, and 6 s after an answer.
