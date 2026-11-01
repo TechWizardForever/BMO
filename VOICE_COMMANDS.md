@@ -52,6 +52,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | Say | What it does |
 |---|---|
 | **sort my downloads** | Finds the games, movies and shows in your Downloads folder and says what he found. Say Hey BMO, yes, and he moves them where they go. Anything still downloading is left alone. |
+| **eject the USB** | Makes the USB stick safe to pull out. He only says so once it really has let go. |
 | **sort my USB** | The same for a USB stick: games, movies and shows on it are copied where they go after you say yes. The stick stays as it is. "Import the movies from the USB" works too. |
 
 ## Timers and reminders

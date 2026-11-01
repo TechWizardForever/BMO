@@ -1241,6 +1241,26 @@ class Chat:
             logger.exception("Warm-up after the speed test failed")
         return self._say_local(command, f"Done. {threads} threads came out fastest, so I'm using that from now on.")
 
+    def _handle_eject_usb(self, command):
+        """'Hey BMO, eject the USB' (owner 2026-11-01): really unmounts it (systems/usb_eject.py) and says so only
+        once it has let go."""
+        from systems import usb_eject
+        if not usb_eject.is_request(command):
+            return False
+        from systems.games import discover_removable_drives
+        roots = discover_removable_drives()
+        if not roots:
+            return self._say_local(command, "I don't see a USB stick plugged in.")
+        results = [usb_eject.eject(root) for root in roots]
+        logger.info("USB EJECT {}: {}", [str(root) for root in roots], results)
+        if all(result["ok"] for result in results):
+            return self._say_local(command, "Okay, it's safe to pull out now." if len(roots) == 1
+                                   else f"Okay, all {len(roots)} are safe to pull out now.")
+        if any(result.get("why") == "busy" for result in results):
+            return self._say_local(command, "I couldn't eject it, because something's still using it. "
+                                            "Close whatever's open from it and ask me again. Don't pull it out yet.")
+        return self._say_local(command, "I couldn't eject it. Don't pull it out yet.")
+
     def _handle_sort_usb(self, command):
         """'Hey BMO, sort my USB' (owner 2026-10-31): games, movies and shows off a USB stick to where they go,
         copied, once the owner says yes (systems/sort_downloads.py)."""
@@ -5765,6 +5785,9 @@ class Chat:
             return True
 
         if self._handle_speed_test(command):
+            return True
+
+        if self._handle_eject_usb(command):
             return True
 
         if self._PARTS_MENU_QUESTION.match(normalized.strip(" .!?")):

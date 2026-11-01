@@ -234,6 +234,7 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("Games", "Hey Bemo, rescan games", "Looks for new games in BMO's games folder."),
 
     VoiceCommand("Downloads and USB sticks", "Hey Bemo, sort my downloads", "Finds the games, movies and shows in your Downloads folder and says what he found. Say Hey BMO, yes, and he moves them where they go. Anything still downloading is left alone."),
+    VoiceCommand("Downloads and USB sticks", "Hey Bemo, eject the USB", "Makes the USB stick safe to pull out. He only says so once it really has let go."),
     VoiceCommand("Downloads and USB sticks", "Hey Bemo, sort my USB", "The same for a USB stick: games, movies and shows on it are copied where they go after you say yes. The stick stays as it is. \"Import the movies from the USB\" works too."),
 
     VoiceCommand("Timers and reminders", "Hey Bemo, set a timer for <time>", "Like \"set a pasta timer for 8 minutes\". It rings with a chime and BMO's voice, even while he's asleep."),

@@ -107,6 +107,9 @@ _ACTION_CLAIM = re.compile(
 
 # Live 2026-10-22: Main answered "Big Bemo Play Jimmy Neutron..." with "Playing ..." and nothing played. A title
 # (capital letter) or a movie/show/game must follow, so "Playing with clay is fun" is just talk.
+# Live 2026-11-01: "USB ejected." with nothing behind it. Eject is BMO's own command, which speaks for itself.
+_EJECT_CLAIM = re.compile(r"\b(?:usb|stick|thumb ?drive|flash ?drive|drive)\b[^.!?]{0,30}\b(?:ejected|unmounted|safe to (?:remove|"
+                          r"unplug|pull))\b|\b(?:ejected|unmounted)\b[^.!?]{0,20}\b(?:usb|stick|drive)\b", re.I)
 _PLAY_CLAIM = re.compile(r"^(?i:(?:okay|ok|sure|done)[.!,]?\s*)?(?i:now\s+)?(?i:playing|launching|starting|opening|loading)\s+"
                          r"(?:[A-Z0-9]|(?i:(?:the|your|that|this)\s+)?(?i:movie|show|film|video|episode|game|song)\b)")
 
@@ -193,6 +196,8 @@ def fabricated_live_claim(text: str) -> str | None:
             return "unmade"
         if _TIMER_CLAIM.search(sentence):
             return "untimed"
+        if _EJECT_CLAIM.search(sentence):
+            return "undone"
         if len(sentence.split()) <= 10 and (_ACTION_CLAIM.search(sentence.strip()) or _PLAY_CLAIM.search(sentence.strip())):
             return "undone"
     return None
