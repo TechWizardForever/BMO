@@ -16,6 +16,7 @@ import argparse
 import json
 import math
 import random
+import re
 import statistics
 import threading
 import time
@@ -46,6 +47,17 @@ FIRST_AUDIO_WRITE_TOKENS = 20
 # speed the user actually hears.
 BENCH_NUM_PREDICT = 160
 BENCH_REPEATS = 3
+
+
+_ASK = re.compile(r"^(?:(?:run|do|start|begin|redo|rerun|try)(?: (?:a|the|your|that|another|my))? )?"
+                  r"(?:speed test|speed benchmark|benchmark|speed check)$"
+                  r"|^(?:test|check|benchmark) (?:your|my) speed$")
+
+
+def is_request(text: str) -> bool:
+    """'run the speed test' / 'do a speed test' / 'test your speed' / 'run the benchmark'."""
+    from systems.media_phrases import clean
+    return bool(_ASK.match(clean(text)))
 
 
 def _utc_now() -> str:

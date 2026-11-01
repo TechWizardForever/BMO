@@ -623,7 +623,9 @@ class Chat:
     def _indicator(self):
         """The corner symbol on BMO's face (owner 2026-10-31): 'ready'; 'listening' once he's been woken by "Hey BMO"
         (waiting for the command, or taking in what you say after it, or waiting for your yes/no); 'thinking';
-        None while he talks (his microphone is paused then)."""
+        None while he talks (his microphone is paused then). 'testing' during the speed test."""
+        if getattr(self, "_speed_testing", False):
+            return "testing"
         if self.state is State.THINKING:
             return "thinking"
         if self.state in (State.RESPONDING, State.TALKING):
@@ -1182,6 +1184,47 @@ class Chat:
             logger.warning("SORT failures: {}", failed)
         logger.info("SORT moved {}", moved)
         return self._say_local(command, line)
+
+    def _handle_speed_test(self, command):
+        """'Hey BMO, run the speed test' (owner 2026-11-01): finds the best thread count for this PC, with a stopwatch
+        on his face, and uses the winner. This holds the turn, so he hears nothing until it's done. Stopping BMO part
+        way saves nothing; he keeps what he had."""
+        import hardware_autotune
+        if not hardware_autotune.is_request(command):
+            return False
+        if self.active_profile_name != config.MAIN_MODEL_PROFILE:
+            return self._say_local(command, "Switch me back to my main brain first, then ask me again.")
+        if self.managed_display_active():
+            return self._say_local(command, "Close the movie or game first, then ask me again. "
+                                            "They'd throw the test off.")
+        self.speak("Okay. This takes about ten minutes, and I won't hear you until I'm done.")
+        result = {}
+
+        def run():
+            try:
+                result.update(hardware_autotune.run_benchmark(force=True))
+            except Exception:
+                logger.exception("The speed test failed")
+
+        worker = threading.Thread(target=run, name="bemo-speed-test", daemon=True)
+        self._speed_testing = True
+        worker.start()
+        try:
+            while worker.is_alive() and not self.stop_event.is_set():
+                self.note_user_activity()  # no screensaver over the test: it would skew it and hide the symbol
+                worker.join(2.0)
+        finally:
+            self._speed_testing = False
+        threads = (result.get("record") or {}).get("chosen_ollama_threads")
+        logger.info("SPEED TEST ok={} threads={} (was {})", result.get("ok"), threads, config.OLLAMA_NUM_THREAD)
+        if not result.get("ok") or not threads:
+            return self._say_local(command, "The speed test didn't finish, so I'm keeping the settings I had.")
+        config.refresh_ollama_threads()
+        try:
+            self._warm_runtime_prompt()  # the test left the brain on its last thread count
+        except Exception:
+            logger.exception("Warm-up after the speed test failed")
+        return self._say_local(command, f"Done. {threads} threads came out fastest, so I'm using that from now on.")
 
     def _handle_sort_usb(self, command):
         """'Hey BMO, sort my USB' (owner 2026-10-31): games, movies and shows off a USB stick to where they go,
@@ -5694,6 +5737,9 @@ class Chat:
             return True
 
         if self._handle_sort_usb(command):
+            return True
+
+        if self._handle_speed_test(command):
             return True
 
         if self._PARTS_MENU_QUESTION.match(normalized.strip(" .!?")):

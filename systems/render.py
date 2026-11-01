@@ -1289,7 +1289,18 @@ class FaceRenderer:
               "..XX..X...XX.",
               "....XX.XXX...",
               "......XX.....")
-    INDICATOR_COLORS = {"ready": (32, 150, 72), "listening": (38, 92, 78), "thinking": (38, 92, 78)}
+    _WATCH = ("....XXX....",
+              ".....X...X.",
+              "...XXXXX.X.",
+              "..X..X..X..",
+              ".X...X...X.",
+              ".X...X...X.",
+              ".X...XXX.X.",
+              ".X.......X.",
+              "..X.....X..",
+              "...XXXXX...")
+    INDICATOR_COLORS = {"ready": (32, 150, 72), "listening": (38, 92, 78), "thinking": (38, 92, 78),
+                        "testing": (38, 92, 78)}
 
     def _draw_indicator(self, kind, now):
         color = self.INDICATOR_COLORS.get(kind)
@@ -1305,7 +1316,8 @@ class FaceRenderer:
             radius = px * 3
             pygame.draw.circle(screen, color, (x + radius, y + radius), radius)
             return
-        for j, row in enumerate(self._MIC if kind == "listening" else self._BRAIN):
+        art = {"listening": self._MIC, "testing": self._WATCH}.get(kind, self._BRAIN)
+        for j, row in enumerate(art):
             for i, cell in enumerate(row):
                 if cell == "X":
                     pygame.draw.rect(screen, color, (x + i * px, y + j * px, px, px))

@@ -311,6 +311,7 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("Projects", "Hey Bemo, what do you remember about this project?", "Reads the project's notes back, word for word."),
 
     VoiceCommand("BMO himself", "Hey Bemo, reboot yourself / reload yourself", "Restarts BMO. The computer stays on."),
+    VoiceCommand("BMO himself", "Hey Bemo, run the speed test", "Finds the fastest settings for this computer. Takes about ten minutes. A stopwatch shows on his face, he can't hear you until it's done, and he uses the winner."),
     VoiceCommand("BMO himself", "Hey Bemo, check for updates", "Looks for a new version of BMO. To install it, say Hey BMO, yes."),
     VoiceCommand("BMO himself", "Hey Bemo, how are the downloads?", "How far along BMO's brain downloads are, after a new install."),
     VoiceCommand("BMO himself", "Hey Bemo, learn my voice", "Say Hey BMO six times and talk for ten seconds, so he wakes up for your voice."),

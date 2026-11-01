@@ -173,6 +173,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | Say | What it does |
 |---|---|
 | **reboot yourself / reload yourself** | Restarts BMO. The computer stays on. |
+| **run the speed test** | Finds the fastest settings for this computer. Takes about ten minutes. A stopwatch shows on his face, he can't hear you until it's done, and he uses the winner. |
 | **check for updates** | Looks for a new version of BMO. To install it, say Hey BMO, yes. |
 | **how are the downloads?** | How far along BMO's brain downloads are, after a new install. |
 | **learn my voice** | Say Hey BMO six times and talk for ten seconds, so he wakes up for your voice. |
