@@ -10,6 +10,7 @@ from pygame import K_ESCAPE, K_F11
 import config
 from systems.chat import Chat
 from systems.display import DisplayManager
+from systems.pointer import PointerHider
 from systems.render import FaceRenderer
 
 
@@ -21,6 +22,7 @@ SETUP_KEYS = {pygame.K_RETURN: "enter", pygame.K_KP_ENTER: "enter", pygame.K_SPA
 
 class App:
     def __init__(self, screen_width, screen_height):
+        self._pointer = None
         self._running = True
         self.reference_width = int(screen_width)
         self.reference_height = int(screen_height)
@@ -112,6 +114,8 @@ class App:
         self.face_renderer.render()
 
     def on_event(self, event):
+        if event.type == pygame.MOUSEMOTION and self._pointer is not None:
+            self._pointer.moved()
         if self.chat and event.type in (
             pygame.KEYDOWN,
             pygame.KEYUP,
@@ -167,6 +171,7 @@ class App:
             return
 
         self.chat.init()
+        self._pointer = PointerHider(pygame.mouse.set_visible)
         try:
             while self._running:
                 # Timeout rollback is owned by the UI loop, so it still happens
@@ -175,6 +180,7 @@ class App:
                 self._apply_display_state()
                 for event in pygame.event.get():
                     self.on_event(event)
+                self._pointer.tick()
                 self.on_render()
         finally:
             self.on_cleanup()
