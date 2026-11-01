@@ -278,11 +278,25 @@ class FaceRenderTests(unittest.TestCase):
         self.assertEqual(chat._indicator(), "listening")
         chat.state = State.THINKING
         self.assertEqual(chat._indicator(), "thinking")
+        chat.state = State.RESPONDING                                  # first word written, no sound yet
+        chat._woken = False
+        self.assertEqual(chat._indicator(), "thinking")
+        chat._woken = True                                             # answering a bare "Hey BMO"
+        self.assertEqual(chat._indicator(), "listening")
         chat.state = State.TALKING
         self.assertIsNone(chat._indicator())
         chat.state, chat._woken = State.LISTENING, False
         chat._awaiting_answer_until = time.monotonic() + 30            # waiting for a yes or no
         self.assertEqual(chat._indicator(), "listening")
+
+    def test_an_accepted_command_shows_he_is_working(self):
+        # Live 2026-11-01: while he ran his own commands (eject, sort) the symbol stayed green or on the microphone,
+        # and the microphone could blink after a turn.
+        src = (ROOT / "systems" / "chat.py").read_text()
+        start = src.index('logger.info("Heard accepted speech: {}", gated_prompt)')
+        turn = src[start:start + 220]
+        self.assertIn("self.state = State.THINKING", turn)
+        self.assertIn("self._woken = False", turn)
 
     def test_the_live_wake_watch_fires_once_per_phrase(self):
         import numpy as np

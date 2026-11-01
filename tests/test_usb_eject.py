@@ -100,6 +100,41 @@ class HandlerTests(unittest.TestCase):
         self.assertIn("if self._handle_eject_usb(command):", (ROOT / "systems" / "chat.py").read_text())
 
 
+class BackToFaceTests(unittest.TestCase):
+    def desk(self):
+        win = lambda title: types.SimpleNamespace(title=title)
+        return types.SimpleNamespace(
+            windows=lambda: {"1": win("86EA-6471 - Thunar"), "2": win("bemo - Thunar"), "3": win("BMO")},
+            window_ids=lambda pid: ["3"] if pid == os.getpid() else [],
+            closed=[], active=[],
+            close=lambda w: self.closed.append(w), activate=lambda w: self.active.append(w))
+
+    def setUp(self):
+        self.closed, self.active = [], []
+
+    def test_the_sticks_window_closes_and_his_face_comes_up(self):
+        with mock.patch("systems.adapters.desktop", self.desk):
+            Chat.__new__(Chat)._back_to_face(closing=["/media/me/86EA-6471"])
+        self.assertEqual(self.closed, ["1"])   # not the owner's home folder window
+        self.assertEqual(self.active, ["3"])
+
+    def test_nothing_closes_when_nothing_was_ejected(self):
+        with mock.patch("systems.adapters.desktop", self.desk):
+            Chat.__new__(Chat)._back_to_face()
+        self.assertEqual(self.closed, [])
+        self.assertEqual(self.active, ["3"])
+
+    def test_trouble_never_stops_the_job(self):
+        with mock.patch("systems.adapters.desktop", side_effect=RuntimeError("no X")):
+            Chat.__new__(Chat)._back_to_face(closing=["/media/me/x"])
+
+    def test_the_eject_and_the_sort_use_it(self):
+        src = (ROOT / "systems" / "chat.py").read_text()
+        self.assertIn("self._back_to_face(closing=", src)
+        start = src.index("def _handle_sort_usb")
+        self.assertIn("self._back_to_face()", src[start:start + 500])
+
+
 class ClaimTests(unittest.TestCase):
     def test_the_brain_cant_claim_it(self):
         for text in ("USB ejected.", "Your USB stick is ejected now.", "The drive is unmounted.", "I ejected the USB.",

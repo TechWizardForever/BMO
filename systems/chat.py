@@ -628,8 +628,10 @@ class Chat:
             return "testing"
         if self.state is State.THINKING:
             return "thinking"
-        if self.state in (State.RESPONDING, State.TALKING):
+        if self.state is State.TALKING:
             return None
+        if self.state is State.RESPONDING:  # about to talk: the symbol stays until the sound starts
+            return "listening" if getattr(self, "_woken", False) else "thinking"
         if getattr(self, "_woken", False) or self._armed():
             return "listening"
         return "ready"
@@ -1241,6 +1243,21 @@ class Chat:
             logger.exception("Warm-up after the speed test failed")
         return self._say_local(command, f"Done. {threads} threads came out fastest, so I'm using that from now on.")
 
+    def _back_to_face(self, closing=()):
+        """His face in front again after a USB job, and the file windows of an ejected stick closed (owner 2026-11-01:
+        plugging a stick in makes the desktop open one over his face, and it stayed there). Never stops the job."""
+        try:
+            from systems.adapters import desktop
+            desk = desktop()
+            titles = {f"{Path(root).name} - Thunar" for root in closing}
+            for window_id, window in desk.windows().items():
+                if window.title in titles:
+                    desk.close(window_id)
+            for window_id in desk.window_ids(os.getpid()):
+                desk.activate(window_id)
+        except Exception:
+            logger.exception("Could not bring the face back")
+
     def _handle_eject_usb(self, command):
         """'Hey BMO, eject the USB' (owner 2026-11-01): really unmounts it (systems/usb_eject.py) and says so only
         once it has let go."""
@@ -1253,6 +1270,7 @@ class Chat:
             return self._say_local(command, "I don't see a USB stick plugged in.")
         results = [usb_eject.eject(root) for root in roots]
         logger.info("USB EJECT {}: {}", [str(root) for root in roots], results)
+        self._back_to_face(closing=[root for root, result in zip(roots, results) if result["ok"]])
         if all(result["ok"] for result in results):
             return self._say_local(command, "Okay, it's safe to pull out now." if len(roots) == 1
                                    else f"Okay, all {len(roots)} are safe to pull out now.")
@@ -1267,6 +1285,7 @@ class Chat:
         from systems import sort_downloads as sorter
         if not sorter.is_usb_request(command):
             return False
+        self._back_to_face()
         from systems.games import discover_removable_drives
         roots = discover_removable_drives()
         if not roots:
@@ -1766,6 +1785,8 @@ class Chat:
 
                     logger.info("VOICE isolated user turn; microphone capture paused until reply ends")
                     logger.info("Heard accepted speech: {}", gated_prompt)
+                    self.state = State.THINKING  # working on it, whether it's the brain's or BMO's own command
+                    self._woken = False
                     self.note_user_activity()
                     self._set_live_user_text(gated_prompt)
                     from systems.voice_intents import split_requests
