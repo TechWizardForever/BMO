@@ -157,7 +157,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | **list projects** | Your projects. |
 | **current project** | The project that's open. |
 | **create project [name]** | Makes a new project and opens it. |
-| **open project [name]** | Opens a project. |
+| **open project [name]** | Opens a project. It stays open until you close it or he sleeps or restarts. |
 | **close project** | Closes the project. |
 | **import project from USB** | Copies a project from a USB stick, checks it, and opens it. |
 | **import files into current project** | Copies files from a USB stick into the open project. Nothing already there is replaced. |

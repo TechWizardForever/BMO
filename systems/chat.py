@@ -1664,17 +1664,11 @@ class Chat:
             self._first_boot()  # the install screen goes up before anything loads
             self._load_models()
 
+            # Sleeping or restarting closes the project (owner 2026-11-01): "open" means opened lately. Garden had
+            # stayed open by itself for a week, and its notes were getting into plain questions.
             if self.project_manager.active_slug:
-                meta = self.project_manager.active_metadata() or {}
-                logger.info(
-                    "Restored active project: {} ({})",
-                    meta.get("name", self.project_manager.active_slug),
-                    self.project_manager.active_slug,
-                )
-                try:
-                    self.project_manager.index_project(force=False)
-                except Exception:
-                    logger.exception("Could not refresh active project index")
+                logger.info("Closing the project left open: {}", self.project_manager.active_slug)
+                self.project_manager.close_project()
 
             # Catch up summaries after a reboot if raw messages were safely
             # persisted before the previous session ended.

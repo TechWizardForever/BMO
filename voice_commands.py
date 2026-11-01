@@ -299,7 +299,7 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("Projects", "Hey Bemo, list projects", "Your projects."),
     VoiceCommand("Projects", "Hey Bemo, current project", "The project that's open."),
     VoiceCommand("Projects", "Hey Bemo, create project <name>", "Makes a new project and opens it."),
-    VoiceCommand("Projects", "Hey Bemo, open project <name>", "Opens a project."),
+    VoiceCommand("Projects", "Hey Bemo, open project <name>", "Opens a project. It stays open until you close it or he sleeps or restarts."),
     VoiceCommand("Projects", "Hey Bemo, close project", "Closes the project."),
     VoiceCommand("Projects", "Hey Bemo, import project from USB", "Copies a project from a USB stick, checks it, and opens it."),
     VoiceCommand("Projects", "Hey Bemo, import files into current project", "Copies files from a USB stick into the open project. Nothing already there is replaced."),
