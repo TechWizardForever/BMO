@@ -289,6 +289,16 @@ class FaceRenderTests(unittest.TestCase):
         chat._awaiting_answer_until = time.monotonic() + 30            # waiting for a yes or no
         self.assertEqual(chat._indicator(), "listening")
 
+    def test_listening_windows(self):
+        # Owner 2026-11-01: 4 s after a bare "Hey BMO", counted from when "Yeah?" ends, and 6 s after an answer.
+        import config
+        self.assertEqual(config.VOICE_WAKE_FOLLOWUP_SECONDS, 4.0)
+        if not os.environ.get("BEMO_ANSWER_FOLLOWUP_SECONDS"):
+            self.assertEqual(config.VOICE_ANSWER_FOLLOWUP_SECONDS, 6.0)
+        src = (ROOT / "systems" / "chat.py").read_text()
+        start = src.index("self.speak(config.VOICE_WAKE_ACKNOWLEDGEMENT)")
+        self.assertIn("float(config.VOICE_WAKE_FOLLOWUP_SECONDS)", src[start:start + 420])
+
     def test_an_accepted_command_shows_he_is_working(self):
         # Live 2026-11-01: while he ran his own commands (eject, sort) the symbol stayed green or on the microphone,
         # and the microphone could blink after a turn.

@@ -184,11 +184,11 @@ class SplitTests(unittest.TestCase):
 
 
 class AnswerFollowupTests(unittest.TestCase):
-    """decided 2026-10-19: after an answer, one follow-up within 8 s needs no "Hey BMO"."""
+    """decided 2026-10-19: after an answer, one follow-up within a few seconds (6 since 2026-11-01) needs no "Hey BMO"."""
 
     def test_one_short_follow_up_then_hey_bmo_again(self):
         gate = VoiceSessionGate(wake_aliases=config.VOICE_WAKE_ALIASES)
-        self.assertEqual(config.VOICE_ANSWER_FOLLOWUP_SECONDS, 8.0)
+        self.assertEqual(config.VOICE_ANSWER_FOLLOWUP_SECONDS, 6.0)
         gate.wake(now=100.0)
         gate.followup_armed_until = 100.0 + config.VOICE_ANSWER_FOLLOWUP_SECONDS  # what the answer opens
         self.assertEqual(gate.apply("What's the weather like?", now=103.0, started_at=102.0),

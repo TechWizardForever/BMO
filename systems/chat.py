@@ -1805,6 +1805,9 @@ class Chat:
                         self.note_user_activity()
                         self.state = State.RESPONDING
                         self.speak(config.VOICE_WAKE_ACKNOWLEDGEMENT)
+                        # The owner's time starts when "Yeah?" ends, not while he's still saying it.
+                        self.voice_gate.followup_armed_until = (time.monotonic()
+                                                                + float(config.VOICE_WAKE_FOLLOWUP_SECONDS))
                         self.state = State.DONE
                         continue
 
