@@ -3286,7 +3286,7 @@ class Chat:
                         collisions = int(result.get("collision_count") or 0)
                         errors = int(result.get("error_count") or 0)
                         try:
-                            self.project_manager.index_project(force=True)
+                            self.project_manager.index_project(now=True)  # the import already re-read everything
                         except Exception:
                             logger.exception("Could not refresh local project index after USB file import")
                         parts = [f"imported {imported} file{'s' if imported != 1 else ''}"]
@@ -6889,7 +6889,7 @@ class Chat:
             return "I couldn't save the code as a file." + self._details_hint()
         if in_project:
             try:
-                pm.index_project(force=True)
+                pm.index_project(now=True)  # only what changed (handoff 2026-10-31 #6)
                 pm.snapshot(f"Bemo: saved {', '.join(saved)}")
             except Exception:
                 logger.exception("Could not snapshot the project after saving code")
@@ -8039,7 +8039,7 @@ class Chat:
             self._specialist_chat_turn = False
             if self._project_tool_wrote:
                 try:
-                    self.project_manager.index_project(force=True)
+                    self.project_manager.index_project(now=True)  # only what changed (handoff 2026-10-31 #6)
                     short = self._normalize_spaces(user_input)[:72]
                     snapshot = self.project_manager.snapshot(f"Bemo: {short}")
                     logger.info("Post-change project snapshot: {}", snapshot)

@@ -639,14 +639,18 @@ class ProjectManager:
         conn.commit()
         return conn, fts
 
-    def index_project(self, slug: str | None = None, *, force: bool = False) -> dict:
+    def index_project(self, slug: str | None = None, *, force: bool = False, now: bool = False) -> dict:
+        """Bring the search index up to date. force: re-read every file (the "reindex project" command, imports).
+        now: right away, even if it ran a moment ago, but still skipping files whose size and time haven't changed:
+        what BMO uses after writing files himself (handoff 2026-10-31 #6: force re-read the whole project every time)."""
         slug = slug or self._active_slug
         if not slug:
             return {"changed": 0, "removed": 0, "files": 0}
-        now = time.monotonic()
+        started = time.monotonic()
         if (
             not force
-            and now - self._last_index_time.get(slug, 0.0) < self.reindex_interval_seconds
+            and not now
+            and started - self._last_index_time.get(slug, 0.0) < self.reindex_interval_seconds
         ):
             return {"changed": 0, "removed": 0, "files": 0, "skipped": True}
 
@@ -746,7 +750,7 @@ class ProjectManager:
             for rel in removed_assets:
                 conn.execute("DELETE FROM assets WHERE path=?", (rel,))
             conn.commit()
-            self._last_index_time[slug] = now
+            self._last_index_time[slug] = started
             return {
                 "changed": changed,
                 "removed": len(removed_paths),

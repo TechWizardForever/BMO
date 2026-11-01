@@ -137,7 +137,7 @@ class SaveTests(unittest.TestCase):
         pm = types.SimpleNamespace(
             active_slug="snake", _safe_workspace_path=lambda rel, must_exist=False: root / rel,
             write_workspace_file=lambda rel, content: written.append((rel, content)),
-            index_project=lambda force=False: None, snapshot=lambda msg: snaps.append(msg))
+            index_project=lambda force=False, now=False: None, snapshot=lambda msg: snaps.append(msg))
         note = self.chat(project=pm)._save_code_blocks("write a snake game", SNAKE)
         self.assertEqual(note, "I saved snake.py in the project.")
         self.assertEqual(written, [("snake.py", "import pygame\nprint('snake')\n")])
