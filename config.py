@@ -940,6 +940,8 @@ PIPER_CHUNK_MAX_WORDS = int(os.environ.get("BEMO_PIPER_MAX_WORDS", "14"))
 # cloning) was dropped on 2026-10-19 (installer decision C).
 # -----------------------------------------------------------------------------
 TTS_BACKEND = "piper"
+# The voice's threads, which sleep between sentences (systems/piper_streaming.py); half the cores, at most 4.
+PIPER_THREADS = int(os.environ.get("BEMO_PIPER_THREADS", "0")) or max(1, min(4, HARDWARE.physical_cores // 2))
 PIPER_MODEL_PATH = Path(os.environ.get(
     "BEMO_PIPER_MODEL", str(DATA_ROOT / "voice" / "piper" / "en_US-bemo-best-v3.onnx")
 )).expanduser()
