@@ -160,7 +160,7 @@ class ClosedProjectTests(unittest.TestCase):
 
     def test_starting_up_closes_the_project(self):
         src = (ROOT / "systems" / "chat.py").read_text()
-        start = src.index("self._load_models()\n\n            # Sleeping or restarting closes the project")
+        start = src.index("# Sleeping or restarting closes the project")
         self.assertIn("self.project_manager.close_project()", src[start:start + 500])
         self.assertLess(start, src.index("self._warm_runtime_prompt()\n            except Exception:"))
         self.assertNotIn("Restored active project", src)

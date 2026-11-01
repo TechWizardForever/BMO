@@ -135,6 +135,32 @@ class BackToFaceTests(unittest.TestCase):
         self.assertIn("self._back_to_face()", src[start:start + 500])
 
 
+class NoPopupTests(unittest.TestCase):
+    def test_it_turns_off_only_the_window(self):
+        from systems.desktop_settings import no_usb_popup
+        calls = []
+
+        def run(command, **kw):
+            calls.append(command)
+            return done()
+        self.assertTrue(no_usb_popup(run=run, which=lambda name: "/usr/bin/" + name))
+        self.assertEqual(calls[0][:5], ["xfconf-query", "-c", "thunar-volman", "-p", "/autobrowse/enabled"])
+        self.assertEqual(calls[0][-2:], ["-s", "false"])
+        self.assertEqual(len(calls), 1)                  # mounting stays as it is
+        self.assertNotIn("automount", " ".join(calls[0]))
+
+    def test_other_desktops_are_left_alone(self):
+        from systems.desktop_settings import no_usb_popup
+        self.assertFalse(no_usb_popup(run=lambda *a, **k: self.fail("ran"), which=lambda name: None))
+
+    def test_a_failure_says_so(self):
+        from systems.desktop_settings import no_usb_popup
+        self.assertFalse(no_usb_popup(run=lambda *a, **k: done(1), which=lambda name: "/x"))
+
+    def test_bmo_does_it_at_start(self):
+        self.assertIn("no_usb_popup()", (ROOT / "systems" / "chat.py").read_text())
+
+
 class ClaimTests(unittest.TestCase):
     def test_the_brain_cant_claim_it(self):
         for text in ("USB ejected.", "Your USB stick is ejected now.", "The drive is unmounted.", "I ejected the USB.",

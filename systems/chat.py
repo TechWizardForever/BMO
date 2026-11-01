@@ -1683,6 +1683,12 @@ class Chat:
             self._first_boot()  # the install screen goes up before anything loads
             self._load_models()
 
+            try:
+                from systems.desktop_settings import no_usb_popup
+                no_usb_popup()
+            except Exception:
+                logger.exception("Could not turn off the USB file window")
+
             # Sleeping or restarting closes the project (owner 2026-11-01): "open" means opened lately. Garden had
             # stayed open by itself for a week, and its notes were getting into plain questions.
             if self.project_manager.active_slug:

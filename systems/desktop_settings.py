@@ -195,3 +195,13 @@ class RevertJournal:
             return data if data.get("kind") in KINDS else None
         except (OSError, ValueError):
             return None
+
+
+def no_usb_popup(run=subprocess.run, which=shutil.which) -> bool:
+    """Plugging in a USB stick no longer opens a file window over BMO's face (owner 2026-11-01). The stick still mounts;
+    only the window goes. True when the setting took."""
+    if not which("xfconf-query"):
+        return False
+    code, _ = _run(run, ["xfconf-query", "-c", "thunar-volman", "-p", "/autobrowse/enabled", "-n", "-t", "bool",
+                         "-s", "false"])
+    return code == 0
