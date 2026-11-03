@@ -36,13 +36,18 @@ _SUBJECT = "(?P<subject>" + "|".join(sorted(map(re.escape, _BY_WORD), key=len, r
 _COMMANDS = r"(?:commands?|comments?)"  # Whisper writes "voice comments"
 _THE = r"(?: the| your| my| all the| all)?"
 _SHOW = r"(?:show|open|bring up|pull up|give me|display|see|list|read|go to|what are)"
+# "What can you do?" alone (owner 2026-11-03). With more on it, "on this computer" or "about the leak", it isn't this.
+_WHAT_YOU_DO = (r"what(?: all| else| things| (?:kind|kinds|sort|sorts) of things)? (?:can|could) (?:you|ya|bmo|bemo|beemo) do|"
+                r"(?:(?:show|tell) me )?what you can do|what are you (?:able to do|capable of)|"
+                r"what are your (?:abilities|skills|features)|what do you (?:do|know how to do)|"
+                r"what can you help(?: me)? with|how can you help(?: me)?")
 
 _HOME = re.compile(
     r"^(?:(?:i need )?help(?: me)?|help (?:center|centre|menu|screen|page)|voice " + _COMMANDS + r"|commands|command list|"
     rf"(?:the )?(?:command list|help (?:center|centre|menu|screen|page))|list of commands|"
     rf"{_SHOW}(?: me)?{_THE} (?:help|help (?:center|centre|menu|screen|page)|voice {_COMMANDS}|{_COMMANDS}|command list|list of commands)|"
     rf"what (?:voice )?commands (?:do you (?:know|have)|can i (?:say|use)|are there)|"
-    r"what can i (?:say|ask)(?: you)?|what do i say|how do i use you)$")
+    rf"what can i (?:say|ask)(?: you)?|what do i say|how do i use you|{_WHAT_YOU_DO})$")
 _ASKED_SUBJECT = tuple(re.compile(form) for form in (
     rf"^(?:{_SHOW}(?: me)?{_THE} )?(?:the )?{_SUBJECT} (?:voice )?{_COMMANDS}$",
     rf"^(?:{_SHOW}(?: me)?{_THE} )?(?:voice )?commands (?:for|about|on)(?: the| my)? {_SUBJECT}$",

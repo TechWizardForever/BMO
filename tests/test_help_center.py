@@ -21,7 +21,12 @@ from systems.render import FaceRenderer
 HOME_PHRASES = ("help", "Help.", "Hey BMO, help", "help me", "i need help", "help center", "help centre", "the help menu", "show help",
                 "open the help center", "show me the commands", "list commands", "list voice commands", "voice commands", "Voice comments.",
                 "commands", "the command list", "what commands do you know", "what can i say", "what can I ask you", "what do I say",
-                "how do I use you", "show me the list of commands", "can you show me your commands", "list comments", "BMO commands")
+                "how do I use you", "show me the list of commands", "can you show me your commands", "list comments", "BMO commands",
+                "what can you do", "What can you do?", "Hey BMO, what can you do?", "What can you do, BMO?", "so what can you do", "what can you do for me",
+                "what else can you do", "what all can you do", "what things can you do", "what kind of things can you do", "what could you do",
+                "what can ya do", "what can BMO do", "what can Bemo do", "tell me what you can do", "show me what you can do", "what you can do",
+                "can you tell me what you can do", "what are you able to do", "what are you capable of", "what are your abilities", "what are your skills",
+                "what do you do", "what do you know how to do", "what can you help me with", "what can you help with", "how can you help me")
 SUBJECT_PHRASES = {
     "Weather": ("weather commands", "show me the weather commands", "help with the weather", "weather help", "commands for the weather",
                 "what can I say about the weather", "radar commands", "the forecast commands", "whether commands", "weather comments",
@@ -45,7 +50,10 @@ SUBJECT_PHRASES = {
 }
 NOT_HELP = ("help me with my project", "you're gonna help me build a better self-destruct sequence", "help me build a box",
             "can you help me with this", "what's the weather", "show me the weather", "show me my projects", "show my movies", "what is help",
-            "who helped you", "the help", "helpful", "helping", "command the army", "what are your commands for the crew", "what can you do",
+            "who helped you", "the help", "helpful", "helping", "command the army", "what are your commands for the crew", "what can you do on this computer",
+            "what can you do here", "what can you do about the leak", "what can you do with this", "what can you do for me today", "what do you do for fun",
+            "what do you do when I'm gone", "what are your favorite movies", "what can you tell me", "how can you help me with this", "what can you not do",
+            "what can't you do", "what canyon do", "what are your capabilities",
             "what can you tell me about gold", "what can I watch", "comments on my code", "show me the comments on this page", "weather", "movies",
             "the moon", "help the weather", "a project help desk", "weather commander", "timer", "set a timer for ten minutes", "close the commands")
 
@@ -125,7 +133,7 @@ class NoOtherCommandClaimsThem(unittest.TestCase):
             self.assertIsNone(hc.subject_named(said), said)
 
     def test_listed_commands_keep_their_meaning(self):
-        help_phrases = {"help", "list commands"}
+        help_phrases = {"help", "what can you do?", "list commands"}
         checked = 0
         for command in voice_commands.VOICE_COMMANDS:
             for said in command.syntax.split(" / "):

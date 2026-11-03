@@ -5425,7 +5425,7 @@ class Chat:
             self.state = State.DONE
         return True
 
-    # Only about this computer: a general "what can you do?" stays with the Main Brain.
+    # Only about this computer: a general "what can you do?" opens the help center (systems/help_center.py).
     _CAPABILITY_QUESTION = re.compile(
         r"^(?:(?:so |okay |ok )?(?:what|which things?) can you (?:do|control|change|run)(?: on| with| in)? "
         r"(?:this|the|my|our) (?:computer|pc|machine|system)"
