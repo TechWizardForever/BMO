@@ -8,6 +8,8 @@ Most alerts stay quiet. What he says out loud depends on how serious the alert i
   urgent   Severe or Extreme, Immediate, a Warning: right away, day or night, even over a movie.
   serious  other Severe or Extreme alerts: once, when it's daytime and nothing's on. It waits, it isn't dropped.
   notice   the rest: only on the screen, when asked.
+An update to an alert stays quiet, unless it's gotten more dangerous (danger()): a tornado seen on the ground, or a tornado
+warning turned tornado emergency, is said again, by the same rules.
 This isn't a replacement for a weather radio. If he can't reach the service for half an hour he says so, because a warning
 system that has stopped working and doesn't say so is worse than none.
 """
@@ -35,6 +37,20 @@ POLL_SECONDS = 120.0
 UNREACHABLE_SECONDS = 1800.0
 _SEVERE = {"Severe", "Extreme"}
 _ORDER = {"urgent": 0, "serious": 1, "notice": 2}
+# The tags the Weather Service puts on a warning, in the feed's "parameters" (read live 2026-11-03). tornadoDamageThreat wasn't
+# in the feed that day; the same words are in their documentation.
+_THREATS = {"tornadoDamageThreat": {"CONSIDERABLE": (1, "This is a particularly dangerous situation."),
+                                    "CATASTROPHIC": (2, "This is a tornado emergency.")},
+            "flashFloodDamageThreat": {"CONSIDERABLE": (1, "Considerable flood damage is expected."),
+                                       "CATASTROPHIC": (2, "This is a flash flood emergency.")},
+            "thunderstormDamageThreat": {"CONSIDERABLE": (1, "Considerable damage is expected."),
+                                         "DESTRUCTIVE": (2, "Destructive winds or hail are expected.")}}
+_SEEN = {"tornadoDetection": {"POSSIBLE": (1, "A tornado is possible."), "RADAR INDICATED": (2, ""),
+                              "OBSERVED": (3, "A tornado has been seen.")},
+         "flashFloodDetection": {"RADAR INDICATED": (1, ""), "RADAR AND GAUGE INDICATED": (1, ""),
+                                 "OBSERVED": (2, "Flash flooding has been seen.")}}
+_SEVERITY = {"Severe": 1, "Extreme": 2}
+_LEVEL = {"notice": 0, "serious": 1, "urgent": 2}
 
 
 class AlertError(Exception):
@@ -73,6 +89,19 @@ def level(alert: dict) -> str:
     return "urgent" if urgent else "serious"
 
 
+def danger(alert: dict, parameters: dict) -> tuple[int, str]:
+    """How dangerous, as a number to compare with the same alert's last update, and what makes it so in words."""
+    score, said = _LEVEL[level(alert)] + _SEVERITY.get(alert.get("severity"), 0), []
+    for table in (_THREATS, _SEEN):
+        for name, words in table.items():
+            values = parameters.get(name) if isinstance(parameters, dict) else None
+            found = words.get(str(values[0]).upper()) if isinstance(values, list) and values else None
+            if found:
+                score += found[0]
+                said.append(found[1])
+    return score, " ".join(part for part in said if part)
+
+
 def _first_sentence(text, room: int = 180) -> str:
     """The first thing to do, short enough to say. NWS text is wrapped in lines, and now and then all capitals."""
     plain = re.sub(r"\s+", " ", str(text or "")).strip()
@@ -98,6 +127,7 @@ def read_alerts(data: dict, now: datetime) -> list[dict]:
                  "until": p.get("ends"), "area": str(p.get("areaDesc") or ""), "instruction": _first_sentence(p.get("instruction")),
                  "references": [str(r.get("identifier")) for r in (p.get("references") or []) if isinstance(r, dict)]}
         alert["level"] = level(alert)
+        alert["danger"], alert["why"] = danger(alert, p.get("parameters") or {})
         alerts.append(alert)
     return sorted(alerts, key=lambda alert: _ORDER[alert["level"]])
 
@@ -128,11 +158,12 @@ def until_words(alert: dict, place, now: datetime) -> str:
     return f"until {clock}" if local.date() == today.date() else f"until {local.strftime('%A')} at {clock}"
 
 
-def spoken_alert(alert: dict, place, now: datetime) -> str:
+def spoken_alert(alert: dict, place, now: datetime, *, worse: bool = False) -> str:
     """What he says when it comes in, the most useful thing first."""
     until = until_words(alert, place, now)
-    text = f"Weather alert! {alert['event']} here{', ' + until if until else ''}, from the {SOURCE_NAME}."
-    return f"{text} {alert['instruction']}" if alert.get("instruction") else text
+    opening = "Weather alert! It just got more dangerous." if worse else "Weather alert!"
+    parts = [f"{opening} {alert['event']} here{', ' + until if until else ''}, from the {SOURCE_NAME}.", alert.get("why"), alert.get("instruction")]
+    return " ".join(part for part in parts if part)
 
 
 def spoken_summary(alerts: list[dict], place, now: datetime) -> str:
@@ -142,7 +173,8 @@ def spoken_summary(alerts: list[dict], place, now: datetime) -> str:
     said = [" ".join(part for part in (alert["event"], until_words(alert, place, now)) if part) for alert in alerts[:3]]
     if len(alerts) == 1:
         first = alerts[0]
-        ending = f" {first['instruction']}" if first["level"] != "notice" and first.get("instruction") else ""
+        ending = " ".join(part for part in (first.get("why"), first.get("instruction")) if part) if first["level"] != "notice" else ""
+        ending = f" {ending}" if ending else ""
         return f"{said[0]}, for {place.name}.{ending} That's from the {SOURCE_NAME}."
     more = f", and {len(alerts) - 3} more" if len(alerts) > 3 else ""
     return f"{len(alerts)} weather alerts for {place.name}: {'; '.join(said)}{more}. That's from the {SOURCE_NAME}."
@@ -150,7 +182,7 @@ def spoken_summary(alerts: list[dict], place, now: datetime) -> str:
 
 def screen_card(alert: dict, place, now: datetime) -> dict:
     return {"event": alert["event"], "level": alert["level"], "until": until_words(alert, place, now),
-            "area": alert.get("area", ""), "instruction": alert.get("instruction", "")}
+            "area": alert.get("area", ""), "instruction": " ".join(part for part in (alert.get("why"), alert.get("instruction")) if part)}
 
 
 # --- What was said ----------------------------------------------------------------------------------------
@@ -289,25 +321,31 @@ class AlertWatcher:
                 continue
             if alert["level"] == "serious" and (not self._daytime(place, now) or self.busy()):
                 continue  # still active next time, so it isn't lost
-            if not self._first_time(alert, stamp):
+            news = self._news(alert, stamp)
+            if not news:
                 continue
-            text = spoken_alert(alert, place, now)
+            text = spoken_alert(alert, place, now, worse=news == "worse")
             self.log.info("Weather alert: %s", alert["event"])
             self._for_screen = [screen_card(a, place, now) for a in alerts]
             self._speak(text)
             said.append(text)
         return said
 
-    def _first_time(self, alert: dict, stamp: float) -> bool:
-        """An update comes with a new id and names the alert it updates: the same warning isn't said twice."""
+    def _news(self, alert: dict, stamp: float) -> str | None:
+        """'new', 'worse', or None. An update comes with a new id and names the alert it updates: the same warning isn't said
+        twice, unless it's more dangerous than it has ever been (down and back up again is nothing new)."""
         with self._lock:
             state = self._load()
             done = state.get("said") if isinstance(state.get("said"), dict) else {}
-            repeat = alert["id"] in done or any(done.get(ref, {}).get("event") == alert["event"] for ref in alert["references"])
-            done[alert["id"]] = {"event": alert["event"], "at": stamp}
+            earlier = [done[ref] for ref in alert["references"] if done.get(ref, {}).get("event") == alert["event"]]
+            if alert["id"] in done:
+                earlier.append(done[alert["id"]])
+            worst = max((float(row.get("danger", alert["danger"])) for row in earlier), default=None)
+            news = "new" if not earlier else "worse" if alert["danger"] > worst and alert["id"] not in done else None
+            done[alert["id"]] = {"event": alert["event"], "at": stamp, "danger": max(alert["danger"], worst or 0)}
             state["said"] = {key: row for key, row in done.items() if stamp - float(row.get("at", 0)) < 7 * 86400}
             self._save(state)
-        return not repeat
+        return news
 
     def handle(self, request_: dict) -> dict:
         op = request_.get("op")

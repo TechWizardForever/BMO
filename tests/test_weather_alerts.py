@@ -28,11 +28,11 @@ TORNADO_TEXT = "Move to an interior room on the lowest floor of a well-built bui
 
 
 def feature(event="Tornado Warning", severity="Extreme", urgency="Immediate", id_="a1", *, ends="2026-11-04T23:00:00-06:00",
-            status="Actual", message="Alert", references=(), instruction=TORNADO_TEXT):
+            status="Actual", message="Alert", references=(), instruction=TORNADO_TEXT, parameters=None):
     """In the shape api.weather.gov answered live on 2026-11-03."""
     return {"properties": {"id": id_, "areaDesc": "Sangamon, IL", "ends": ends, "expires": ends, "status": status,
                            "messageType": message, "severity": severity, "urgency": urgency, "event": event,
-                           "instruction": instruction, "references": [{"identifier": ref} for ref in references]}}
+                           "instruction": instruction, "references": [{"identifier": ref} for ref in references], "parameters": parameters or {}}}
 
 
 class Service:
@@ -154,6 +154,115 @@ class TheWatcher(unittest.TestCase):
         self.assertEqual(self.watcher.check_once(), [])
         self.service.features = [feature(id_="third", message="Update", references=["second"])]
         self.assertEqual(self.watcher.check_once(), [])
+
+    def update(self, id_, earlier, parameters=None, **fields):
+        self.service.features = [feature(id_=id_, message="Update", references=[earlier], parameters=parameters, **fields)]
+        return self.watcher.check_once()
+
+    def test_a_tornado_seen_is_said_again(self):
+        self.on(feature(id_="first", parameters={"tornadoDetection": ["RADAR INDICATED"]}))
+        first = self.watcher.check_once()
+        self.assertNotIn("more dangerous", first[0])
+        said = self.update("second", "first", {"tornadoDetection": ["OBSERVED"]})
+        self.assertEqual(len(said), 1)
+        self.assertIn("It just got more dangerous. Tornado Warning here", said[0])
+        self.assertIn("A tornado has been seen.", said[0])
+
+    def test_an_emergency_is_said_again(self):
+        self.on(feature(id_="first", parameters={"tornadoDetection": ["OBSERVED"]}))
+        self.watcher.check_once()
+        said = self.update("second", "first", {"tornadoDetection": ["OBSERVED"], "tornadoDamageThreat": ["CATASTROPHIC"]})
+        self.assertIn("This is a tornado emergency.", said[0])
+
+    def test_every_kind_of_worse(self):
+        for event, severity, before, after, words in (
+                ("Flash Flood Warning", "Severe", {"flashFloodDamageThreat": ["CONSIDERABLE"]}, {"flashFloodDamageThreat": ["CATASTROPHIC"]}, "flash flood emergency"),
+                ("Flash Flood Warning", "Severe", {"flashFloodDetection": ["RADAR INDICATED"]}, {"flashFloodDetection": ["OBSERVED"]}, "Flash flooding has been seen"),
+                ("Severe Thunderstorm Warning", "Severe", {}, {"thunderstormDamageThreat": ["DESTRUCTIVE"]}, "Destructive winds or hail"),
+                ("Severe Thunderstorm Warning", "Severe", {"tornadoDetection": []}, {"tornadoDetection": ["POSSIBLE"]}, "A tornado is possible"),
+                ("Tornado Warning", "Extreme", {"tornadoDamageThreat": ["CONSIDERABLE"]}, {"tornadoDamageThreat": ["CATASTROPHIC"]}, "tornado emergency")):
+            with self.subTest(words=words):
+                self.watcher.set_enabled(False)
+                self.watcher.state_path.unlink(missing_ok=True)
+                self.on(feature(event=event, severity=severity, id_="first", parameters=before))
+                self.assertEqual(len(self.watcher.check_once()), 1)
+                said = self.update("second", "first", after, event=event, severity=severity)
+                self.assertEqual(len(said), 1)
+                self.assertIn(words, said[0])
+
+    def test_a_higher_severity_alone_is_worse(self):
+        self.on(feature(event="Flood Warning", severity="Severe", id_="first"))
+        self.watcher.check_once()
+        self.assertIn("more dangerous", self.update("second", "first", event="Flood Warning", severity="Extreme")[0])
+
+    def test_worse_keeps_the_same_rules(self):
+        self.moment, self.busy = NIGHT, True  # urgent: over a movie, in the middle of the night
+        self.on(feature(id_="first", parameters={"tornadoDetection": ["RADAR INDICATED"]}))
+        self.watcher.check_once()
+        self.assertEqual(len(self.update("second", "first", {"tornadoDetection": ["OBSERVED"]})), 1)
+        self.watcher.state_path.unlink()
+        self.moment, self.busy = NOON, False  # serious: waits for morning, and isn't lost
+        self.on(feature("Flood Watch", "Severe", "Future", id_="watch"))
+        self.watcher.check_once()
+        self.moment = NIGHT
+        self.assertEqual(self.update("watch2", "watch", event="Flood Watch", severity="Extreme", urgency="Future"), [])
+        self.moment = NIGHT + timedelta(hours=6)
+        self.assertEqual(len(self.watcher.check_once()), 1)
+
+    def test_no_worse_stays_quiet(self):
+        same = {"tornadoDetection": ["RADAR INDICATED"]}
+        self.on(feature(id_="first", parameters=same))
+        self.watcher.check_once()
+        self.assertEqual(self.update("second", "first", same), [])  # the usual update
+        self.assertEqual(self.update("third", "second", same, ends="2026-11-04T23:30:00-06:00"), [])  # extended
+        self.assertEqual(self.update("fourth", "third", {"tornadoDetection": ["POSSIBLE"]}), [])  # better
+
+    def test_down_and_back_up_is_nothing_new(self):
+        self.on(feature(id_="first", parameters={"tornadoDetection": ["OBSERVED"]}))
+        self.watcher.check_once()
+        self.assertEqual(self.update("second", "first", {"tornadoDetection": ["RADAR INDICATED"]}), [])
+        self.assertEqual(self.update("third", "second", {"tornadoDetection": ["OBSERVED"]}), [])
+
+    def test_said_once_each_time_it_gets_worse(self):
+        self.on(feature(id_="first", parameters={"tornadoDetection": ["RADAR INDICATED"]}))
+        self.watcher.check_once()
+        self.assertEqual(len(self.update("second", "first", {"tornadoDetection": ["OBSERVED"]})), 1)
+        self.assertEqual(self.watcher.check_once(), [])  # the next check sees the same one
+        said = self.update("third", "second", {"tornadoDetection": ["OBSERVED"], "tornadoDamageThreat": ["CATASTROPHIC"]})
+        self.assertEqual(len(said), 1)
+        self.assertEqual(self.watcher.check_once(), [])
+
+    def test_worse_is_remembered_after_a_restart(self):
+        self.on(feature(id_="first", parameters={"tornadoDetection": ["OBSERVED"]}))
+        self.watcher.check_once()
+        again = wa.AlertWatcher(self.watcher.state_path, lambda: SPRINGFIELD, say=self.said.append, fetch=self.service, clock=self.watcher.clock)
+        self.service.features = [feature(id_="second", message="Update", references=["first"], parameters={"tornadoDetection": ["OBSERVED"]})]
+        self.assertEqual(again.check_once(), [])
+
+    def test_a_memory_from_before_this_stays_quiet(self):
+        self.on(feature(id_="second", message="Update", references=["first"], parameters={"tornadoDetection": ["OBSERVED"]}))
+        state = json.loads(self.watcher.state_path.read_text())
+        state["said"] = {"first": {"event": "Tornado Warning", "at": self.watcher.clock()}}
+        self.watcher.state_path.write_text(json.dumps(state))
+        self.assertEqual(self.watcher.check_once(), [])
+
+    def test_a_warning_that_ended_early_isnt_worse(self):
+        self.on(feature(id_="first", parameters={"tornadoDetection": ["RADAR INDICATED"]}))
+        self.watcher.check_once()
+        self.assertEqual(self.update("second", "first", {"tornadoDetection": ["OBSERVED"]}, severity="Minor", urgency="Past"), [])  # live: how an early end looks
+
+    def test_what_makes_it_dangerous_is_said_the_first_time_and_shown(self):
+        alert = feature(id_="first", parameters={"tornadoDetection": ["OBSERVED"], "tornadoDamageThreat": ["CATASTROPHIC"]})
+        self.on(alert)
+        said = self.watcher.check_once()[0]
+        self.assertIn("This is a tornado emergency. A tornado has been seen. Move to an interior room", said)
+        self.assertNotIn("more dangerous", said)
+        self.assertIn("tornado emergency", self.watcher.handle({"op": "alert"})["cards"][0]["instruction"])
+
+    def test_odd_parameters_dont_break_it(self):
+        for parameters in ({"tornadoDetection": []}, {"tornadoDetection": "OBSERVED"}, {"tornadoDetection": [None]}, {"tornadoDamageThreat": ["SOMETHING NEW"]}, None):
+            alerts = wa.read_alerts({"features": [feature(parameters=parameters)]}, NOON)
+            self.assertEqual(alerts[0]["why"], "", parameters)
 
     def test_a_watch_that_becomes_a_warning_is_said(self):
         self.on(feature("Tornado Watch", "Severe", "Future", "watch"))
