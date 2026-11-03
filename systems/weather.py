@@ -16,6 +16,8 @@ import time
 import urllib.parse
 import urllib.request
 
+from systems.sound_alikes import put_right
+
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 SOURCE_NAME = "Open-Meteo"
@@ -274,16 +276,18 @@ _WHEN_WORDS = re.compile(
     r"\b(?:the |this |next |on |for |in |coming |upcoming )*(?:long ?(?:term|range)|extended|(?:two|2) weeks?|"
     rf"(?:{_NUMBER}) days?|week(?:end)?|weekly|day after tomorrow|tomorrow|today|tonight|right now|now|month|forecast|"
     + "|".join(_WEEKDAYS) + r")(?:s)?\b", re.I)
+# What's left of "the weather for the week ahead" or "for the weekend looking like".
+_ASKING_WORDS = re.compile(r"\b(?:ahead|looking like|look like|looking|going to be|gonna be)\b", re.I)
 
 
 def without_when_words(text: str) -> str:
-    return re.sub(r"\s+", " ", _WHEN_WORDS.sub(" ", str(text))).strip(" ,.?!")
+    return re.sub(r"\s+", " ", _ASKING_WORDS.sub(" ", _WHEN_WORDS.sub(" ", str(text)))).strip(" ,.?!")
 
 
 def days_asked(question: str, dates) -> list[int]:
     """Which forecast days (0 is today) were mentioned, in order, never past what the forecast has: "tomorrow", "on
     Friday", "Friday and Saturday", "this weekend", "this week", "next week", "the ten day forecast", "long term"."""
-    text = re.sub(r"[-_]", " ", str(question).lower()).replace("'s", "")
+    text = re.sub(r"[-_]", " ", put_right(question).lower()).replace("'s", "")
     first = _date(dates[0]) if len(dates) else None
     available = len(dates) or 1
     weekday = first.weekday() if first else 0

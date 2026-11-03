@@ -77,12 +77,12 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | Say | What it does |
 |---|---|
 | **set my weather location to [town]** | Turns the weather on for your town. He checks the town with you before saving it. |
-| **what's the weather?** | The weather now, said out loud and on BMO's screen as a little weather station: temperature, feels like, wind, gusts, humidity, pressure, UV, sunrise and sunset, and the next 12 hours. |
+| **what's the weather?** | The weather now, said out loud and on BMO's screen as a little weather station: temperature, feels like, wind, gusts, humidity, pressure, UV, sunrise and sunset, and the next 12 hours. "Weather", "the forecast", "current conditions", "what's the temperature?", "weather station" and "do I need an umbrella?" work too. |
 | **what's the weather tomorrow / on Friday / Friday and Saturday / this weekend?** | Those days, with a window for each. |
-| **seven day forecast / this week / next week / the next three days** | A box for each day, with a moving picture of its sky, high and low, chance of rain and wind. |
-| **long term forecast** | All 16 days he can get. Past about a week, treat it as a rough guide. "Extended forecast" and "two week forecast" work too. |
-| **show me the radar** | The rain radar for your area, playing the last hour so you can see what's moving in. Lower 48 states only. "Weather map" works too. |
-| **scroll down / scroll up / close** | While a weather window is up, without Hey BMO. A short forecast goes back to his face by itself after a minute, a longer one or the radar after three. |
+| **seven day forecast / this week / next week / the next three days** | A box for each day, with a moving picture of its sky, high and low, chance of rain and wind. "How's the week looking?" and "how's the weekend looking?" work too. |
+| **long term forecast** | All the days he can get, up to 16. Past about a week, treat it as a rough guide. "Extended forecast", "two week forecast", "long range forecast" and "weather outlook" work too. |
+| **show me the radar** | The rain radar for your area, playing the last hour so you can see what's moving in. Lower 48 states only. "The radar", "doppler", "weather map", "rain map", "where's the rain?" and "what's moving in?" work too. |
+| **scroll down / scroll up / close** | While a weather window is up, without Hey BMO. "Close the radar", "close the forecast", "turn it off" and "that's enough" work too. A short forecast goes back to his face by itself after a minute, a longer one or the radar after three. |
 | **do you remember the weather earlier?** | The last weather report he gave you, and when. |
 | **forget my weather location** | Removes your town. |
 
@@ -90,13 +90,13 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 
 | Say | What it does |
 |---|---|
-| **what's in the sky tonight?** | The moon, the planets you can see and where to look, the space station if it passes, the clouds, and the next big event. "What planets can I see?" works too. |
-| **what phase is the moon?** | The moon on BMO's screen, with how much is lit, when it rises and sets, and the next full and new moon. |
-| **when does the space station pass over?** | The passes you can see in the next five days, and a little space station on the screen. "Where is the ISS?" works too. |
-| **any space events coming up?** | Eclipses you can see from here, meteor showers and planets close together, with a little animation for each. Scroll up and down, or close. |
-| **when's the next eclipse / next meteor shower?** | Just those. "Any chance of northern lights?" checks for a solar storm strong enough to reach you. |
-| **turn on space alerts** | BMO says out loud when the space station is about to pass over and when something big is on in the sky, even while he sleeps, between 8 AM and 11 PM. No alert if it's overcast or a movie or game is on. |
-| **turn off space alerts** | No more of those. |
+| **what's in the sky tonight?** | The moon, the planets you can see and where to look, the space station if it passes, the clouds, and the next big event. "What planets can I see?", "the night sky", "what's overhead?", "stargazing" and "where's Mars?" work too. |
+| **what phase is the moon?** | The moon on BMO's screen, with how much is lit, when it rises and sets, and the next full and new moon. "The moon", "moon phase", "is the moon full?" and "next full moon" work too. |
+| **when does the space station pass over?** | The passes you can see in the next five days, and a little space station on the screen. "Where is the ISS?", "the space station", "next ISS pass" and "can I see the space station?" work too. |
+| **any space events coming up?** | Eclipses you can see from here, meteor showers and planets close together, with a little animation for each. Scroll up and down, or close. "What's happening in space?" and "anything happening in the sky?" work too. |
+| **when's the next eclipse / next meteor shower?** | Just those. "Eclipse", "meteor shower" and "any shooting stars?" work too. "Any chance of northern lights?" or "the aurora" checks for a solar storm strong enough to reach you. |
+| **turn on space alerts** | BMO says out loud when the space station is about to pass over and when something big is on in the sky, even while he sleeps, between 8 AM and 11 PM. No alert if it's overcast or a movie or game is on. "Turn space alerts on" and "let me know when the space station passes" work too. |
+| **turn off space alerts** | No more of those. "Cancel space alerts" and "stop telling me about the space station" work too. |
 
 ## Sound
 
@@ -172,7 +172,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | Say | What it does |
 |---|---|
 | **list projects** | Your projects. |
-| **show my projects** | Your projects as a list on BMO's screen, with the open one marked. Scroll up and down, say open number 2 to open one, or close. These work without Hey BMO while the list is up. |
+| **show my projects** | Your projects as a list on BMO's screen, with the open one marked. Scroll up and down, say open number 2 to open one, or close. These work without Hey BMO while the list is up. "My projects", "project list", "my project folders" and "what am I working on?" work too. |
 | **current project** | The project that's open. |
 | **create project [name]** | Makes a new project and opens it. |
 | **open project [name]** | Opens a project. It stays open until you close it or he sleeps or restarts. |

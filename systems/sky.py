@@ -22,6 +22,8 @@ import time
 import urllib.request
 from zoneinfo import ZoneInfo
 
+from systems.sound_alikes import put_right
+
 try:
     import ephem
 except ImportError:  # an older install before its packages are updated: he says so, the rest of BMO carries on
@@ -434,30 +436,53 @@ def sky_words(percent: int | None) -> str:
 
 # --- What was said ----------------------------------------------------------------------------------------
 
+_PLANET = r"(?:mercury|venus|mars|jupiter|saturn)"
+_BIG_EVENT = r"(?:eclipses?|meteor showers?|meteors|shooting stars?|falling stars?|aurora|northern lights)"
+_WATCHED = r"(?:space|sky|iss|space station|astronomy)"
+_NOTICES = r"(?:alerts?|notifications?|warnings?)"
 _TONIGHT = re.compile(
     r"\b(?:what(?:s| is)(?: up| out| visible)? in the (?:night )?sky|show(?: me)? the (?:night )?sky|night sky|sky tonight|"
     r"what can (?:i|we) see (?:in the sky|tonight|up there)|what planets|which planets|planets? (?:tonight|out|up|visible)|"
-    r"anything (?:cool |good |interesting )?(?:in the sky|to see tonight)|stargazing)\b")
+    r"anything (?:cool |good |interesting )?(?:in the sky|to see tonight)|stargazing|"
+    r"what(?:s| is) (?:up there|overhead|visible)|what(?:s| is) out tonight|what stars|which stars|stars (?:tonight|out|visible)|"
+    rf"(?:where(?: is)?|where can (?:i|we) (?:see|find)|can (?:i|we) see|could (?:i|we) see) (?:the planet )?{_PLANET}|"
+    rf"is {_PLANET} (?:out|up|visible))\b")
 _MOON = re.compile(r"\b(?:moon phase|phase of the moon|what phase is the moon|show(?: me)? the moon|how full is the moon|"
-                   r"(?:is|whats|what is) (?:it |there |the moon )?(?:a )?(?:full|new) moon|when(?:s| is)(?: the)?(?: next)? (?:full|new) moon|"
-                   r"what does the moon look like|moonrise|moonset|when does the moon)\b")
+                   r"(?:is|whats|what is) (?:it |there |the moon )?(?:a )?(?:full|new) moon|when(?: is)?(?: the)?(?: next)? (?:full|new) moon|"
+                   r"what does the moon look like|moonrise|moonset|when does the moon|"
+                   r"^(?:the )?moon(?: tonight)?$|what(?:s| is) the moon (?:doing|look)|how(?:s| is) the moon(?: look\w*| doing| tonight)?$|"
+                   r"is the moon (?:full|new|out|up)|where(?: is)? the moon|next (?:full|new) moon)\b")
 _STATION = r"(?:space station|the iss\b|iss\b|i s s\b)"
-_ISS = re.compile(rf"\b(?:when|where|show|track|next|see|find|pull up|bring up|spot)\b.*{_STATION}|{_STATION}.*\b(?:pass|passes|passing|overhead|tonight|fly|flying)\b")
+_ISS = re.compile(rf"\b(?:when|where|show|track|next|see|find|pull up|bring up|spot|what time)\b.*{_STATION}|"
+                  rf"{_STATION}.*\b(?:pass|passes|passing|overhead|tonight|fly|flying|going over|go over|visible|above)\b|"
+                  rf"^(?:the )?(?:international )?{_STATION}$|^(?:is|will|can)\b.*{_STATION}.*\b(?:up|out|coming)\b")
 _EVENTS = re.compile(
-    r"\b(?:(?:space|sky|astronomy|astronomical|celestial) events?|(?:whats|what is) coming up in the sky|"
+    r"\b(?:(?:space|sky|astronomy|astronomical|celestial) events?|(?:whats|what is) coming up in (?:the sky|space)|"
+    r"(?:whats|what is) (?:happening|going on) in (?:the sky|space)|"
+    r"anything (?:cool |big |good )?(?:happening|going on|coming up) in (?:the sky|space)|space weather|"
     r"(?:cool|big) (?:things|stuff) in the sky|"
-    r"(?:when|next|any|show|coming up|upcoming).*\b(?:eclipses?|meteor showers?|meteors|shooting stars?|aurora|northern lights)\b|"
-    r"\b(?:eclipses?|meteor showers?)\b.*\b(?:coming|this (?:year|month)|next)\b)")
+    rf"(?:when|next|any|show|coming up|upcoming).*\b{_BIG_EVENT}\b|"
+    rf"\b(?:eclipses?|meteor showers?)\b.*\b(?:coming|this (?:year|month)|next)\b|"
+    rf"(?:is there|are there|will there be)(?: going to be)?(?: an?| any| some)?(?: \w+)? {_BIG_EVENT}\b|"
+    rf"(?:can|could|will|might) (?:i|we) see(?: the| an?| any)? {_BIG_EVENT}\b|"
+    rf"(?:is|are) (?:the )?{_BIG_EVENT} (?:out|visible|up|tonight|happening)\b|chance of(?: the| an?| any)? {_BIG_EVENT}\b|"
+    rf"^(?:the |an? )?{_BIG_EVENT}(?: tonight| this (?:week|month|year))?$)")
 _ALERTS_ON = re.compile(
-    r"\b(?:turn on|enable|start|switch on|i want|give me)\b.*\b(?:space|sky|iss|space station|astronomy) (?:alerts?|notifications?|warnings?)\b|"
+    rf"\b(?:turn on|enable|start|switch on|i want|give me)\b.*\b{_WATCHED} {_NOTICES}\b|"
+    rf"\b(?:turn on|enable|start|switch on)\b.*\b{_NOTICES} (?:for|about|on) (?:the )?{_WATCHED}\b|"
+    rf"\b(?:turn|switch) (?:the |my )?{_WATCHED} {_NOTICES} on\b|^(?:the )?{_WATCHED} {_NOTICES} on$|"
     r"\b(?:tell|alert|warn|let|notify) (?:me|us)\b.*\b(?:when|if)\b.*\b(?:space station|iss|sky)\b")
-_ALERTS_OFF = re.compile(r"\b(?:turn off|disable|stop|switch off|no more|quiet)\b.*\b(?:space|sky|iss|space station|astronomy) (?:alerts?|notifications?|warnings?)\b")
+_ALERTS_OFF = re.compile(
+    rf"\b(?:turn off|shut off|disable|stop|switch off|no more|quiet|mute|silence|cancel|kill)\b.*\b{_WATCHED} {_NOTICES}\b|"
+    rf"\b(?:turn|shut|switch) (?:the |my )?{_WATCHED} {_NOTICES} off\b|^(?:the )?{_WATCHED} {_NOTICES} off$|"
+    r"\b(?:stop|quit|dont|do not|no more)\b.*\b(?:telling|tell|alerting|warning|bugging|notifying)\b.*\b(?:space station|iss|sky)\b")
 
 
 def request(text: str) -> str | None:
     """'alerts on', 'alerts off', 'moon', 'iss', 'events' or 'tonight'."""
-    said = re.sub(r"[^\w\s]", "", str(text).lower())
+    said = re.sub(r"[^\w\s]", "", put_right(text).lower())
     said = re.sub(r"\s+", " ", said).strip()
+    said = re.sub(r"\b(when|where)s\b", r"\1", said)  # "where's" without its apostrophe
     if _ALERTS_OFF.search(said):
         return "alerts off"
     if _ALERTS_ON.search(said):

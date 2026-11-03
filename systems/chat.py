@@ -59,6 +59,7 @@ from systems.apps import (
 )
 from systems.turn_speech import complete_sentences, ends_in_sentence, completed_prefix, speakable_units
 from systems.grounding import CLOCK_TOPICS, HONEST_REPLIES, clock_reply, live_data_topic, unbacked_claim
+from systems.sound_alikes import put_right
 from systems.engineering import EngineeringToolkit, ENGINEERING_TOOL_NAMES, engineering_tool_schemas
 from systems.vision_tools import VisionToolkit, VISION_TOOL_NAMES, vision_tool_schemas
 from systems.diagnostics import HardwareDiagnostics, diagnostics_tool_schema
@@ -3001,6 +3002,7 @@ class Chat:
             if place:
                 return f"I don't have GPS, but your saved weather location is {place.spoken}."
             return HONEST_REPLIES["location"]
+        command = put_right(command)  # "the whether in Paris" is still Paris, not home
         # "weather in Paris": one-off report for that place; the saved one stays.
         elsewhere = re.search(r"\b(?:weather|forecast|radar)\b.*?\b(?:in|for|at)\s+(?P<place>[a-z][\w\s,.'-]*?)\W*$",
                               command, re.I)

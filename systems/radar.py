@@ -17,6 +17,8 @@ import urllib.request
 
 import pygame
 
+from systems.sound_alikes import put_right
+
 RADAR_URL = "https://mesonet.agron.iastate.edu/cache/tile.py/1.0.0/nexrad-n0q-900913{age}/{z}/{x}/{y}.png"
 MAP_URL = "https://tile.openstreetmap.org/{z}/{x}/{y}.png"
 CREDIT = "Radar: NWS / Iowa Environmental Mesonet. Map: OpenStreetMap contributors"
@@ -32,7 +34,7 @@ class RadarError(Exception):
 
 
 def asked_for(text: str) -> bool:
-    return bool(_ASKED.search(str(text)))
+    return bool(_ASKED.search(put_right(text)))
 
 
 def covers(latitude: float, longitude: float) -> bool:

@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT))
 import config
 from systems.grounding import HONEST_REPLIES, live_data_topic
 from systems import radar
+from systems.sound_alikes import put_right
 from systems.weather import Place, WeatherError, WeatherService, WeatherSettings, geocode, without_when_words
 
 GEO = {"results": [
@@ -114,7 +115,8 @@ class VoiceTests(unittest.TestCase):
               "WeatherSettings": WeatherSettings, "WeatherError": WeatherError, "HONEST_REPLIES": HONEST_REPLIES,
               "WeatherService": lambda fahrenheit: WeatherService(fetch=fake(FORECAST)),
               "geocode": lambda q: self.geo.setdefault("asked", []).append(q) or self.geo["result"],
-              "live_data_topic": live_data_topic, "without_when_words": without_when_words, "radar": radar}
+              "live_data_topic": live_data_topic, "without_when_words": without_when_words, "radar": radar,
+              "put_right": put_right}
         exec(compile(ast.fix_missing_locations(ast.Module(body=[ast.ClassDef(
             name="Mini", bases=[], keywords=[], body=body, decorator_list=[])], type_ignores=[])), "mini", "exec"), ns)
         self.c = ns["Mini"]()

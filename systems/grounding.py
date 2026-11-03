@@ -10,22 +10,32 @@ from __future__ import annotations
 
 import re
 
+from systems.sound_alikes import put_right
+
 _WEATHER_QUESTION = re.compile(
     r"\b(weather|forecast)\b.*\b(today|tonight|tomorrow|now|right now|outside|this (?:week|weekend|morning|afternoon|evening)|like|going to|gonna)\b"
     r"|\b(?:is it|will it|gonna|going to)\s+(?:rain|snow|storm)\b"
     r"|\b(?:how (?:hot|cold|warm)|what(?:'s| is) the temperature)\b.*\b(outside|out there)\b"
-    r"|^\s*(?:what(?:'s| is) the )?(?:weather|forecast)\s*\??\s*$"
+    r"|^\W*(?:(?:the|what(?:'s| is) the|today's|tomorrow's) )?(?:weather|forecast|radar|weather report|weather station)\W*$"
     r"|\bhow(?:'s| is) the weather\b|\bweather (?:report|forecast|update)\b"
     r"|\b(?:what(?:'s| is)|how(?:'s| is)) the weather (?:in|for|at) [a-z]"
     r"|\bwhat(?:'s| is) it like (?:outside|out there)\b"
     r"|\bis it (?:cold|hot|warm|chilly|raining|snowing|sunny|windy|foggy) (?:outside|out)\b"
     # The long-term forecast and the screens (owner 2026-11-02).
-    r"|\b(?:weather|forecast)\b.*\b(?:week(?:end)?|long[- ]?(?:term|range)|extended|(?:mon|tues|wednes|thurs|fri|satur|sun)day|"
+    r"|\b(?:weather|forecast)\b.*\b(?:weeks?|weekends?|long[- ]?(?:term|range)|extended|(?:mon|tues|wednes|thurs|fri|satur|sun)day|"
     r"\w+[- ]days?)\b"
     r"|\b(?:long[- ]?(?:term|range)|extended|weekly|\w+[- ]day|week(?:end)?(?:'s)?|tomorrow(?:'s)?|today(?:'s)?)\s+(?:weather|forecast)\b"
-    r"|\b(?:show|bring up|pull up|see|display|give me|open)(?: me)?(?: (?:the|my|our|a|todays?|today's))*\s*"
-    r"(?:weather|forecast|radar|rain radar|weather radar|weather station|weather map|radar map)\b"
-    r"|\bweather (?:radar|station|map)\b|\brain radar\b|\bradar map\b",
+    r"|\b(?:show|bring up|pull up|see|display|give me|open|tell me|check|get|read|look at)(?: me)?(?: (?:the|my|our|a|todays?|today's))*\s*"
+    r"(?:weather|forecast|radar|rain radar|weather radar|weather station|weather map|radar map)\b(?! app\b)"
+    r"|\bweather (?:radar|station|map)s?\b|\brain radar\b|\bradar map\b"
+    # Other ways to ask (owner 2026-11-03: every command gets alternates).
+    r"|\b(?:how(?:'s| is)|what(?:'s| is)|what does)\s+(?:the |this |next )?(?:coming )?week(?:end)?\s+(?:looking|look)\b"
+    r"|\bwhat(?:'s| is) the weather doing\b|\bwhat(?:'s| is) it doing (?:outside|out there)\b"
+    r"|\b(?:current|weather) conditions\b|\btwo weeks of (?:weather|forecast)\b"
+    r"|^\W*what(?:'s| is) the (?:current )?temperature(?: (?:today|tonight|tomorrow|right now|now|this (?:morning|afternoon|evening)))?\W*$"
+    r"|\bhow (?:hot|cold|warm|chilly) (?:is it (?:going to|gonna) (?:get|be)|will it (?:get|be)|does it get)\b"
+    r"|\b(?:is|any) (?:the )?(?:rain|snow)\b.*\b(?:coming|today|tonight|tomorrow|week(?:end)?|on the way)\b"
+    r"|\b(?:do|should|will) (?:i|we) (?:need|bring|take|grab|want) (?:an? )?(?:umbrella|jacket|coat|raincoat)\b",
     re.IGNORECASE,
 )
 _LOCATION_QUESTION = re.compile(
@@ -154,7 +164,7 @@ def live_data_topic(user_text: str) -> str | None:
     for topic, pattern in _CLOCK_QUESTIONS:
         if pattern.search(text):
             return topic
-    if _WEATHER_QUESTION.search(text):
+    if _WEATHER_QUESTION.search(put_right(text)):
         return "weather"
     if _LOCATION_QUESTION.search(text):
         return "location"

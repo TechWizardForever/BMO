@@ -31,7 +31,9 @@ _END = re.compile(
     r"\s+(?:please|now|thanks|thank you|for me|for us|right now|real quick|if you can|if you could|okay|ok|"
     r"would you|will you|bemo|bmo|beemo)$")
 # The first word as Whisper writes it -> what was said (live tests 2026-10-20 to 10-28).
-_FIRST_WORD = {"clothes": "close", "cloze": "close", "clothe": "close", "closed": "close", "closes": "close",
+_FIRST_WORD = {"scrolled": "scroll", "scrolling": "scroll", "school": "scroll", "stroll": "scroll", "scrawl": "scroll",
+               "skull": "scroll",  # not heard yet: what "scroll" sounds like (2026-11-03)
+               "clothes": "close", "cloze": "close", "clothe": "close", "closed": "close", "closes": "close",
                "claws": "close", "cloths": "close", "plays": "play", "played": "play", "playing": "play",
                "stops": "stop", "stopped": "stop", "stopping": "stop", "pauses": "pause", "paused": "pause",
                "paws": "pause", "skips": "skip", "skipped": "skip", "skipping": "skip", "rewinds": "rewind",

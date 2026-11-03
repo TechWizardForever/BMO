@@ -287,7 +287,7 @@ class LibraryView:
 # "open games" / "open the game library" stay the ES-DE game frontend (its app names), and "list games" stays the
 # spoken count, so those two verbs need "my" / "the movies".
 _WHAT = (r"(?P<what>movies?|films?|shows?|tv shows?|videos?|movie library|movies and shows|shows and movies|cartoons|"
-         r"movie list|games?|game library|gamecube games|video games|game list|projects|project list)")
+         r"movie list|games?|game library|gamecube games|video games|game list|projects|project list|project folders?)")
 _OPEN = re.compile(
     r"^(?:(?:show|bring up|pull up|see|browse|go to|let me see|give me|display|check out|look at)(?: me)?"
     r"(?: (?:my|the|our|all the|all my|all of my|all our|all of the))?\s*" + _WHAT +
@@ -299,7 +299,10 @@ _OPEN = re.compile(
     r"can (?:i|we) (?:watch|play)|are on here|have you got|do you have)|"
     r"what (?:can|could|should) (?:i|we) (?P<verb>watch|play)|whats there to (?P<verb2>watch|play)|"
     r"what is there to (?P<verb3>watch|play)|(?:my|our) (?P<mine>movies|games|shows|movie list|game list|projects|"
-    r"project list))$")
+    r"project list|project folders?)|(?:the )?(?P<bare>projects|project list|project folders?)|"
+    r"what (?:am i|are we) (?P<working>working on)|"
+    # One "project" only after "my": "show me the project" is the open one.
+    r"(?:show|bring up|pull up|see|let me see|display)(?: me)? (?:my|all my|all of my) (?P<one>project))$")
 _NUMBER_WORDS = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
                  "sixteen seventeen eighteen nineteen twenty").split()
 _ORDINALS = ("zeroth first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth "
@@ -317,13 +320,16 @@ def _plain(text: str) -> str:
 def open_request(text: str) -> str | None:
     """'movies', 'games' or 'projects' for "show my movies" / "what can I watch" / "let me see my games" / "my projects"."""
     from systems.media_phrases import first
-    found = first(text, _OPEN.match)
+    from systems.sound_alikes import put_right
+    found = first(put_right(text), _OPEN.match)
     if not found:
         return None
     if found.group("verb") or found.group("verb2") or found.group("verb3"):
         return "games" if "play" in (found.group("verb"), found.group("verb2"), found.group("verb3")) else "movies"
+    if found.group("working") or found.group("one"):
+        return "projects"
     what = (found.group("what") or found.group("what2") or found.group("opened") or found.group("asked")
-            or found.group("mine"))
+            or found.group("mine") or found.group("bare"))
     if what.startswith("project"):
         return "projects"
     return "games" if what.startswith(("game", "video game")) else "movies"
@@ -354,8 +360,10 @@ _SCROLL_DOWN = re.compile(
     r"^(?:(?:scroll|page|go|move|swipe|flip)(?: it)? )?(?:down|forward|ahead|further|onward)(?: (?:a|one) page| some| more| a bit)?$|"
     r"^(?:next|the next|another) (?:page|ones|bunch|set|screen|lot)$|^(?:show(?: me)? )?(?:more|some more|the rest)"
     r"(?: (?:movies|games|shows|of them))?$|^keep (?:going|scrolling)$|^scroll$|^next$|^more please$|"
-    r"^what else(?: is there| do (?:i|we) have| have (?:i|we) got)?$|^anything else$|^(?:turn|flip) the page$")
+    r"^what else(?: is there| do (?:i|we) have| have (?:i|we) got)?$|^anything else$|^(?:turn|flip) the page$|"
+    r"^scroll (?:town|dawn)$")
 _SCROLL_UP = re.compile(
+    r"^scroll (?:app|op)$|"
     r"^(?:(?:scroll|page|go|move|swipe|flip)(?: it)? )?(?:up|back|backward|backwards)(?: (?:a|one) page| up| a bit)?$|"
     r"^(?:previous|the previous) (?:page|ones|bunch|set|screen)$|^go back up$|^previous$|^back up$|"
     r"^(?:go )?back a page$")
@@ -364,8 +372,10 @@ _TOP = re.compile(r"^(?:go |scroll |jump |back |take me )?(?:to )?the (?:top|sta
 _BOTTOM = re.compile(r"^(?:go |scroll |jump |take me )?(?:to )?the (?:bottom|end|last page)(?: of the list)?$|"
                      r"^(?:bottom|last page|end of the list)$")
 _CLOSE = re.compile(
-    r"^(?:close|hide|exit|quit|leave|dismiss|put away)(?: (?:it|this|that|the|my))?(?: (?:list|library|movies|games|"
-    r"shows|movie library|game library|movie list|game list|projects|project list|screen|menu|thing))?(?: away)?$|"
+    r"^(?:close|hide|exit|quit|leave|dismiss|put away|get rid of|take away|shut|shut off|turn off)(?: (?:it|this|that|the|my))?"
+    r"(?: (?:list|library|movies|games|shows|movie library|game library|movie list|game list|projects|project list|"
+    r"project folders|screen|menu|thing|window|weather|forecast|weather station|radar|map|sky|moon|space station|station|"
+    r"events|planets|stars))?(?: away| off)?$|^(?:thats )?enough$|^(?:take|turn|shut) (?:it|this|that) (?:away|off)$|"
     r"^(?:im |i am |were |we are |all )?done$|^never ?mind$|^forget it$|^(?:thats|that is) (?:all|it)$|"
     r"^no thanks?(?: you)?$|^nothing$|^none(?: of (?:them|these|those))?$|^not (?:now|right now)$|^go away$|"
     r"^put it away$|^(?:go )?back to (?:your|the|bmos?|my) face$|^show (?:your|me your) face$")
