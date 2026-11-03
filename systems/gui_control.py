@@ -419,8 +419,10 @@ def resolve_window(windows: list[dict], spoken_app: str) -> dict | None:
             c = re.sub(r"[^a-z0-9 ]+", " ", candidate.lower()).strip()
             if not c:
                 continue
-            if q == c or (q and (q in c.split(" - ")[-1] or c.endswith(q) or q in c)):
+            if q == c or (q and re.search(rf"\b{re.escape(q)}\b", c)):  # whole words: "art" isn't "smart"
                 score = 1.0 if q == c else 0.9
+            elif q and (q in c or c in q):
+                score = 0.0  # inside another word: close by spelling, nothing like it to say ("art", "smart")
             else:
                 score = difflib.SequenceMatcher(None, q, c).ratio()
             if score > best_score:

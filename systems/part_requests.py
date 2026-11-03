@@ -164,8 +164,8 @@ def _read(text: str):
     noun = nouns[0]
     kind = _NOUNS[noun]
     words = r.text.split()
-    if kind == "container" or (noun in ("plate", "box") and re.search(rf"(?:round|circular) {noun}\b", r.text)):
-        kind = "cylinder" if re.search(rf"(?:round|circular) {noun}\b", r.text) else "block"
+    if kind == "container" or (noun in ("plate", "box") and re.search(rf"\b(?:round|circular) {noun}\b", r.text)):
+        kind = "cylinder" if re.search(rf"\b(?:round|circular) {noun}\b", r.text) else "block"
     if noun in _SIDES:
         r.found.setdefault("sides", _SIDES[noun])
     r.take(rf"{_N} (?:(?:round|square|solid|flat|hollow|open top|simple) )*{noun}|{noun} (?:of )?{_N}", ("size", "size"))

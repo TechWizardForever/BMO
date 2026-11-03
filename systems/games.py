@@ -269,7 +269,7 @@ class GameLibrary:
         for g in games:
             title = _norm(g.title)
             ratio = difflib.SequenceMatcher(None, query_norm, title).ratio()
-            if query_norm in title:
+            if f" {query_norm} " in f" {title} ":  # whole words: "art" isn't "smart"
                 ratio += 0.30
             scored.append((ratio, g))
         scored.sort(key=lambda x: x[0], reverse=True)

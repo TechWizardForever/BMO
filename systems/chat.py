@@ -3150,14 +3150,14 @@ class Chat:
                 line, note = sky.pass_words(passes[0], now), ""
             return line, {"orbit": orbit, "passes": rows, "no_passes": note}, [], None
         if asked == "events":
-            said = str(command).lower()
-            if "eclipse" in said:
+            said = put_right(command).lower()
+            if re.search(r"\beclipses?\b", said):
                 chosen = sorted(here.lunar_eclipses(now, 1100) + here.solar_eclipses(now, 1100), key=lambda e: e["start"])
                 line = sky.event_words(chosen[0], now) if chosen else "There's no eclipse you can see from here in the next three years."
-            elif "meteor" in said or "shooting star" in said:
+            elif re.search(r"\b(?:meteors?|meteor showers?|shooting stars?|falling stars?)\b", said):
                 chosen = here.meteor_showers(now)
                 line = sky.event_words(chosen[0], now) if chosen else "No meteor showers coming up."
-            elif "aurora" in said or "northern lights" in said:
+            elif re.search(r"\b(?:aurora|northern lights)\b", said):
                 level = sky.fetch_aurora(place.latitude, now)
                 chosen = [{"kind": "aurora", "title": "Northern lights", "text": "Only a chance.", "important": True}] if level else []
                 line = (f"There's a solar storm forecast, level {level:g}, so the northern lights might reach this far tonight. It's "
@@ -4581,8 +4581,8 @@ class Chat:
         """'in the text editor, type hello there': one step, no model (live 2026-10-19: through the Main
         Brain it took 30 s to choose a first step). Adds at the end of a document; never replaces it."""
         spoken = parsed["control"]
-        at = command.lower().find(spoken)
-        text = command[at:at + len(spoken)] if at >= 0 else spoken  # the owner's capitals
+        found = re.search(rf"(?<!\w){re.escape(spoken)}(?!\w)", command, re.I)  # "hi" isn't the one in "this"
+        text = found.group() if found else spoken  # the owner's capitals
         fields = [c for c in controls if "editable" in c.get("states", []) and c.get("role") != "password text"]
         # A document is anything not marked single-line: xed (Mint's text editor) doesn't say "multi line"
         # (live 2026-10-19, where its document was replaced instead of added to).
@@ -5291,12 +5291,12 @@ class Chat:
         # "it/them" only as "where is it / where did you put it": "where is it raining" isn't about a file.
         r"where\b(?:\W+\w+){0,6}?\W+(?:file|files|game|program|script|code)\b"
         r"|where(?: s| is|s| did you (?:put|save))? (?:it|them)(?: saved| now)?\W*$"
-        r"|what did you (?:call|name|save) (?:it|the file|the game|the program|the script)"
-        r"|what(?: s| is|s) the file (?:called|named)"
+        r"|what did you (?:call|name|save) (?:it|the file|the game|the program|the script)\b"
+        r"|what(?: s| is|s) the file (?:called|named)\b"
         # "what is the latest snake game file call?" (live 2026-10-19)
         r"|what(?: s| is|s| was)? the (?:\w+ ){0,4}(?:file|game|program|script)(?: \w+)? (?:call|called|named|name)\b"
-        r"|what(?: s| is|s)? the name of the (?:\w+ ){0,3}(?:file|game|program|script)"
-        r"|did you save (?:it|the file|the game|the program|the code))")
+        r"|what(?: s| is|s)? the name of the (?:\w+ ){0,3}(?:file|game|program|script)\b"
+        r"|did you save (?:it|the file|the game|the program|the code)\b)")
 
     _HARDWARE_QUESTION = re.compile(
         r"^(?:(?:so |okay |ok )?(?:what|which) hardware (?:am i on|is this|are we on|are you on|do (?:i|you|we) have)"
@@ -6592,11 +6592,16 @@ class Chat:
             "troubleshoot", "diagnose", "safe", "safety", "danger", "risk",
             "damage", "legal", "wiring", "voltage", "battery", "laser",
         )
-        if any(marker in text for marker in brief_markers):
+
+        def says_any(markers):  # whole words: "show me" has no "how" in it, and "brisk" no "risk"
+            words = "|".join(re.escape(marker.strip()) for marker in markers)
+            return re.search(rf"\b(?:{words})(?:s|d|ed|ing|ous|y)?\b", text)
+
+        if says_any(brief_markers):
             return int(config.MAIN_RESPONSE_BRIEF_NUM_PREDICT), "brief"
-        if any(marker in text for marker in detailed_markers):
+        if says_any(detailed_markers):
             return int(config.MAIN_RESPONSE_DETAILED_NUM_PREDICT), "detailed"
-        if any(marker in text for marker in careful_markers) or len(text.split()) > 32:
+        if says_any(careful_markers) or len(text.split()) > 32:
             return int(config.MAIN_RESPONSE_CAREFUL_NUM_PREDICT), "careful"
         return int(config.MAIN_RESPONSE_DEFAULT_NUM_PREDICT), "default"
 

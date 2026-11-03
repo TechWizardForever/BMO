@@ -18,7 +18,8 @@ _WEATHER_QUESTION = re.compile(
     r"|\b(?:how (?:hot|cold|warm)|what(?:'s| is) the temperature)\b.*\b(outside|out there)\b"
     r"|^\W*(?:(?:the|what(?:'s| is) the|today's|tomorrow's) )?(?:weather|forecast|radar|weather report|weather station)\W*$"
     r"|\bhow(?:'s| is) the weather\b|\bweather (?:report|forecast|update)\b"
-    r"|\b(?:what(?:'s| is)|how(?:'s| is)) the weather (?:in|for|at) [a-z]"
+    r"|\b(?:what(?:'s| is)|how(?:'s| is)) the (?:weather|forecast) (?:in|for|at) [a-z]"
+    r"|^\W*(?:the )?(?:weather|forecast) (?:in|for|at) [a-z]"
     r"|\bwhat(?:'s| is) it like (?:outside|out there)\b"
     r"|\bis it (?:cold|hot|warm|chilly|raining|snowing|sunny|windy|foggy) (?:outside|out)\b"
     # The long-term forecast and the screens (owner 2026-11-02).
@@ -54,8 +55,8 @@ _FABRICATED_LIVE_DATA = re.compile(
     r"|\bgps (?:signal|data|reading|says|shows)\b"
     r"|\bwristband\b"
     r"|\b(?:my|the) (?:sensors?|cameras?) (?:show|shows|say|says|read|reads|detect|detects|see)\b"
-    r"|\bcurrently\s+-?\d{1,3}\s*(?:°|degrees)"
-    r"|\b-?\d{1,3}\s*°\s*[FC]\b,?\s+(?:and\s+)?(?:sunny|cloudy|partly|clear|overcast|rain|raining|snow|windy|light breeze)",
+    r"|\bcurrently\s+-?\d{1,3}\s*(?:°|degrees\b)"
+    r"|\b-?\d{1,3}\s*°\s*[FC]\b,?\s+(?:and\s+)?(?:sunny|cloudy|partly|clear|overcast|rain|raining|snow|windy|light breeze)\b",
     re.IGNORECASE,
 )
 
@@ -86,7 +87,7 @@ _MODEL_SWITCH_CLAIM = re.compile(
 # 68°F." and "Got it. Weather set for Salem" with no tool behind them.
 _WEATHER_WORDS = re.compile(r"\b(?:weather|sunny|cloudy|overcast|fog|foggy|rain|rainy|raining|snow|snowing|"
                             r"forecast|breeze|breezy|windy|humid|drizzle|showers|storms?)\b", re.IGNORECASE)
-_TEMPERATURE = re.compile(r"-?\d{1,3}\s*(?:°\s*[FC]?|degrees)|\b(?:high|low)s? (?:of|around|near) -?\d{1,3}\b", re.IGNORECASE)
+_TEMPERATURE = re.compile(r"-?\d{1,3}\s*(?:°\s*[FC]?|degrees\b)|\b(?:high|low)s? (?:of|around|near) -?\d{1,3}\b", re.IGNORECASE)
 _SETTING_CLAIM = re.compile(r"\b(?:weather|location|zip)\b[^.!?]{0,50}\b(?:is |are |has been |been )?"
                             r"(?:set|saved|updated|confirmed)\b|\b(?:set|saved|updated) (?:the |your |my )?weather\b",
                             re.IGNORECASE)

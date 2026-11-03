@@ -208,7 +208,7 @@ def parse(request: str, now: datetime | None = None) -> dict | None:
                 tomorrow = "tomorrow" in ((match.group("pre") or ""), (match.group("post") or ""))
                 clock = match.group("clock")
                 if "tonight" in ((match.group("pre") or ""), (match.group("post") or "")) and not re.search(
-                        r"am|pm|a m|p m|morning|afternoon|evening|night", clock):
+                        r"\b(?:am|pm|a m|p m|morning|afternoon|evening|night|tonight|midnight)\b", clock):
                     clock += " pm"
                 when = clock_time(clock, now, tomorrow=tomorrow)
                 if when:

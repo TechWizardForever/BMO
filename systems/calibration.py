@@ -12,7 +12,7 @@ EDGES = ("left", "right", "top", "bottom")
 _EDGE_WORDS = {"left": "left", "right": "right", "top": "top", "bottom": "bottom", "upper": "top", "lower": "bottom"}
 
 START = re.compile(
-    r"\b(?:calibrat\w*|fit|adjust|fix|centre|center|line up)\b.*\b(?:screen|display|picture|tv|monitor|crt)\b"
+    r"\b(?:calibrat(?:e|es|ed|ing|ion)|fit|adjust|fix|centre|center|line up)\b.*\b(?:screen|display|picture|tv|monitor|crt)\b"
     r"|\b(?:screen|display|picture|tv|monitor|crt)\b.*\b(?:calibration|is cut off|are cut off|gets cut off|cut off)\b"
     r"|^(?:the\s+)?(?:left|right|top|bottom|sides?|edges?)\b.*\bcut off\b", re.I)
 

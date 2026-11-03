@@ -171,7 +171,7 @@ def parse_setting(text: str) -> dict | None:
     if re.search(rf"\b{panel_word}\b", t):
         if re.search(r"\b(?:hide|auto ?hide|autohide|get rid of|tuck away)\b", t):
             return {"kind": "panel", "value": True}
-        if re.search(r"\b(?:show|unhide|bring back|keep)\b", t) or re.search(r"\b(?:stop|don t|dont) (?:auto ?)?hid", t):
+        if re.search(r"\b(?:show|unhide|bring back|keep)\b", t) or re.search(r"\b(?:stop|don t|dont) (?:auto ?)?hid(?:e|es|ing|den)\b", t):
             return {"kind": "panel", "value": False}
     return None
 

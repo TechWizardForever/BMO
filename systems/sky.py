@@ -462,7 +462,7 @@ _MOON = re.compile(r"\b(?:moon phase|phase of the moon|what phase is the moon|ho
                    r"(?:is|whats|what is) (?:it |there |the moon )?(?:a )?(?:full|new) moon|when(?: is)?(?: the)?(?: next)? (?:full|new) moon|"
                    r"what does the moon look like|when does the moon|"
                    rf"(?:^|when(?: is| does)?(?: the)?(?: next)? |what time is(?: the)? |what(?:s| is) the |show(?: me)?(?: the)? )(?:moonrise|moonset){_RIGHT_NOW}$|"
-                   r"^(?:the )?moon(?: tonight)?$|what(?:s| is) the moon (?:doing|look)|how(?:s| is) the moon(?: look\w*| doing| tonight)?$|"
+                   r"^(?:the )?moon(?: tonight)?$|what(?:s| is) the moon (?:doing|look(?:s|ing)?)|how(?:s| is) the moon(?: look(?:s|ing)?| doing| tonight)?$|"
                    rf"is the moon (?:full|new|out|up)|where(?: is)? the moon{_RIGHT_NOW}$|next (?:full|new) moon)\b")
 _STATION = r"\b(?:space station|the iss|iss|i s s)\b"
 _ISS = re.compile(rf"\b(?:when|where|show|track|next|see|find|pull up|bring up|spot|what time)\b.*{_STATION}|"
@@ -479,7 +479,7 @@ _EVENTS = re.compile(
     rf"(?:is there|are there|will there be)(?: going to be)?(?: an?| any| some)?(?: \w+)? {_BIG_EVENT}\b|"
     rf"(?:can|could|will|might) (?:i|we) see(?: the| an?| any)? {_BIG_EVENT}\b|"
     rf"(?:is|are) (?:the )?{_BIG_EVENT} (?:out|visible|up|tonight|happening)\b|chance of(?: the| an?| any)? {_BIG_EVENT}\b|"
-    rf"^(?:the |an? )?{_BIG_EVENT}(?: tonight| this (?:week|month|year))?$)")
+    rf"^(?:the |an? )?{_BIG_EVENT}(?: tonight| this (?:week|month|year))?$)\b")
 _ALERTS_ON = re.compile(
     rf"\b(?:turn on|enable|start|switch on|i want|give me)\b.*\b{_WATCHED} {_NOTICES}\b|"
     rf"\b(?:turn on|enable|start|switch on)\b.*\b{_NOTICES} (?:for|about|on) (?:the )?{_WATCHED}\b|"

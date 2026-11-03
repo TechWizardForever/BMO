@@ -23,8 +23,9 @@ CONTEXT_CHARS = 1500
 
 _REMEMBER = re.compile(r"^(?:(?:please|can you|could you|hey|ok|okay|and) )*(?:remember|keep in mind|note)"
                        r"(?: that)? (?P<note>.+)$", re.I)
-_NOT_A_NOTE = re.compile(r"^(?:for (?:this|the) project|the weather|what|when|where|who|how|why|if|me\b|this\b|"
-                         r"that\b$|it\b$|to remind)", re.I)
+# Whole words: "remember Howard likes tea" and "remember whatever I said" are notes.
+_NOT_A_NOTE = re.compile(r"^(?:(?:for (?:this|the) project|the weather|what|when|where|who|how|why|if|me|this|to remind)\b|"
+                         r"(?:that|it)\b$)", re.I)
 _RECALL = re.compile(r"^(?:(?:please|can you|could you|hey|ok|okay) )*(?:what do you (?:remember|know) about me|"
                      r"what have i (?:told|asked) you to remember|what did i (?:tell|ask) you to remember|"
                      r"read (?:me )?my notes|my notes|what do you remember)$", re.I)

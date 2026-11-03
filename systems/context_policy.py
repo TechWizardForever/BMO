@@ -26,7 +26,7 @@ GUI_TASK = re.compile(r"\b(?:click|press|menu|tab|button|check ?box|toggle|turn 
                       r"(?:in|on) (?:the )?(?:thunar|text editor|calculator|volume control|settings))\b", re.I)
 # A part to make or change (make_cad_model). Live 2026-10-20: "make a 20mm cube with a 5mm hole through the
 # middle" got only the math tools, so Engineering had no way to make the STL.
-MAKE_3D = re.compile(r"\b(?:3d|stl|scad|openscad|printable|3d.print\w*|cube|block|box|bracket|cylinder|sphere|"
+MAKE_3D = re.compile(r"\b(?:3d|stl|scad|openscad|printable|3d.print(?:s|ed|er|ers|ing|able)?|cube|block|box|bracket|cylinder|sphere|"
                      r"spacer|washer|enclosure|plate|hook|knob|holder|stand|mount|hole|lid|container|cup|bin|tray|"
                      r"divider|standoff|clip|clamp|sign|name ?tag|tag)\b", re.I)
 IMAGE = re.compile(r"\b(image|photo|picture|screenshot|diagram|drawing|schematic|visual|see|look at)\b", re.I)
@@ -176,8 +176,8 @@ def compact_history(messages: list[dict], *, max_messages: int = 32, char_budget
 
 # A model's own explanation is never evidence for routing. Only the original
 # user request and actual selected assets can authorize a model switch.
-_HARDWARE_TASK = re.compile(r"\b(diagnos(?:e|is|tic)|benchmark|check|test|inspect|measure|troubleshoot)\b.*\b(cpu|gpu|ram|sensor|hardware|computer|pc|temperature|throttl\w*)\b", re.I)
-_DESIGN_TASK = re.compile(r"\b(design|build|calculate|compute|size|dimension|solve|analy[sz]e|debug|troubleshoot|optimi[sz]e|simulate|derive|verify|inspect|measure|model|evaluate|diagnos\w*)\b", re.I)
+_HARDWARE_TASK = re.compile(r"\b(diagnos(?:e|is|tic)|benchmark|check|test|inspect|measure|troubleshoot)\b.*\b(cpu|gpu|ram|sensor|hardware|computer|pc|temperature|throttl(?:e|es|ed|ing))\b", re.I)
+_DESIGN_TASK = re.compile(r"\b(design|build|calculate|compute|size|dimension|solve|analy[sz]e|debug|troubleshoot|optimi[sz]e|simulate|derive|verify|inspect|measure|model|evaluate|diagnos(?:e|es|ed|ing|is|tic|tics))\b", re.I)
 _ENGINEERING_DOMAIN = re.compile(r"\b(electrical|mechanical|thermal|structural|torque|bearing|shaft|gear|sprocket|transmission|jackshaft|converter|motor|battery|solar|inverter|circuit|voltage|amperage|watts?|rpm|temperature|stress|beam|cad|stl|step file|engineering|physics|fluid|load|pressure|current)\b", re.I)
 _CODING_TASK = re.compile(r"\b(write|create|modify|implement|refactor|fix|debug|review|test|patch|optimi[sz]e|develop|build|edit)\b.*\b(code|python|script|program|function|repository|software|module|source|bug|app|tests?)\b", re.I)
 _CODING_TASK_BACK = re.compile(r"\b(code|python|script|program|function|repository|software|module|source|bug|app)\b.*\b(write|modify|implement|refactor|fix|debug|review|test|patch|optimi[sz]e|develop|build|edit)\b", re.I)

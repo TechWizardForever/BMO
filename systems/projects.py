@@ -50,6 +50,11 @@ def _atomic_write_json(path: Path, value: dict) -> None:
     _atomic_write_text(path, json.dumps(value, indent=2, sort_keys=True) + "\n")
 
 
+def _has_words(part: str, whole: str) -> bool:
+    """`part` as whole words of `whole`: a project called Art isn't in "start the timer"."""
+    return bool(re.search(rf"(?<![a-z0-9]){re.escape(part)}(?![a-z0-9])", whole))
+
+
 def _slugify(value: str) -> str:
     value = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower()).strip("-")
     return value[:64] or "project"
@@ -514,9 +519,9 @@ class ProjectManager:
             name = str(item["name"]).lower()
             slug = str(item["slug"]).lower()
             score = 0.0
-            if name and name in query:
+            if name and _has_words(name, query):
                 score += 6.0
-            if slug and slug in query.replace(" ", "-"):
+            if slug and _has_words(slug, query.replace(" ", "-")):
                 score += 5.0
             d_tokens = set(re.findall(r"[a-z0-9][a-z0-9_-]{2,}", (name + " " + item["description"]).lower()))
             overlap = q_tokens & d_tokens
@@ -1318,7 +1323,7 @@ class ProjectManager:
             slugs = {_slugify(item.get("name", "")), _slugify(item.get("source_name", ""))}
             if wanted in labels or wanted_slug in slugs:
                 exact.append(item)
-            elif any(wanted and (wanted in label or label in wanted) for label in labels):
+            elif any(wanted and label and (_has_words(wanted, label) or _has_words(label, wanted)) for label in labels):
                 partial.append(item)
         matches = exact or partial
         return (matches[0], matches) if len(matches) == 1 else (None, matches)
