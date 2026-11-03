@@ -3516,6 +3516,7 @@ class Chat:
             "what s the current project", "whats the current project", "what is the current project",
             "what project is open", "which project is open", "what project are we in", "which project are we in",
             "what project am i in", "which project am i in", "what project are we working on",
+            "what am i working on", "what are we working on",
         }:
             metadata = self.project_manager.active_metadata()
             response = (

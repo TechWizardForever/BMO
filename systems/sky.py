@@ -440,19 +440,31 @@ _PLANET = r"(?:mercury|venus|mars|jupiter|saturn)"
 _BIG_EVENT = r"(?:eclipses?|meteor showers?|meteors|shooting stars?|falling stars?|aurora|northern lights)"
 _WATCHED = r"(?:space|sky|iss|space station|astronomy)"
 _NOTICES = r"(?:alerts?|notifications?|warnings?)"
+_RIGHT_NOW = r"(?: tonight| today| tomorrow| right now| now)?"
+# The sky is checked before most of BMO's commands, so it lets go of anything that's about something else: "play Moonrise
+# Kingdom", "show me a movie about the northern lights", and closing what's on the screen.
+_OTHER_TOPIC = re.compile(r"\b(?:play|playing|watch(?! for)|watching|put on|movies?|films?|videos?|tv shows?|shows|episodes?|"
+                          r"songs?|games?|scenes?|actors?|documentar(?:y|ies)|books?|pictures?|photos?|landing)\b")
+_CLOSING = re.compile(r"\b(?:close|clothes|hide|exit|quit|dismiss|get rid of|take away|turn off|shut off|put away) "
+                      r"(?:the |this |that |my )?(?:\w+ ){0,2}(?:sky|moon|moon phase|planets?|stars?|space station|iss|"
+                      r"eclipses?|meteor showers?|aurora|northern lights|events?)\b")
 _TONIGHT = re.compile(
     r"\b(?:what(?:s| is)(?: up| out| visible)? in the (?:night )?sky|show(?: me)? the (?:night )?sky|night sky|sky tonight|"
-    r"what can (?:i|we) see (?:in the sky|tonight|up there)|what planets|which planets|planets? (?:tonight|out|up|visible)|"
+    r"what can (?:i|we) see (?:in the sky|tonight|up there)|"
+    r"(?:what|which) (?:planets|stars)(?: (?:can|could) (?:i|we) see| are (?:out|up|visible|in the sky))|^(?:what|which) planets$|"
+    r"planets? (?:tonight|out|up|visible)|stars (?:tonight|out|visible)|"
     r"anything (?:cool |good |interesting )?(?:in the sky|to see tonight)|stargazing|"
-    r"what(?:s| is) (?:up there|overhead|visible)|what(?:s| is) out tonight|what stars|which stars|stars (?:tonight|out|visible)|"
-    rf"(?:where(?: is)?|where can (?:i|we) (?:see|find)|can (?:i|we) see|could (?:i|we) see) (?:the planet )?{_PLANET}|"
+    rf"what(?:s| is) (?:up there|overhead|visible){_RIGHT_NOW}$|"
+    rf"(?:where(?: is)?|where can (?:i|we) (?:see|find)|can (?:i|we) see|could (?:i|we) see) (?:the planet )?{_PLANET}(?: in the sky)?{_RIGHT_NOW}$|"
     rf"is {_PLANET} (?:out|up|visible))\b")
-_MOON = re.compile(r"\b(?:moon phase|phase of the moon|what phase is the moon|show(?: me)? the moon|how full is the moon|"
+_MOON = re.compile(r"\b(?:moon phase|phase of the moon|what phase is the moon|how full is the moon|"
+                   rf"show(?: me)? the moon{_RIGHT_NOW}$|"
                    r"(?:is|whats|what is) (?:it |there |the moon )?(?:a )?(?:full|new) moon|when(?: is)?(?: the)?(?: next)? (?:full|new) moon|"
-                   r"what does the moon look like|moonrise|moonset|when does the moon|"
+                   r"what does the moon look like|when does the moon|"
+                   rf"(?:^|when(?: is| does)?(?: the)?(?: next)? |what time is(?: the)? |what(?:s| is) the |show(?: me)?(?: the)? )(?:moonrise|moonset){_RIGHT_NOW}$|"
                    r"^(?:the )?moon(?: tonight)?$|what(?:s| is) the moon (?:doing|look)|how(?:s| is) the moon(?: look\w*| doing| tonight)?$|"
-                   r"is the moon (?:full|new|out|up)|where(?: is)? the moon|next (?:full|new) moon)\b")
-_STATION = r"(?:space station|the iss\b|iss\b|i s s\b)"
+                   rf"is the moon (?:full|new|out|up)|where(?: is)? the moon{_RIGHT_NOW}$|next (?:full|new) moon)\b")
+_STATION = r"\b(?:space station|the iss|iss|i s s)\b"
 _ISS = re.compile(rf"\b(?:when|where|show|track|next|see|find|pull up|bring up|spot|what time)\b.*{_STATION}|"
                   rf"{_STATION}.*\b(?:pass|passes|passing|overhead|tonight|fly|flying|going over|go over|visible|above)\b|"
                   rf"^(?:the )?(?:international )?{_STATION}$|^(?:is|will|can)\b.*{_STATION}.*\b(?:up|out|coming)\b")
@@ -461,7 +473,8 @@ _EVENTS = re.compile(
     r"(?:whats|what is) (?:happening|going on) in (?:the sky|space)|"
     r"anything (?:cool |big |good )?(?:happening|going on|coming up) in (?:the sky|space)|space weather|"
     r"(?:cool|big) (?:things|stuff) in the sky|"
-    rf"(?:when|next|any|show|coming up|upcoming).*\b{_BIG_EVENT}\b|"
+    rf"when\b.*\b{_BIG_EVENT}\b|next(?: \w+)? {_BIG_EVENT}\b|any(?: \w+){{0,2}} {_BIG_EVENT}\b|"
+    rf"show(?: me)?(?: the| an?| any| all)?(?: next| upcoming)? {_BIG_EVENT}\b|(?:coming up|upcoming)(?: \w+)? {_BIG_EVENT}\b|"
     rf"\b(?:eclipses?|meteor showers?)\b.*\b(?:coming|this (?:year|month)|next)\b|"
     rf"(?:is there|are there|will there be)(?: going to be)?(?: an?| any| some)?(?: \w+)? {_BIG_EVENT}\b|"
     rf"(?:can|could|will|might) (?:i|we) see(?: the| an?| any)? {_BIG_EVENT}\b|"
@@ -471,7 +484,9 @@ _ALERTS_ON = re.compile(
     rf"\b(?:turn on|enable|start|switch on|i want|give me)\b.*\b{_WATCHED} {_NOTICES}\b|"
     rf"\b(?:turn on|enable|start|switch on)\b.*\b{_NOTICES} (?:for|about|on) (?:the )?{_WATCHED}\b|"
     rf"\b(?:turn|switch) (?:the |my )?{_WATCHED} {_NOTICES} on\b|^(?:the )?{_WATCHED} {_NOTICES} on$|"
-    r"\b(?:tell|alert|warn|let|notify) (?:me|us)\b.*\b(?:when|if)\b.*\b(?:space station|iss|sky)\b")
+    # "Tell me when the next pass is" is a question; "tell me if the sky is clear" isn't about alerts at all.
+    r"\b(?:tell|alert|warn|let|notify) (?:me|us)\b(?!.*\bnext\b).*\b(?:when|if)\b.*\b(?:space station|iss)\b|"
+    r"\b(?:tell|alert|warn|let|notify) (?:me|us)\b.*\b(?:when|if)\b.*\b(?:somethings?|anythings?)\b.*\b(?:sky|space)\b")
 _ALERTS_OFF = re.compile(
     rf"\b(?:turn off|shut off|disable|stop|switch off|no more|quiet|mute|silence|cancel|kill)\b.*\b{_WATCHED} {_NOTICES}\b|"
     rf"\b(?:turn|shut|switch) (?:the |my )?{_WATCHED} {_NOTICES} off\b|^(?:the )?{_WATCHED} {_NOTICES} off$|"
@@ -483,10 +498,14 @@ def request(text: str) -> str | None:
     said = re.sub(r"[^\w\s]", "", put_right(text).lower())
     said = re.sub(r"\s+", " ", said).strip()
     said = re.sub(r"\b(when|where)s\b", r"\1", said)  # "where's" without its apostrophe
+    if _OTHER_TOPIC.search(said):
+        return None
     if _ALERTS_OFF.search(said):
         return "alerts off"
     if _ALERTS_ON.search(said):
         return "alerts on"
+    if _CLOSING.search(said):
+        return None
     if _MOON.search(said):
         return "moon"
     if _ISS.search(said):

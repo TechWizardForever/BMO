@@ -300,7 +300,6 @@ _OPEN = re.compile(
     r"what (?:can|could|should) (?:i|we) (?P<verb>watch|play)|whats there to (?P<verb2>watch|play)|"
     r"what is there to (?P<verb3>watch|play)|(?:my|our) (?P<mine>movies|games|shows|movie list|game list|projects|"
     r"project list|project folders?)|(?:the )?(?P<bare>projects|project list|project folders?)|"
-    r"what (?:am i|are we) (?P<working>working on)|"
     # One "project" only after "my": "show me the project" is the open one.
     r"(?:show|bring up|pull up|see|let me see|display)(?: me)? (?:my|all my|all of my) (?P<one>project))$")
 _NUMBER_WORDS = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
@@ -326,7 +325,7 @@ def open_request(text: str) -> str | None:
         return None
     if found.group("verb") or found.group("verb2") or found.group("verb3"):
         return "games" if "play" in (found.group("verb"), found.group("verb2"), found.group("verb3")) else "movies"
-    if found.group("working") or found.group("one"):
+    if found.group("one"):
         return "projects"
     what = (found.group("what") or found.group("what2") or found.group("opened") or found.group("asked")
             or found.group("mine") or found.group("bare"))
@@ -371,11 +370,15 @@ _TOP = re.compile(r"^(?:go |scroll |jump |back |take me )?(?:to )?the (?:top|sta
                   r"(?: of the list)?$|^top$|^back to the top$|^first page$|^start of the list$")
 _BOTTOM = re.compile(r"^(?:go |scroll |jump |take me )?(?:to )?the (?:bottom|end|last page)(?: of the list)?$|"
                      r"^(?:bottom|last page|end of the list)$")
+_ON_SCREEN = (r"weather|forecast|weather station|weather radar|rain radar|radar map|weather map|rain map|radar|doppler|map|"
+              r"night sky|sky|moon phase|moon|space station|station|events|planets|stars")
 _CLOSE = re.compile(
-    r"^(?:close|hide|exit|quit|leave|dismiss|put away|get rid of|take away|shut|shut off|turn off)(?: (?:it|this|that|the|my))?"
+    r"^(?:close|hide|exit|quit|leave|dismiss|put away)(?: (?:it|this|that|the|my))?"
     r"(?: (?:list|library|movies|games|shows|movie library|game library|movie list|game list|projects|project list|"
-    r"project folders|screen|menu|thing|window|weather|forecast|weather station|radar|map|sky|moon|space station|station|"
-    r"events|planets|stars))?(?: away| off)?$|^(?:thats )?enough$|^(?:take|turn|shut) (?:it|this|that) (?:away|off)$|"
+    r"project folders|screen|menu|thing|window|" + _ON_SCREEN + r"))?(?: away)?$|"
+    # These also mean other things ("turn off the screen", "turn off the sound"), so they name what's showing.
+    r"^(?:get rid of|take away|shut off|turn off)(?: (?:it|this|that)| (?:the |my )?(?:" + _ON_SCREEN + r"))$|"
+    r"^(?:take|turn|shut) (?:it|this|that) (?:away|off)$|^(?:thats )?enough$|"
     r"^(?:im |i am |were |we are |all )?done$|^never ?mind$|^forget it$|^(?:thats|that is) (?:all|it)$|"
     r"^no thanks?(?: you)?$|^nothing$|^none(?: of (?:them|these|those))?$|^not (?:now|right now)$|^go away$|"
     r"^put it away$|^(?:go )?back to (?:your|the|bmos?|my) face$|^show (?:your|me your) face$")
@@ -389,7 +392,8 @@ _PLAY_NUMBER = re.compile(
 def command(text: str) -> tuple[str, int] | None:
     """For an open library: ('down', 0), ('up', 0), ('top', 0), ('bottom', 0), ('close', 0) or ('play', n)."""
     from systems.media_phrases import first
-    return first(text, _command)
+    from systems.sound_alikes import put_right
+    return first(put_right(text), _command)
 
 
 def _command(said: str) -> tuple[str, int] | None:

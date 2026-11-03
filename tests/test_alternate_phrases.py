@@ -144,7 +144,7 @@ class ProjectPhrases(unittest.TestCase):
         for said in ("Hey BMO, show me my projects", "show my projects", "my projects", "show me my project", "my project list",
                      "show me the project list", "list my projects", "the project list", "Projects.", "show projects",
                      "show all my projects", "show me all of my projects", "show me my project folders", "my project folders",
-                     "show me the project folders", "what projects do I have", "what am I working on", "bring up my projects",
+                     "show me the project folders", "what projects do I have", "bring up my projects",
                      "pull up my projects", "show me my prospects", "show me my products", "show me my objects"):
             self.assertEqual(library.open_request(said), "projects", said)
 
@@ -182,8 +182,68 @@ class NotTheseCommands(unittest.TestCase):
                      "what is the doppler effect", "explain the doppler effect", "what's the temperature of the CPU",
                      "what's the temperature in the log", "what's the week of the year", "show me the storm drain plans",
                      "what's a long time", "open Outlook", "show me the outlook", "where is the rainbow",
-                     "where's the storm door", "what's moving in the picture", "show me my jacket photos"):
+                     "where's the storm door", "what's moving in the picture", "show me my jacket photos",
+                     "show me the weather man", "show me the weather channel"):
             self.assertIsNone(live_data_topic(said), said)
+
+    def test_closing_a_weather_screen_never_opens_one(self):
+        for said in ("close the weather radar", "close the rain radar", "close the weather station", "close the forecast",
+                     "close the weather map", "can you close the radar", "hide the weather", "turn off the weather station",
+                     "get rid of the radar", "Clothes the weather radar."):
+            self.assertIsNone(live_data_topic(said), said)
+            self.assertEqual(library.command(said) or library.command(said.replace("can you ", "")), ("close", 0), said)
+
+    def test_closing_a_sky_screen_never_opens_one(self):
+        for said in ("close the night sky", "close the sky", "close the moon", "close the moon phase", "hide the moon",
+                     "close the space station", "turn off the moon", "get rid of the night sky"):
+            self.assertIsNone(sky.request(said), said)
+            self.assertEqual(library.command(said), ("close", 0), said)
+
+    def test_a_name_with_iss_inside_it_is_not_the_space_station(self):
+        for said in ("show me Miss Congeniality", "find Miss Marple", "show me the Swiss Family Robinson", "when did I miss the call",
+                     "where's my Swiss army knife", "next time I miss it", "see the kiss scene"):
+            self.assertIsNone(sky.request(said), said)
+
+    def test_a_title_or_a_movie_is_not_the_sky(self):
+        for said in ("play Moonrise Kingdom", "watch Night Sky", "play Space Station 76", "put on Northern Lights", "play Eclipse",
+                     "show me Twilight Eclipse", "when's New Moon playing", "show me a movie about the northern lights",
+                     "any movies about eclipses", "is there an eclipse movie", "can I see the eclipse movie",
+                     "is there a meteor shower movie", "show me the moon river video", "where's the moon landing movie",
+                     "show me a photo of the space station", "where is mars in the movie"):
+            self.assertIsNone(sky.request(said), said)
+
+    def test_other_questions_with_sky_words_are_not_the_sky(self):
+        for said in ("what stars are in Inception", "which stars are in that movie", "what planets are in Star Wars",
+                     "what planets are in the solar system", "what is up there on the shelf", "what is visible on the screen",
+                     "what is overhead in this budget", "how many moons does saturn have", "tell me when the sky gets dark",
+                     "tell me if the sky is clear", "let me know if the sky looks clear"):
+            self.assertIsNone(sky.request(said), said)
+
+    def test_one_question_about_the_next_pass_turns_nothing_on(self):
+        self.assertEqual(sky.request("tell me when the next space station pass is"), "iss")
+        self.assertEqual(sky.request("watch for the space station"), None)  # no verb he knows: not a screen, not alerts
+
+    def test_no_phrase_belongs_to_two_commands(self):
+        """Every phrase in this file's lists, against the other commands' matchers."""
+        import ast
+        tree = ast.parse(Path(__file__).read_text())
+        for group in tree.body:
+            if not isinstance(group, ast.ClassDef) or group.name not in ("WeatherPhrases", "RadarPhrases", "SkyPhrases", "ProjectPhrases"):
+                continue
+            for method in group.body:
+                if not (isinstance(method, ast.FunctionDef) and method.name in (
+                        "test_heard_live", "test_ways_to_ask", "test_what_whisper_may_write", "test_tonight", "test_moon",
+                        "test_space_station", "test_events", "test_alerts_on", "test_alerts_off")):
+                    continue
+                for node in ast.walk(method):
+                    if not (isinstance(node, ast.Constant) and isinstance(node.value, str)) or node.value in (
+                            "weather", "tonight", "moon", "iss", "events", "alerts on", "alerts off", "projects"):
+                        continue
+                    said = node.value
+                    claims = [name for name, claimed in (("sky", sky.request(said)), ("weather", live_data_topic(said) == "weather"),
+                                                         ("project list", library.open_request(said) == "projects"),
+                                                         ("screen", (library.command(said) or ("play",))[0] != "play")) if claimed]
+                    self.assertEqual(len(claims), 1, f"{said!r} is claimed by {claims}")
 
     def test_not_the_sky(self):
         for said in ("what is an eclipse", "how do eclipses work", "why do meteor showers happen", "what causes the northern lights",
@@ -200,12 +260,14 @@ class NotTheseCommands(unittest.TestCase):
 
     def test_not_the_project_list(self):
         for said in ("show me my homework", "what am I watching", "show me the products page", "what projects cost",
-                     "open my project garden", "working on it", "what are you working on"):
+                     "open my project garden", "working on it", "what are you working on", "what am I working on",
+                     "what project are we working on", "show me the project", "show my project files"):
             self.assertIsNone(library.open_request(said), said)
 
     def test_not_closing_or_scrolling_the_screen(self):
         for said in ("close the game", "close the movie", "turn off the sound", "turn off the lights", "shut the door",
-                     "school starts monday", "scrolls of wisdom", "get rid of the bug", "that's enough for today"):
+                     "school starts monday", "scrolls of wisdom", "get rid of the bug", "that's enough for today",
+                     "turn off", "shut", "shut off", "turn off the screen", "shut the screen", "turn off the window"):
             self.assertNotIn((library.command(said) or ("", 0))[0], ("close", "down", "up"), said)
 
 

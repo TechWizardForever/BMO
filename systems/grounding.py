@@ -26,7 +26,7 @@ _WEATHER_QUESTION = re.compile(
     r"\w+[- ]days?)\b"
     r"|\b(?:long[- ]?(?:term|range)|extended|weekly|\w+[- ]day|week(?:end)?(?:'s)?|tomorrow(?:'s)?|today(?:'s)?)\s+(?:weather|forecast)\b"
     r"|\b(?:show|bring up|pull up|see|display|give me|open|tell me|check|get|read|look at)(?: me)?(?: (?:the|my|our|a|todays?|today's))*\s*"
-    r"(?:weather|forecast|radar|rain radar|weather radar|weather station|weather map|radar map)\b(?! app\b)"
+    r"(?:weather|forecast|radar|rain radar|weather radar|weather station|weather map|radar map)\b(?! (?:app|man|channel)\b)"
     r"|\bweather (?:radar|station|map)s?\b|\brain radar\b|\bradar map\b"
     # Other ways to ask (owner 2026-11-03: every command gets alternates).
     r"|\b(?:how(?:'s| is)|what(?:'s| is)|what does)\s+(?:the |this |next )?(?:coming )?week(?:end)?\s+(?:looking|look)\b"
@@ -38,6 +38,9 @@ _WEATHER_QUESTION = re.compile(
     r"|\b(?:do|should|will) (?:i|we) (?:need|bring|take|grab|want) (?:an? )?(?:umbrella|jacket|coat|raincoat)\b",
     re.IGNORECASE,
 )
+# "Close the weather radar" closes the screen; it never opens one.
+_CLOSING_WEATHER = re.compile(r"\b(?:close|clothes|cloze|hide|exit|quit|dismiss|get rid of|take away|turn off|shut off|put away) "
+                              r"(?:the |this |that |my )?(?:\w+ )?(?:weather|forecast|radar|map)\b", re.IGNORECASE)
 _LOCATION_QUESTION = re.compile(
     r"\bwhere am i\b|\bwhere are we\b|\bmy (?:current )?location\b|\bmy gps\b|\bwhat (?:city|town) am i in\b",
     re.IGNORECASE,
@@ -164,7 +167,8 @@ def live_data_topic(user_text: str) -> str | None:
     for topic, pattern in _CLOCK_QUESTIONS:
         if pattern.search(text):
             return topic
-    if _WEATHER_QUESTION.search(put_right(text)):
+    said = put_right(text)
+    if _WEATHER_QUESTION.search(said) and not _CLOSING_WEATHER.search(said):
         return "weather"
     if _LOCATION_QUESTION.search(text):
         return "location"

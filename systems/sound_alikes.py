@@ -25,6 +25,7 @@ _TABLE = tuple((re.compile(heard, re.IGNORECASE), meant) for heard, meant in (
     (r"\b(weather|extended|long term|long range|two[- ]week|2[- ]week|weekly|week'?s|\w+[- ]day) outlook\b", r"\1 forecast"),
     # The radar
     (rf"\b({_SHOW}) {_FAKE_RADAR}(?=\W*$)", r"\1 radar"),
+    (rf"\b((?:close|clothes|hide)(?: the)?) {_FAKE_RADAR}(?=\W*$)", r"\1 radar"),
     (rf"\b(weather|rain|storm) {_FAKE_RADAR}\b", r"\1 radar"),
     (r"^\W*(?:the )?(?:raider|radder|rader)\W*$", "radar"),
     (r"\bdoppler(?: radar)?(?=\W*$)", "radar"),
