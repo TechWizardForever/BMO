@@ -219,6 +219,16 @@ class WatcherTests(unittest.TestCase):
         self.assertEqual(self.said, [])
         self.assertFalse(watcher.enabled)
 
+    def test_the_northern_lights_keep_to_the_hours_he_promised(self):
+        watcher = self.watcher(ORBIT_DAY)
+        place = Place("Kansas City", "Missouri", "United States", 39.1, -94.58, "America/Chicago")
+        with mock.patch.object(sky, "fetch_aurora", return_value=7.3) as asked:
+            night = watcher.build_plan(place, datetime(2026, 11, 4, 9, 0, tzinfo=UTC))  # 3 AM there
+            self.assertNotIn("aurora", [alert["kind"] for alert in night])
+            asked.assert_not_called()
+            day = watcher.build_plan(place, datetime(2026, 11, 4, 18, 0, tzinfo=UTC))  # noon there
+            self.assertIn("aurora", [alert["kind"] for alert in day])
+
     def test_says_it_once(self):
         watcher = self.watcher(ORBIT_DAY)
         watcher.set_enabled(True)
@@ -549,6 +559,10 @@ class ChatTests(unittest.TestCase):
         for said in ("yes", "no", "turn them on", "both", "the next pass", "alerts"):
             self.assertFalse(self.chat._handle_sky_command(said), said)
         self.assertFalse(self.turned_on())
+
+    def test_not_now_leaves_them_off(self):
+        for said in ("not now", "not right now", "Not now."):
+            self.assertEqual(sky.offer_reply(said), "no", said)
 
     def test_whisper_in_silence_doesnt_answer(self):
         for said in ("you", "Thank you.", "thanks", "Bye.", "okay", "I just want to watch a movie", "just tell me a joke", "I want pizza", "know what I mean", "what time is it",

@@ -517,7 +517,7 @@ _OFFER_ANSWER = re.compile(
     rf"(?:no |nope |nah )?(?:i )?(?:just )?(?:(?:wanted|want|wanna)(?: to)? )?know{_ABOUT_IT}|"
     rf"(?:no |nope |nah )?(?:just )?(?:tell me|that|when|the answer|whats coming){_ABOUT_IT}|"
     r"(?:the )?second(?: one)?|when is it|whens it|when is the next (?:one|pass)|what is coming(?: up)?)$")
-_OFFER_NO = re.compile(r"^(?:no|nope|nah|no thanks|no thank you|never mind|nevermind|neither|forget it|cancel|not now|leave them off|leave it off|none)$")
+_OFFER_NO = re.compile(r"^(?:no|nope|nah|no thanks|no thank you|never mind|nevermind|neither|forget it|cancel|not|not now|not right now|leave them off|leave it off|none)$")
 _ALERTS_OFF = re.compile(
     rf"\b(?:turn off|shut off|disable|stop|switch off|no more|quiet|mute|silence|cancel|kill)\b.*\b{_WATCHED} {_NOTICES}\b|"
     rf"\b(?:turn|shut|switch) (?:the |my )?{_WATCHED} {_NOTICES} off\b|^(?:the )?{_WATCHED} {_NOTICES} off$|"
@@ -778,7 +778,8 @@ class SkyWatcher:
                 evening = start.replace(hour=EVENING_HOUR, minute=0, second=0, microsecond=0)
                 plan.append({"id": key, "at": evening, "kind": event["kind"], "event": event,
                              "text": f"Tonight in the sky: {words}", "check_clouds": evening + timedelta(hours=2)})
-        level = fetch_aurora(place.latitude, now, self.fetch)
+        # It goes out as soon as it's planned, so it has to be planned inside the hours he promised.
+        level = fetch_aurora(place.latitude, now, self.fetch) if self._allowed(now) else None
         if level is not None:
             plan.append({"id": f"aurora-{now:%Y%m%d}", "at": now, "kind": "aurora",
                          "text": (f"There's a strong solar storm forecast, level {level:g}. The northern lights might reach "

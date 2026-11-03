@@ -41,6 +41,19 @@ name and look belong to them.
 |---|---|---|
 | Silkscreen pixel font (`assets/fonts/Silkscreen-Regular.ttf`), on BMO's setup, brain-swap and calibration screens | The Silkscreen Project Authors, via Google Fonts | SIL Open Font License 1.1 (`assets/fonts/Silkscreen-OFL.txt`) |
 
+## Weather and sky information (fetched when asked, or while alerts are on)
+
+| What | Where it comes from | Terms | What it's told |
+|---|---|---|---|
+| Forecasts and looking up towns | Open-Meteo | CC BY 4.0 | Your saved town's coordinates, rounded to about a kilometer, or the name of a town you ask about |
+| Severe weather alerts | US National Weather Service | Public domain | The same rounded coordinates |
+| Rain radar | US National Weather Service, through the Iowa Environmental Mesonet | Public domain | Which map squares to send, each about 150 miles wide |
+| Map under the radar | OpenStreetMap contributors | ODbL; credited on the radar screen | The same map squares |
+| Space station orbit | CelesTrak | Free to use | Nothing about you |
+| Solar storm forecast | NOAA Space Weather Prediction Center | Public domain | Nothing about you |
+
+The moon, planets, space station passes, eclipses and meteor showers are worked out on your own computer.
+
 ## Python packages (exact versions from installer/requirements.lock)
 
 | Package | Version | Licence (from the package's metadata) |

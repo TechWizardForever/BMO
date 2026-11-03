@@ -1,4 +1,4 @@
-"""Dates as they're said and as Whisper writes them (owner 2026-11-03, "the weather for November 8th"): "November 8th",
+"""Dates as they're said and as Whisper writes them (2026-11-03): "November 8th",
 "November eighth", "the 8th of November", "11/8", "on the 8th", "November 8th through the 10th", "in five days", "a week
 from Friday", and a month alone, "in December". Only reads the words: what's too far out is the forecast's business.
 """
