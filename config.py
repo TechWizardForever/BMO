@@ -531,6 +531,11 @@ STT_SAVE_REJECTED_AUDIO = int(os.environ.get("BEMO_STT_SAVE_REJECTED_AUDIO", "0"
 STT_REJECTED_AUDIO_DIR = DATA_ROOT / "runtime" / "stt-rejects"
 # Timers and reminders (systems/reminders.py), kept by the Supervisor; the owner's data, so in backups.
 REMINDERS_PATH = DATA_ROOT / "reminders.json"
+# The sky (systems/sky.py): whether its alerts are on, what's been said, and the space station's orbit. Alerts are said out
+# loud, so they start off and stay inside these hours.
+SKY_STATE_PATH = DATA_ROOT / "sky.json"
+SKY_ORBIT_PATH = DATA_ROOT / "sky-iss-orbit.json"
+SKY_ALERT_HOURS = (8, 23)
 # Give Whisper a tiny spelling hint for Bemo's invented name. This does not
 # bypass the wake gate; it only nudges transcription toward the intended name.
 # Do not seed Whisper with a full sentence about Bemo: on the target mic it

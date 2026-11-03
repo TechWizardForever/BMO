@@ -86,6 +86,18 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | **do you remember the weather earlier?** | The last weather report he gave you, and when. |
 | **forget my weather location** | Removes your town. |
 
+## The sky
+
+| Say | What it does |
+|---|---|
+| **what's in the sky tonight?** | The moon, the planets you can see and where to look, the space station if it passes, the clouds, and the next big event. "What planets can I see?" works too. |
+| **what phase is the moon?** | The moon on BMO's screen, with how much is lit, when it rises and sets, and the next full and new moon. |
+| **when does the space station pass over?** | The passes you can see in the next five days, and a little space station on the screen. "Where is the ISS?" works too. |
+| **any space events coming up?** | Eclipses you can see from here, meteor showers and planets close together, with a little animation for each. Scroll up and down, or close. |
+| **when's the next eclipse / next meteor shower?** | Just those. "Any chance of northern lights?" checks for a solar storm strong enough to reach you. |
+| **turn on space alerts** | BMO says out loud when the space station is about to pass over and when something big is on in the sky, even while he sleeps, between 8 AM and 11 PM. No alert if it's overcast or a movie or game is on. |
+| **turn off space alerts** | No more of those. |
+
 ## Sound
 
 | Say | What it does |

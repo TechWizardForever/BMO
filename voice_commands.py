@@ -255,6 +255,13 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("Weather", "scroll down / scroll up / close", "While a weather window is up, without Hey BMO. A short forecast goes back to his face by itself after a minute, a longer one or the radar after three."),
     VoiceCommand("Weather", "Hey Bemo, do you remember the weather earlier?", "The last weather report he gave you, and when."),
     VoiceCommand("Weather", "Hey Bemo, forget my weather location", "Removes your town."),
+    VoiceCommand("The sky", "Hey Bemo, what's in the sky tonight?", "The moon, the planets you can see and where to look, the space station if it passes, the clouds, and the next big event. \"What planets can I see?\" works too."),
+    VoiceCommand("The sky", "Hey Bemo, what phase is the moon?", "The moon on BMO's screen, with how much is lit, when it rises and sets, and the next full and new moon."),
+    VoiceCommand("The sky", "Hey Bemo, when does the space station pass over?", "The passes you can see in the next five days, and a little space station on the screen. \"Where is the ISS?\" works too."),
+    VoiceCommand("The sky", "Hey Bemo, any space events coming up?", "Eclipses you can see from here, meteor showers and planets close together, with a little animation for each. Scroll up and down, or close."),
+    VoiceCommand("The sky", "Hey Bemo, when's the next eclipse / next meteor shower?", "Just those. \"Any chance of northern lights?\" checks for a solar storm strong enough to reach you."),
+    VoiceCommand("The sky", "Hey Bemo, turn on space alerts", "BMO says out loud when the space station is about to pass over and when something big is on in the sky, even while he sleeps, between 8 AM and 11 PM. No alert if it's overcast or a movie or game is on."),
+    VoiceCommand("The sky", "Hey Bemo, turn off space alerts", "No more of those."),
 
     VoiceCommand("Sound", "Hey Bemo, volume up|down / louder / quieter", "Changes the volume by 10. Add \"a little\" for 5 or \"a lot\" for 20."),
     VoiceCommand("Sound", "Hey Bemo, set the volume to <percent>", "An exact level. A big jump, or going over 85, asks first."),

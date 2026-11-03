@@ -34,6 +34,8 @@ beautifulsoup4>=4.12,<5
 Pillow>=10,<12
 pytesseract>=0.3.10,<1
 pyserial>=3.5,<4
+# The sky: the moon, planets, space station passes and eclipses, worked out on this PC (systems/sky.py).
+ephem==4.2.1
 PyVISA>=1.14,<2
 PyVISA-py>=0.7,<1
 # BMO's own "Hey BMO" detector (v1.28.64). Its tflite-runtime dependency has no Python 3.12 build and

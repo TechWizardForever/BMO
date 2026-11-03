@@ -915,6 +915,9 @@ class SupervisorService:
         if action == "reminders":
             keeper = getattr(self, "reminders", None)
             return keeper.handle(request) if keeper is not None else {"ok": False, "say": "My timers aren't running."}
+        if action == "sky":
+            watcher = getattr(self, "sky", None)
+            return watcher.handle(request) if watcher is not None else {"ok": False}
         if action == "import_files_into_project_from_removable":
             return self.import_files_into_project_from_removable(request.get("project_slug", ""))
         if action == "export_project_items_to_removable":
@@ -1073,6 +1076,13 @@ def _enter_standby(service: SupervisorService) -> None:
         return
     service.standby_unload_at = time.monotonic() + minutes * 60
     LOG.info("Standby: keeping the brain loaded for %.0f minutes", minutes)
+
+
+def _watching_something(service: SupervisorService) -> bool:
+    """A game or movie on: no sky alert talks over it. Movies are BMO's own player, so the Supervisor looks for it."""
+    if {"games", "game-session", "media"} & {key for key, proc in service.apps.items() if proc.poll() is None}:
+        return True
+    return subprocess.run(["pgrep", "-x", "celluloid"], capture_output=True, check=False).returncode == 0
 
 
 def _standby_brain_check(service: SupervisorService, now: float | None = None, free_gb: float | None = None) -> bool:
@@ -1239,6 +1249,19 @@ def run_supervised(command: list[str], *, standby: bool = False) -> int:
         service.reminders.start()
     except Exception:
         LOG.exception("Could not start timers and reminders")
+
+    try:
+        # Sky alerts go off awake or asleep too, once the owner has turned them on (2026-11-03).
+        from systems.sky import SkyWatcher
+        from systems.weather import WeatherService, WeatherSettings
+        service.sky = SkyWatcher(config.SKY_STATE_PATH, config.SKY_ORBIT_PATH,
+                                 WeatherSettings(config.WEATHER_SETTINGS_PATH).load,
+                                 busy=lambda: _watching_something(service),
+                                 forecast=WeatherService(fahrenheit=bool(config.WEATHER_FAHRENHEIT)).forecast,
+                                 hours=tuple(config.SKY_ALERT_HOURS))
+        service.sky.start()
+    except Exception:
+        LOG.exception("Could not start the sky alerts")
 
     if not standby:
         service.request_start_bemo("startup")

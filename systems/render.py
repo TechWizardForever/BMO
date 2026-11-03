@@ -1434,6 +1434,9 @@ class FaceRenderer:
             if status["library"].get("kind") in ("weather", "radar"):
                 from systems import weather_screen
                 weather_screen.render(self, status["library"], now)
+            elif status["library"].get("kind") == "sky":
+                from systems import sky_screen
+                sky_screen.render(self, status["library"], now)
             else:
                 self._render_library(status["library"], now)
         elif status.get("parts_menu"):

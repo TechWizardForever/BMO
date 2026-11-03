@@ -44,6 +44,7 @@ name and look belong to them.
 | contourpy | 1.3.3 | BSD License |
 | ctranslate2 | 4.8.3 | MIT |
 | cycler | 0.12.1 | BSD License |
+| ephem | 4.2.1 | MIT License |
 | et_xmlfile | 2.0.0 | MIT License |
 | ezdxf | 1.3.4 | MIT License |
 | faster-whisper | 1.2.1 | MIT License |

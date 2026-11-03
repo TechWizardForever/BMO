@@ -734,6 +734,7 @@ class Chat:
         # rendering immediately instead of appearing frozen during startup.
         self.thread = threading.Thread(target=self.run, name="bemo-chat", daemon=True)
         self.thread.start()
+        threading.Thread(target=self._watch_sky_alerts, name="bemo-sky-screen", daemon=True).start()
 
     def stop(self):
         self.stop_event.set()
@@ -1184,6 +1185,8 @@ class Chat:
         """The weather screens have no numbers to pick, and the radar only closes (a heard "three" isn't for them)."""
         if view.kind == "radar":
             return action[0] == "close"
+        if view.kind == "sky":
+            return action[0] == "close" or (action[0] != "play" and len(view.items) > view.per_page)
         return not (view.kind == "weather" and action[0] == "play")
 
     def _handle_sort_downloads(self, command):
@@ -3062,6 +3065,130 @@ class Chat:
 
         threading.Thread(target=load, name="bemo-radar-load", daemon=True).start()
         return "Here's the radar for the last hour. It only shows what's already happened, not what comes next."
+
+    def _handle_sky_command(self, command):
+        """'What's in the sky tonight?', the moon, the space station, what's coming up, and the alerts (owner 2026-11-03;
+        systems/sky.py). Worked out here, never by a brain."""
+        from systems import sky
+        asked = sky.request(command)
+        if asked is None or not getattr(config, "ENABLE_WEATHER", True):
+            return False
+        place = self._weather_tools()[0].load()
+        if place is None:
+            return self._say_local(command, "I need to know where you are first. Say, Hey BMO, set my weather location "
+                                            "to, and then your town.")
+        if not sky.available():
+            return self._say_local(command, "I don't have my star charts installed yet.")
+        if asked.startswith("alerts"):
+            return self._set_sky_alerts(command, asked == "alerts on")
+        try:
+            line, extra, items, per_page = self._sky_screen(asked, command, place)
+        except Exception:
+            logger.exception("Could not work out the sky")
+            return self._say_local(command, "I couldn't work out the sky just now.")
+        view = getattr(self, "library_view", None)
+        if view is not None and not self.managed_display_active():
+            extra.update(mode=asked, place=place.name.upper(), per_page=per_page)
+            view.open("sky", items, grid=False, per_page=per_page, extra=extra, idle_close=180.0)
+            self.note_user_activity()
+        logger.info("SKY screen: {}", asked)
+        return self._say_local(command, line)
+
+    def _set_sky_alerts(self, command, on):
+        try:
+            reply = self.supervisor.request("sky", op="set", on=on) if self.supervisor is not None else {}
+        except SupervisorError:
+            reply = {}
+        if not reply.get("ok"):
+            return self._say_local(command, "I can't reach my sky watcher right now, so nothing changed.")
+        logger.info("SKY alerts {}", "on" if on else "off")
+        start, end = config.SKY_ALERT_HOURS
+        hours = f"{start % 12 or 12} {'AM' if start < 12 else 'PM'} and {end % 12 or 12} {'AM' if end < 12 else 'PM'}"
+        return self._say_local(command, f"Okay. I'll say when the space station passes over and when something big is "
+                                        f"happening in the sky, between {hours}, unless a movie or game is on." if on
+                               else "Okay, no more sky alerts.")
+
+    def _sky_screen(self, asked, command, place):
+        """What he says, and what the screen shows."""
+        from systems import library, sky
+        here = sky.Sky(place.latitude, place.longitude, place.timezone)
+        now = here.now()
+
+        def moon_info():
+            moon = here.moon(now)
+            moon["rise_text"] = sky.clock(moon["rise"]) if moon.get("rise") else "--"
+            moon["set_text"] = sky.clock(moon["set"]) if moon.get("set") else "--"
+            moon["full_text"] = f"{moon['next_full'].strftime('%b')} {moon['next_full'].day}"
+            moon["new_text"] = f"{moon['next_new'].strftime('%b')} {moon['next_new'].day}"
+            return moon
+
+        if asked == "moon":
+            moon = moon_info()
+            line = f"{sky.moon_words(moon)} The next full moon is {sky.event_when({'start': moon['next_full']}, now)}."
+            return line, {"moon": moon}, [], None
+        orbit = sky.OrbitStore(config.SKY_ORBIT_PATH).get()
+        passes = here.iss_passes(orbit, now) if orbit else []
+        if asked == "iss":
+            rows = [f"{sky.day_and_clock(p['start'], now).upper()}  {p['from']} TO {p['to']}  {p['height']} UP  {p['minutes']} MIN"
+                    for p in passes]
+            if not orbit:
+                line, note = "I can't get the space station's orbit right now, so I don't have any times.", "No orbit right now."
+            elif not passes:
+                line, note = "There's no pass you can see in the next five days.", "No passes you can see in the next five days."
+            else:
+                line, note = sky.pass_words(passes[0], now), ""
+            return line, {"orbit": orbit, "passes": rows, "no_passes": note}, [], None
+        if asked == "events":
+            said = str(command).lower()
+            if "eclipse" in said:
+                chosen = sorted(here.lunar_eclipses(now, 1100) + here.solar_eclipses(now, 1100), key=lambda e: e["start"])
+                line = sky.event_words(chosen[0], now) if chosen else "There's no eclipse you can see from here in the next three years."
+            elif "meteor" in said or "shooting star" in said:
+                chosen = here.meteor_showers(now)
+                line = sky.event_words(chosen[0], now) if chosen else "No meteor showers coming up."
+            elif "aurora" in said or "northern lights" in said:
+                level = sky.fetch_aurora(place.latitude, now)
+                chosen = [{"kind": "aurora", "title": "Northern lights", "text": "Only a chance.", "important": True}] if level else []
+                line = (f"There's a solar storm forecast, level {level:g}, so the northern lights might reach this far tonight. It's "
+                        "only a chance." if level else "No solar storm strong enough to bring the northern lights this far.")
+            else:
+                chosen = here.events(now)
+                big = next((e for e in chosen if e.get("important")), chosen[0] if chosen else None)
+                line = f"Here's what's coming up. {sky.event_words(big, now)}" if big else "Nothing big coming up in the sky."
+            items = [library.Item(e["title"], "sky", str(n), data={
+                "kind": e["kind"], "title": e["title"], "important": e.get("important"),
+                "text": e.get("text") or sky.event_words(e, now)}) for n, e in enumerate(chosen)]
+            return line, {}, items, 4
+        moon, planets, events = moon_info(), here.planets(now), here.events(now, 60)
+        for planet in planets:
+            planet["time_text"] = f"{planet['best'].hour % 12 or 12}{'A' if planet['best'].hour < 12 else 'P'}"
+        try:
+            clouds = sky.clouds_at(self._weather_tools()[1].forecast(place), here.night(now)[0])
+        except WeatherError:
+            clouds = None
+        tonight = [p for p in passes if (p["start"] - now).total_seconds() < 24 * 3600]
+        next_up = next((e for e in events if e.get("important")), events[0] if events else None)
+        extra = {"moon": moon, "planets": planets, "clouds": f"SKY: {sky.sky_words(clouds).upper()}" if clouds is not None else "",
+                 "pass_text": (f"SPACE STATION {sky.day_and_clock(tonight[0]['start'], now).upper()}, {tonight[0]['from']} TO "
+                               f"{tonight[0]['to']}, {tonight[0]['height']} UP") if tonight else "",
+                 "next_event": {"kind": next_up["kind"], "text": sky.event_words(next_up, now)} if next_up else None}
+        return sky.tonight_words(moon, planets, passes, events, clouds, now), extra, [], None
+
+    def _watch_sky_alerts(self):
+        """An alert the Supervisor just said shows on his screen too, if he's awake and nothing else has the screen."""
+        while not self.stop_event.wait(20.0):
+            if getattr(self, "supervisor", None) is None:
+                continue
+            try:
+                alert = self.supervisor.request("sky", op="alert").get("alert")
+                if alert and time.time() - float(alert.get("at") or 0) < 120 and not self.managed_display_active():
+                    self.library_view.open("sky", [], grid=False, idle_close=150.0, extra={
+                        "mode": "alert", "event_kind": alert.get("kind"), "text": alert.get("text", "")})
+                    self.note_user_activity()
+            except SupervisorError:
+                pass
+            except Exception:
+                logger.exception("Could not show a sky alert")
 
     def _confirm_specialist_switch(self, profile_name):
         """Ask the human BEFORE a model change, including an offered return to Main.
@@ -5866,6 +5993,9 @@ class Chat:
             return True
 
         if self._handle_reminder_command(command):
+            return True
+
+        if self._handle_sky_command(command):
             return True
 
         offered = getattr(self, "_quick_scan_offered_at", None)
