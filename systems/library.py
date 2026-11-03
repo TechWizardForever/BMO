@@ -9,6 +9,9 @@ Pictures, first found: a poster next to the movie ("Spirited Away.jpg", "Spirite
 poster/folder/cover in a folder holding just that movie; for a show, in its folder), a game's cover from ES-DE's
 media folder or next to the ROM; else, for movies and shows, a still from the video itself, taken once with
 ffmpegthumbnailer (or ffmpeg) and kept in ~/.bemo/library-stills. Every tile shows its name too (owner 2026-10-28).
+
+"Hey BMO, show my projects" (owner 2026-11-02) uses the same screen as a plain list: "down" / "up" and "close" the
+same way, and "open number 2" opens that project.
 """
 from __future__ import annotations
 
@@ -37,8 +40,9 @@ IDLE_CLOSE_SECONDS = 180.0
 @dataclass(frozen=True)
 class Item:
     title: str
-    kind: str                       # "movie", "show" or "game"
-    key: str                        # what playing it takes: the movie's path, the show's name, the ROM's path
+    kind: str                       # "movie", "show", "game" or "project"
+    key: str                        # what playing it takes: the movie's path, the show's name, the ROM's path; a
+                                    # project's slug
     picture: Path | None = None
     still_from: Path | None = None  # a video to take a still from when there's no picture
 
@@ -103,6 +107,13 @@ def game_items(game_library) -> list[Item]:
             folder = game_library.artwork_dir / "gc" / kind / relative.parent
             picture = _picture_named(folder, (relative.name,))
         items.append(Item(game.title, "game", str(rom), picture))
+    return sorted(items, key=lambda item: _sort_key(item.title))
+
+
+def project_items(projects) -> list[Item]:
+    """Every saved project by name (from ProjectManager.list_projects), the open one marked."""
+    items = [Item(str(project.get("name") or project["slug"]) + (" (open)" if project.get("active") else ""),
+                  "project", project["slug"]) for project in projects]
     return sorted(items, key=lambda item: _sort_key(item.title))
 
 
@@ -262,17 +273,19 @@ class LibraryView:
 # "open games" / "open the game library" stay the ES-DE game frontend (its app names), and "list games" stays the
 # spoken count, so those two verbs need "my" / "the movies".
 _WHAT = (r"(?P<what>movies?|films?|shows?|tv shows?|videos?|movie library|movies and shows|shows and movies|cartoons|"
-         r"movie list|games?|game library|gamecube games|video games|game list)")
+         r"movie list|games?|game library|gamecube games|video games|game list|projects|project list)")
 _OPEN = re.compile(
     r"^(?:(?:show|bring up|pull up|see|browse|go to|let me see|give me|display|check out|look at)(?: me)?"
     r"(?: (?:my|the|our|all the|all my|all of my|all our|all of the))?\s*" + _WHAT +
     r"(?: library| list| collection| menu)?|"
     r"(?:list|open|open up) (?:my|all my|all the|our|all of my) " + _WHAT.replace("<what>", "<what2>") + r"|"
-    r"open(?: up)?(?: (?:the|our))?\s*(?P<opened>movies|films|shows|tv shows|movie library|movie list|video library)|"
-    r"what (?P<asked>movies|games|shows|films|cartoons|videos) (?:do (?:i|we) have|are there|have (?:i|we) got|"
+    r"open(?: up)?(?: (?:the|our))?\s*(?P<opened>movies|films|shows|tv shows|movie library|movie list|video library|"
+    r"projects|project list)|"
+    r"what (?P<asked>movies|games|shows|films|cartoons|videos|projects) (?:do (?:i|we) have|are there|have (?:i|we) got|"
     r"can (?:i|we) (?:watch|play)|are on here|have you got|do you have)|"
     r"what (?:can|could|should) (?:i|we) (?P<verb>watch|play)|whats there to (?P<verb2>watch|play)|"
-    r"what is there to (?P<verb3>watch|play)|(?:my|our) (?P<mine>movies|games|shows|movie list|game list))$")
+    r"what is there to (?P<verb3>watch|play)|(?:my|our) (?P<mine>movies|games|shows|movie list|game list|projects|"
+    r"project list))$")
 _NUMBER_WORDS = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
                  "sixteen seventeen eighteen nineteen twenty").split()
 _ORDINALS = ("zeroth first second third fourth fifth sixth seventh eighth ninth tenth eleventh twelfth thirteenth "
@@ -288,7 +301,7 @@ def _plain(text: str) -> str:
 
 
 def open_request(text: str) -> str | None:
-    """'movies' or 'games' for "show my movies" / "what can I watch" / "let me see my games" / "my movies"."""
+    """'movies', 'games' or 'projects' for "show my movies" / "what can I watch" / "let me see my games" / "my projects"."""
     from systems.media_phrases import first
     found = first(text, _OPEN.match)
     if not found:
@@ -297,6 +310,8 @@ def open_request(text: str) -> str | None:
         return "games" if "play" in (found.group("verb"), found.group("verb2"), found.group("verb3")) else "movies"
     what = (found.group("what") or found.group("what2") or found.group("opened") or found.group("asked")
             or found.group("mine"))
+    if what.startswith("project"):
+        return "projects"
     return "games" if what.startswith(("game", "video game")) else "movies"
 
 
@@ -336,7 +351,7 @@ _BOTTOM = re.compile(r"^(?:go |scroll |jump |take me )?(?:to )?the (?:bottom|end
                      r"^(?:bottom|last page|end of the list)$")
 _CLOSE = re.compile(
     r"^(?:close|hide|exit|quit|leave|dismiss|put away)(?: (?:it|this|that|the|my))?(?: (?:list|library|movies|games|"
-    r"shows|movie library|game library|movie list|game list|screen|menu|thing))?(?: away)?$|"
+    r"shows|movie library|game library|movie list|game list|projects|project list|screen|menu|thing))?(?: away)?$|"
     r"^(?:im |i am |were |we are |all )?done$|^never ?mind$|^forget it$|^(?:thats|that is) (?:all|it)$|"
     r"^no thanks?(?: you)?$|^nothing$|^none(?: of (?:them|these|those))?$|^not (?:now|right now)$|^go away$|"
     r"^put it away$|^(?:go )?back to (?:your|the|bmos?|my) face$|^show (?:your|me your) face$")

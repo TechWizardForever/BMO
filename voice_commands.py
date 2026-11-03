@@ -297,6 +297,7 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("3D parts", "Hey Bemo, make it <number> millimeters tall", "Changes one size of the last part: tall, wide, deep, thick, across, the hole or the walls. The earlier one is kept."),
 
     VoiceCommand("Projects", "Hey Bemo, list projects", "Your projects."),
+    VoiceCommand("Projects", "Hey Bemo, show my projects", "Your projects as a list on BMO's screen, with the open one marked. Scroll up and down, say open number 2 to open one, or close. These work without Hey BMO while the list is up."),
     VoiceCommand("Projects", "Hey Bemo, current project", "The project that's open."),
     VoiceCommand("Projects", "Hey Bemo, create project <name>", "Makes a new project and opens it."),
     VoiceCommand("Projects", "Hey Bemo, open project <name>", "Opens a project. It stays open until you close it or he sleeps or restarts."),

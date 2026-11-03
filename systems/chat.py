@@ -1166,6 +1166,8 @@ class Chat:
         """'show my movies' / 'show my games'; while one is on the screen: scroll, 'play number 3', close."""
         from systems import library
         kind = library.open_request(command)
+        if kind == "projects":
+            return self._open_project_list(command)
         if kind:
             return self._open_library(command, kind)
         view = getattr(self, "library_view", None)
@@ -1405,6 +1407,29 @@ class Chat:
         logger.info("LIBRARY {} open: {} items", kind, len(items))
         return self._say_local(command, line)
 
+    def _open_project_list(self, command):
+        """'Hey BMO, show my projects' (owner 2026-11-02): a plain list on the library's screen."""
+        from systems import library
+        items = library.project_items(self.project_manager.list_projects())
+        view = self.library_view
+        view.open("projects", items, grid=False)
+        self.note_user_activity()
+        if not items:
+            line = "I don't have any projects yet. Say, Hey BMO, create project, and a name."
+        elif len(items) == 1:
+            line = "Here's your project. Say open number one to open it."
+        else:
+            line = f"Here are your projects, {len(items)} in all. Say open and a number"
+            line += ", or scroll down." if len(items) > view.per_page else "."
+        logger.info("LIBRARY projects open: {} items", len(items))
+        return self._say_local(command, line)
+
+    def _close_project_list(self):
+        """The list marks which project is open, so it goes once that changes."""
+        view = getattr(self, "library_view", None)
+        if view is not None and view.kind == "projects":
+            view.close()
+
     def _library_action(self, command, action, number=0):
         view = self.library_view
         self.note_user_activity()
@@ -1427,6 +1452,8 @@ class Chat:
         if item is None:
             return self._say_local(command, f"There's no number {number}. The list goes up to "
                                             f"{len(view.items)}.")
+        if item.kind == "project":
+            return self._handle_project_command(f"open project {item.key}")
         if item.kind == "game":
             view.close()
             try:
@@ -3476,6 +3503,7 @@ class Chat:
                 else:
                     metadata = self.project_manager.create_project(name)
                     response = f"Created and opened {metadata['name']}."
+                self._close_project_list()
             except Exception:
                 logger.exception("Could not create project")
                 response = "I couldn't create that project."
@@ -3496,6 +3524,7 @@ class Chat:
             try:
                 metadata = self.project_manager.open_project(target)
                 response = f"Opened {metadata['name']}."
+                self._close_project_list()
             except KeyError:
                 response = "I couldn't find that project."
             except Exception:
@@ -3508,6 +3537,7 @@ class Chat:
 
         if normalized in {"close project", "unload project"}:
             self.project_manager.close_project()
+            self._close_project_list()
             response = "Project closed."
             self.state = State.RESPONDING
             self.speak(response)

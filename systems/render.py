@@ -1028,7 +1028,7 @@ class FaceRenderer:
         self._green_grid(now, speed=0.25)
         dx, dy = int(math.sin(now / 37.0) * 3), int(math.cos(now / 53.0) * 2)  # drifts against burn-in
         left, right, top = int(w * 0.05) + dx, int(w * 0.95) + dx, int(h * 0.04) + dy
-        heading = "MOVIES & SHOWS" if lib.get("kind") == "movies" else "GAMES"
+        heading = {"movies": "MOVIES & SHOWS", "projects": "PROJECTS"}.get(lib.get("kind"), "GAMES")
         title = title_font.render(heading, True, (108, 245, 206))
         screen.blit(title, (left, top))
         tiles, total, first = lib.get("tiles") or [], int(lib.get("total") or 0), int(lib.get("first") or 1)
@@ -1038,8 +1038,8 @@ class FaceRenderer:
         body_top, body_bottom = top + title.get_height() + int(h * 0.03), int(h * 0.88)
         text, dim, number_color = (205, 236, 228), (78, 128, 120), (255, 226, 140)
         if not total:
-            empty = ("No movies yet. They go in the Videos folder." if lib.get("kind") == "movies"
-                     else "No games yet.")
+            empty = {"movies": "No movies yet. They go in the Videos folder.",
+                     "projects": "No projects yet."}.get(lib.get("kind"), "No games yet.")
             surface = row_font.render(empty, True, text)
             screen.blit(surface, surface.get_rect(center=(w // 2 + dx, (body_top + body_bottom) // 2)))
         elif lib.get("grid"):
@@ -1092,6 +1092,8 @@ class FaceRenderer:
                     name = name.rstrip() + "..."
                 screen.blit(row_font.render(name, True, text), (x + number_w + 16, y))
         hint = "Say: scroll down, scroll up, play number 3, or close" if total else "Say: close"
+        if total and lib.get("kind") == "projects":
+            hint = "Say: scroll down, scroll up, open number 2, or close"
         surface = small_font.render(hint, True, number_color)
         screen.blit(surface, surface.get_rect(center=(w // 2 + dx, int(h * 0.94) + dy)))
 

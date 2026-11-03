@@ -155,6 +155,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | Say | What it does |
 |---|---|
 | **list projects** | Your projects. |
+| **show my projects** | Your projects as a list on BMO's screen, with the open one marked. Scroll up and down, say open number 2 to open one, or close. These work without Hey BMO while the list is up. |
 | **current project** | The project that's open. |
 | **create project [name]** | Makes a new project and opens it. |
 | **open project [name]** | Opens a project. It stays open until you close it or he sleeps or restarts. |

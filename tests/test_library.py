@@ -177,6 +177,15 @@ class PhraseTests(unittest.TestCase):
         for said in ("open games", "open the game library", "show me the shapes", "show desktop"):
             self.assertIsNone(lib.open_request(said), said)  # ES-DE and the shapes keep theirs
 
+    def test_opening_the_projects(self):
+        for said in ("Hey BMO, show me my projects.", "show my projects", "show projects", "my projects",
+                     "what projects do I have", "what projects do you have", "open my projects", "open projects",
+                     "pull up the project list", "Can you show me all of my projects?"):
+            self.assertEqual(lib.open_request(said), "projects", said)
+        for said in ("open project garden", "open garden project", "close project", "current project", "list projects",
+                     "show me the project", "show my project files"):
+            self.assertIsNone(lib.open_request(said), said)  # the project commands keep theirs
+
     def test_while_open(self):
         for said, expected in (("scroll down", ("down", 0)), ("Scroll down.", ("down", 0)), ("next page", ("down", 0)),
                                ("more", ("down", 0)), ("page up", ("up", 0)), ("go back up", ("up", 0)),
@@ -254,6 +263,67 @@ class ChatTests(unittest.TestCase):
                                         "or scroll down.")
         self.assertEqual(started[0]["name"], "library-stills")
         self.assertEqual(self.chat.library_view.snapshot()["total"], 10)
+
+    def projects(self, names, active=None):
+        slugs = [name.lower() for name in names]
+        self.opened = []
+        manager = self.chat.project_manager = mock.Mock()
+        manager.list_projects.return_value = [{"name": n, "slug": s, "active": s == active}
+                                              for n, s in zip(names, slugs)]
+        manager.open_project.side_effect = lambda target: self.opened.append(target) or {"name": target.title()}
+        self.chat.speak = lambda text, **kw: self.said.append(text)
+        self.chat._archive_local_exchange = lambda *a: None
+
+    def test_show_my_projects_is_a_plain_list_with_the_open_one_marked(self):
+        self.projects(["Zinc", "Garden", "The Arch"], active="garden")
+        self.assertTrue(self.chat._handle_library_command("Hey BMO, show me my projects."))
+        shot = self.chat.library_view.snapshot()
+        self.assertEqual((shot["kind"], shot["grid"], shot["total"]), ("projects", False, 3))
+        self.assertEqual([t["title"] for t in shot["tiles"]], ["The Arch", "Garden (open)", "Zinc"])
+        self.assertEqual(self.said[-1], "Here are your projects, 3 in all. Say open and a number.")
+
+    def test_a_long_project_list_scrolls_up_and_down_without_hey_bmo(self):
+        self.projects([f"P{n:02}" for n in range(14)])
+        self.chat._handle_library_command("show my projects")
+        self.assertIn("scroll down", self.said[-1])
+        self.assertTrue(self.chat._bare_library_command("down"))
+        self.assertEqual(self.chat.library_view.snapshot()["first"], 11)
+        self.assertTrue(self.chat._bare_library_command("up"))
+        self.assertEqual(self.chat.library_view.snapshot()["first"], 1)
+        self.assertTrue(self.chat._bare_library_command("close"))
+        self.assertFalse(self.chat.library_view.active)
+
+    def test_a_project_opens_by_number_and_the_list_goes(self):
+        self.projects(["Arch", "Garden"])
+        self.chat._handle_library_command("show my projects")
+        self.assertTrue(self.chat._bare_library_command("open number 2"))
+        self.assertEqual(self.opened, ["garden"])
+        self.assertEqual(self.said[-1], "Opened Garden.")
+        self.assertFalse(self.chat.library_view.active)
+        self.assertEqual(self.played, [])  # never tried as a movie
+
+    def test_opening_or_closing_a_project_by_name_takes_the_stale_list_down(self):
+        self.projects(["Arch", "Garden"])
+        self.chat._handle_library_command("show my projects")
+        self.assertFalse(self.chat._handle_library_command("open project garden"))  # left for the project commands
+        self.chat._handle_project_command("open project garden")
+        self.assertFalse(self.chat.library_view.active)
+        self.chat._handle_library_command("show my projects")
+        self.assertFalse(self.chat._handle_library_command("close project"))
+        self.chat._handle_project_command("close project")
+        self.assertFalse(self.chat.library_view.active)
+        self.chat.library_view.open("movies", [lib.Item("Ponyo", "movie", "/v/Ponyo.mkv", Path("/p.jpg"))])
+        self.chat._handle_project_command("close project")
+        self.assertTrue(self.chat.library_view.active)  # a movie list stays up
+
+    def test_how_many_projects_is_said_right(self):
+        self.projects([])
+        self.chat._handle_library_command("show my projects")
+        self.assertIn("any projects yet", self.said[-1])
+        self.assertIsNotNone(self.chat.library_view.snapshot())  # the empty list shows too, and "close" works
+        self.projects(["Garden"])
+        self.chat._handle_library_command("show my projects")
+        self.assertEqual(self.said[-1], "Here's your project. Say open number one to open it.")
 
     def test_wired_in(self):
         chat = (ROOT / "systems" / "chat.py").read_text()
