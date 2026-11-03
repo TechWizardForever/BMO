@@ -1431,7 +1431,11 @@ class FaceRenderer:
             self._reset_crt_static_refresh(now)
             self._stop_external_saver()
             self._saver_started = None
-            self._render_library(status["library"], now)
+            if status["library"].get("kind") in ("weather", "radar"):
+                from systems import weather_screen
+                weather_screen.render(self, status["library"], now)
+            else:
+                self._render_library(status["library"], now)
         elif status.get("parts_menu"):
             self._reset_crt_static_refresh(now)
             self._stop_external_saver()

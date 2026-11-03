@@ -45,6 +45,7 @@ class Item:
                                     # project's slug
     picture: Path | None = None
     still_from: Path | None = None  # a video to take a still from when there's no picture
+    data: dict | None = None        # a day's numbers on a weather screen
 
 
 def _sort_key(title: str) -> str:
@@ -199,21 +200,25 @@ class LibraryView:
         self.top = 0
         self.per_page = GRID_PAGE
         self.grid = True
+        self.extra: dict = {}  # what a weather screen shows besides its days
+        self._idle_close = IDLE_CLOSE_SECONDS
         self._touched = 0.0
         self.generation = 0
 
     @property
     def active(self) -> bool:
         with self._lock:
-            if self.kind and self._clock() - self._touched > IDLE_CLOSE_SECONDS:
+            if self.kind and self._clock() - self._touched > self._idle_close:
                 self.kind = None  # nobody has said anything for a while: BMO's face comes back
             return self.kind is not None
 
-    def open(self, kind: str, items: list[Item], grid: bool | None = None) -> None:
+    def open(self, kind: str, items: list[Item], grid: bool | None = None, *, per_page: int | None = None,
+             extra: dict | None = None, idle_close: float = IDLE_CLOSE_SECONDS) -> None:
         with self._lock:
             self.kind, self.items, self.top = kind, list(items), 0
             self.grid = any(i.picture or i.still_from for i in items) if grid is None else grid
-            self.per_page = GRID_PAGE if self.grid else LIST_PAGE
+            self.per_page = per_page or (GRID_PAGE if self.grid else LIST_PAGE)
+            self.extra, self._idle_close = dict(extra or {}), float(idle_close)
             self._touched = self._clock()
             self.generation += 1
 
@@ -255,14 +260,23 @@ class LibraryView:
             self.items = [replace(i, picture=picture) if i.key == key and i.picture is None else i
                           for i in self.items]
 
+    def update_extra(self, generation: int, **values) -> bool:
+        """From a background job: False when this screen has closed or changed since it started."""
+        with self._lock:
+            if generation != self.generation:
+                return False
+            self.extra.update(values)
+            return True
+
     def snapshot(self) -> dict | None:
         if not self.active:
             return None
         with self._lock:
             page = self.items[self.top:self.top + self.per_page]
             return {"kind": self.kind, "grid": self.grid, "total": len(self.items), "first": self.top + 1,
+                    "extra": dict(self.extra),
                     "tiles": [{"number": self.top + i + 1, "title": item.title, "kind": item.kind,
-                               "picture": str(item.picture) if item.picture else None}
+                               "picture": str(item.picture) if item.picture else None, "data": item.data}
                               for i, item in enumerate(page)]}
 
 

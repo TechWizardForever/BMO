@@ -42,7 +42,8 @@ from systems.desktop_idle import DesktopIdleMonitor
 from systems.piper_streaming import PiperSpeechEngine
 from systems.stt_guard import implausible_speech_rate, is_runaway_repetition, output_is_looping
 from systems.vad_capture import VoiceEndpointer
-from systems.weather import WeatherError, WeatherService, WeatherSettings, geocode
+from systems import radar
+from systems.weather import WeatherError, WeatherService, WeatherSettings, geocode, without_when_words
 from systems.sound import host_sound, needs_ok, parse_sound_command, plan_change
 from systems import calibration
 from systems import desktop_settings
@@ -1176,7 +1177,14 @@ class Chat:
                 return self._say_local(command, "Say, show my movies, or show my games, and then the number.")
             return False
         action = library.command(command)
-        return self._library_action(command, *action) if action else False
+        return self._library_action(command, *action) if action and self._screen_takes(view, action) else False
+
+    @staticmethod
+    def _screen_takes(view, action):
+        """The weather screens have no numbers to pick, and the radar only closes (a heard "three" isn't for them)."""
+        if view.kind == "radar":
+            return action[0] == "close"
+        return not (view.kind == "weather" and action[0] == "play")
 
     def _handle_sort_downloads(self, command):
         """'Hey BMO, sort my downloads' (2026-10-28): games and movies from Downloads to where they go, once the owner
@@ -1373,7 +1381,7 @@ class Chat:
             return False
         from systems import library
         action = library.command(heard)
-        if action is None:
+        if action is None or not self._screen_takes(view, action):
             return False
         logger.info("LIBRARY {} without Hey BMO", action[0])
         try:
@@ -2982,24 +2990,78 @@ class Chat:
                 return f"I don't have GPS, but your saved weather location is {place.spoken}."
             return HONEST_REPLIES["location"]
         # "weather in Paris": one-off report for that place; the saved one stays.
-        elsewhere = re.search(r"\bweather\b.*?\b(?:in|for|at)\s+(?P<place>[a-z][\w\s,.'-]*?)"
-                              r"(?:\s+(?:today|tomorrow|tonight|right now|now|this week))?\W*$", command, re.I)
-        if elsewhere and elsewhere.group("place").strip().lower() not in {"here", "my area", "my town", "town"}:
+        elsewhere = re.search(r"\b(?:weather|forecast|radar)\b.*?\b(?:in|for|at)\s+(?P<place>[a-z][\w\s,.'-]*?)\W*$",
+                              command, re.I)
+        named = without_when_words(elsewhere.group("place")) if elsewhere else ""  # "for Friday" isn't a town
+        if named and named.lower() not in {"here", "my area", "my town", "town"}:
             try:
-                other = geocode(elsewhere.group("place"))
+                other = geocode(named)
             except WeatherError as exc:
                 return f"{exc}, so I can't tell you the weather right now."
             if other is None:
-                return f"I couldn't find a place called {elsewhere.group('place').strip(' .,?')}."
+                return f"I couldn't find a place called {named}."
             place = other
         if place is None:
             return ("I don't have a weather location yet. "
                     "Say Hey BMO, set my weather location to, and then your town.")
+        self._weather_place = place  # for the screen that goes with the answer
+        if radar.asked_for(command):
+            return self._open_radar(place)
         try:
             return service.report(place, command)
         except WeatherError as exc:
             logger.warning("WEATHER fetch failed: {}", exc.__cause__ or exc)
             return f"{exc}, so I can't tell you the weather right now."
+
+    def _show_weather(self, command):
+        """The window that goes with a weather answer (owner 2026-11-02), even for just today: one day as a mini
+        weather station, several as little boxes. Never stands in the way of the spoken answer."""
+        place = getattr(self, "_weather_place", None)
+        self._weather_place = None
+        view = getattr(self, "library_view", None)
+        if place is None or view is None or radar.asked_for(command) or self.managed_display_active():
+            return
+        from systems import library, weather as weather_data
+        try:
+            data = self._weather_tools()[1].forecast(place)  # the same answer, from the cache
+            days = weather_data.days_asked(command, data["daily"].get("time", []))
+            cards = [weather_data.day_card(data, day) for day in days]
+            current = weather_data.station(data, bool(config.WEATHER_FAHRENHEIT))
+            source = f"{weather_data.SOURCE_NAME} {current['updated']}".strip()
+            extra = {"place": place.name.upper(), "source": source, "all_days": cards}
+            if len(days) == 1:
+                extra.update(station=True, hours=weather_data.hours(data, days[0]),
+                             current=current if days[0] == 0 else None)
+            items = [library.Item(card["name"], "weather", str(day), data=card) for day, card in zip(days, cards)]
+            view.open("weather", items, grid=False, per_page=8, extra=extra, idle_close=60.0 if len(days) <= 4 else 180.0)
+            self.note_user_activity()
+            logger.info("WEATHER screen open: {} days", len(days))
+        except Exception:
+            logger.exception("Could not show the weather screen")
+
+    def _open_radar(self, place):
+        """'Hey BMO, show me the radar' (owner 2026-11-02): the last hour playing as a loop (systems/radar.py)."""
+        if not radar.covers(place.latitude, place.longitude):
+            return f"I only have radar for the lower 48 states, so I can't show {place.name}."
+        view = getattr(self, "library_view", None)
+        if view is None or self.managed_display_active():
+            return "Close the movie or game first, then ask me for the radar."
+        view.open("radar", [], grid=False, extra={"place": place.name.upper(), "loading": True}, idle_close=180.0)
+        self.note_user_activity()
+        generation = view.generation
+
+        def load():
+            try:
+                loop = radar.build(place.latitude, place.longitude, config.DATA_ROOT / "cache" / "radar-map",
+                                   stop=lambda: view.generation != generation)
+                view.update_extra(generation, radar=loop, loading=False)
+                logger.info("RADAR {} frames", len(loop["frames"]))
+            except Exception:
+                logger.exception("Could not get the radar")
+                view.update_extra(generation, loading=False)
+
+        threading.Thread(target=load, name="bemo-radar-load", daemon=True).start()
+        return "Here's the radar for the last hour. It only shows what's already happened, not what comes next."
 
     def _confirm_specialist_switch(self, profile_name):
         """Ask the human BEFORE a model change, including an offered return to Main.
@@ -5912,6 +5974,8 @@ class Chat:
                 response = clock_reply(topic)
             elif topic in ("weather", "location"):
                 response = self._weather_reply(topic, command)
+                if topic == "weather":
+                    self._show_weather(command)
             else:
                 response = HONEST_REPLIES[topic]
             logger.info("GROUNDING live-data question topic={} answered without a model", topic)

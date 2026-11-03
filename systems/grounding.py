@@ -18,7 +18,14 @@ _WEATHER_QUESTION = re.compile(
     r"|\bhow(?:'s| is) the weather\b|\bweather (?:report|forecast|update)\b"
     r"|\b(?:what(?:'s| is)|how(?:'s| is)) the weather (?:in|for|at) [a-z]"
     r"|\bwhat(?:'s| is) it like (?:outside|out there)\b"
-    r"|\bis it (?:cold|hot|warm|chilly|raining|snowing|sunny|windy|foggy) (?:outside|out)\b",
+    r"|\bis it (?:cold|hot|warm|chilly|raining|snowing|sunny|windy|foggy) (?:outside|out)\b"
+    # The long-term forecast and the screens (owner 2026-11-02).
+    r"|\b(?:weather|forecast)\b.*\b(?:week(?:end)?|long[- ]?(?:term|range)|extended|(?:mon|tues|wednes|thurs|fri|satur|sun)day|"
+    r"\w+[- ]days?)\b"
+    r"|\b(?:long[- ]?(?:term|range)|extended|weekly|\w+[- ]day|week(?:end)?(?:'s)?|tomorrow(?:'s)?|today(?:'s)?)\s+(?:weather|forecast)\b"
+    r"|\b(?:show|bring up|pull up|see|display|give me|open)(?: me)?(?: (?:the|my|our|a|todays?|today's))*\s*"
+    r"(?:weather|forecast|radar|rain radar|weather radar|weather station|weather map|radar map)\b"
+    r"|\bweather (?:radar|station|map)\b|\brain radar\b|\bradar map\b",
     re.IGNORECASE,
 )
 _LOCATION_QUESTION = re.compile(

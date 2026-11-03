@@ -77,7 +77,12 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | Say | What it does |
 |---|---|
 | **set my weather location to [town]** | Turns the weather on for your town. He checks the town with you before saving it. |
-| **what's the weather?** | The weather now, or the forecast, for your town. |
+| **what's the weather?** | The weather now, said out loud and on BMO's screen as a little weather station: temperature, feels like, wind, gusts, humidity, pressure, UV, sunrise and sunset, and the next 12 hours. |
+| **what's the weather tomorrow / on Friday / Friday and Saturday / this weekend?** | Those days, with a window for each. |
+| **seven day forecast / this week / next week / the next three days** | A box for each day, with a moving picture of its sky, high and low, chance of rain and wind. |
+| **long term forecast** | All 16 days he can get. Past about a week, treat it as a rough guide. "Extended forecast" and "two week forecast" work too. |
+| **show me the radar** | The rain radar for your area, playing the last hour so you can see what's moving in. Lower 48 states only. "Weather map" works too. |
+| **scroll down / scroll up / close** | While a weather window is up, without Hey BMO. A short forecast goes back to his face by itself after a minute, a longer one or the radar after three. |
 | **do you remember the weather earlier?** | The last weather report he gave you, and when. |
 | **forget my weather location** | Removes your town. |
 

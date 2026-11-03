@@ -12,7 +12,8 @@ ROOT = Path(os.environ.get("BEMO_TEST_CODE_ROOT", Path(__file__).resolve().paren
 sys.path.insert(0, str(ROOT))
 import config
 from systems.grounding import HONEST_REPLIES, live_data_topic
-from systems.weather import Place, WeatherError, WeatherService, WeatherSettings, geocode
+from systems import radar
+from systems.weather import Place, WeatherError, WeatherService, WeatherSettings, geocode, without_when_words
 
 GEO = {"results": [
     {"name": "Springfield", "admin1": "Oregon", "country": "United States", "country_code": "US",
@@ -113,7 +114,7 @@ class VoiceTests(unittest.TestCase):
               "WeatherSettings": WeatherSettings, "WeatherError": WeatherError, "HONEST_REPLIES": HONEST_REPLIES,
               "WeatherService": lambda fahrenheit: WeatherService(fetch=fake(FORECAST)),
               "geocode": lambda q: self.geo.setdefault("asked", []).append(q) or self.geo["result"],
-              "live_data_topic": live_data_topic}
+              "live_data_topic": live_data_topic, "without_when_words": without_when_words, "radar": radar}
         exec(compile(ast.fix_missing_locations(ast.Module(body=[ast.ClassDef(
             name="Mini", bases=[], keywords=[], body=body, decorator_list=[])], type_ignores=[])), "mini", "exec"), ns)
         self.c = ns["Mini"]()
@@ -145,6 +146,17 @@ class VoiceTests(unittest.TestCase):
         self.c._handle_weather_setup("my weather location is Atlantis")
         self.assertIn("couldn't find a place called Atlantis", self.c.spoken[-1])
         self.assertIsNone(WeatherSettings(Path(self.tmp.name) / "weather.json").load())
+
+    def test_a_day_is_not_a_town(self):
+        WeatherSettings(Path(self.tmp.name) / "weather.json").save(SPRINGFIELD)
+        for said in ("what's the weather for Friday", "the forecast for tomorrow", "the weather for this weekend",
+                     "the weather in the next five days", "the long term forecast for this week"):
+            self.geo.pop("asked", None)
+            self.c._weather_reply("weather", said)
+            self.assertNotIn("asked", self.geo, said)
+        self.geo.pop("asked", None)
+        self.c._weather_reply("weather", "the forecast for Paris this week")
+        self.assertEqual(self.geo["asked"], ["Paris"])
 
     def test_report_and_forget(self):
         WeatherSettings(Path(self.tmp.name) / "weather.json").save(SPRINGFIELD)
