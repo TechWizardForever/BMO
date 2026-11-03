@@ -25,6 +25,7 @@ def ui_font(size, bold=False):
 
 
 INDICATOR_PULSE_SECONDS = 2.6  # the corner symbol's slow pulse (owner 2026-10-31)
+INDICATOR_INSET = 0.10  # share of the screen from each edge: a tube's rounded corners cut off 3% (owner 2026-11-02)
 
 
 class FaceRenderer:
@@ -1309,7 +1310,7 @@ class FaceRenderer:
         screen = self._app._screen
         w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
         px = max(1, round(h * 0.004))
-        x, y = int(w * 0.03), int(h * 0.03)
+        x, y = int(w * INDICATOR_INSET), int(h * INDICATOR_INSET)
         level = 0.625 + 0.375 * math.sin(now * 2 * math.pi / INDICATOR_PULSE_SECONDS)  # a quarter to full strength
         color = tuple(int(back + (part - back) * level) for part, back in zip(color, self.BACKGROUND_COLOR))
         if kind == "ready":

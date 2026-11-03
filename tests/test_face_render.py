@@ -225,8 +225,8 @@ class FaceRenderTests(unittest.TestCase):
         app = smoke.FakeApp()
         renderer = FaceRenderer(app)
         w, h = app.SCREEN_WIDTH, app.SCREEN_HEIGHT
-        corner = pygame.Rect(0, 0, int(w * 0.03) + 13 * max(1, round(h * 0.004)) + 2,
-                             int(h * 0.03) + 11 * max(1, round(h * 0.004)) + 2)
+        corner = pygame.Rect(0, 0, int(w * render.INDICATOR_INSET) + 13 * max(1, round(h * 0.004)) + 2,
+                             int(h * render.INDICATOR_INSET) + 11 * max(1, round(h * 0.004)) + 2)
 
         def frame(kind):
             app.chat.status["indicator"] = kind
@@ -257,6 +257,24 @@ class FaceRenderTests(unittest.TestCase):
         self.assertEqual(at_full, at_low)  # it stays put (no drift; the static covers burn-in)
         self.assertNotEqual(strong, faint)  # and slowly pulses, never gone
         self.assertNotEqual(faint, renderer.BACKGROUND_COLOR)
+
+    def test_the_corner_symbol_stays_clear_of_a_tubes_corners(self):
+        # 2026-11-02: on the owner's CRT (1024x768) the symbols were cropped 3% in from the edges, and it's calibrated
+        # right up to the left edge. The face itself starts about 29% in, so nothing crowds it there.
+        for size in ((640, 480), (1024, 768), (1280, 720), (1920, 1080)):
+            app = smoke.FakeApp()
+            app.SCREEN_WIDTH, app.SCREEN_HEIGHT = size
+            app._screen = pygame.Surface(size)
+            renderer = FaceRenderer(app)
+            for kind in renderer.INDICATOR_COLORS:
+                app._screen.fill(renderer.BACKGROUND_COLOR)
+                renderer._draw_indicator(kind, render.INDICATOR_PULSE_SECONDS / 4)
+                mask = pygame.mask.from_threshold(app._screen, renderer.BACKGROUND_COLOR, (1, 1, 1, 255))
+                mask.invert()
+                box = mask.get_bounding_rects()
+                self.assertTrue(box, (size, kind))
+                self.assertGreaterEqual(min(b.left for b in box), size[0] * 0.09, (size, kind))
+                self.assertGreaterEqual(min(b.top for b in box), size[1] * 0.09, (size, kind))
 
     def test_which_symbol_when(self):
         import threading
