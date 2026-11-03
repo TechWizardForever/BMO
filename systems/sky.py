@@ -10,7 +10,7 @@ Predictions from the orbit go stale: past a week he says he has no pass times ra
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 import json
 import logging
 import math
@@ -22,6 +22,7 @@ import time
 import urllib.request
 from zoneinfo import ZoneInfo
 
+from systems import spoken_dates
 from systems.sound_alikes import put_right
 
 try:
@@ -437,7 +438,8 @@ def sky_words(percent: int | None) -> str:
 # --- What was said ----------------------------------------------------------------------------------------
 
 _PLANET = r"(?:mercury|venus|mars|jupiter|saturn)"
-_BIG_EVENT = r"(?:eclipses?|meteor showers?|meteors|shooting stars?|falling stars?|aurora|northern lights)"
+_SHOWER_NAME = r"(?:leonids|geminids|perseids|orionids|ursids|lyrids|quadrantids|(?:eta |delta )?aquariids)"
+_BIG_EVENT = rf"(?:eclipses?|(?:{_SHOWER_NAME} )?meteor showers?|{_SHOWER_NAME}(?: meteors)?|meteors|shooting stars?|falling stars?|aurora|northern lights)"
 _WATCHED = r"(?:space|sky|iss|space station|astronomy)"
 _NOTICES = r"(?:alerts?|notifications?|warnings?)"
 _RIGHT_NOW = r"(?: tonight| today| tomorrow| right now| now)?"
@@ -473,6 +475,8 @@ _EVENTS = re.compile(
     r"(?:whats|what is) (?:happening|going on) in (?:the sky|space)|"
     r"anything (?:cool |big |good )?(?:happening|going on|coming up) in (?:the sky|space)|space weather|"
     r"(?:cool|big) (?:things|stuff) in the sky|"
+    # Heard live 2026-11-03, a shower off the list on his screen.
+    rf"(?:what|how) about (?:the |that )?(?:next )?{_BIG_EVENT}\b|tell me about (?:the )?{_SHOWER_NAME}\b|"
     rf"when\b.*\b{_BIG_EVENT}\b|next(?: \w+)? {_BIG_EVENT}\b|any(?: \w+){{0,2}} {_BIG_EVENT}\b|"
     rf"show(?: me)?(?: the| an?| any| all)?(?: next| upcoming)? {_BIG_EVENT}\b|(?:coming up|upcoming)(?: \w+)? {_BIG_EVENT}\b|"
     rf"\b(?:eclipses?|meteor showers?)\b.*\b(?:coming|this (?:year|month)|next)\b|"
@@ -480,6 +484,16 @@ _EVENTS = re.compile(
     rf"(?:can|could|will|might) (?:i|we) see(?: the| an?| any)? {_BIG_EVENT}\b|"
     rf"(?:is|are) (?:the )?{_BIG_EVENT} (?:out|visible|up|tonight|happening)\b|chance of(?: the| an?| any)? {_BIG_EVENT}\b|"
     rf"^(?:the |an? )?{_BIG_EVENT}(?: tonight| this (?:week|month|year))?$)\b")
+# The weather for something coming up in the sky, which has a date: never the aurora, which doesn't.
+_DATED_SIGHT = rf"(?:(?:solar |lunar |total |partial |next )*eclipses?|(?:{_SHOWER_NAME} )?meteor showers?|{_SHOWER_NAME}(?: meteors)?|meteors|shooting stars?)"
+_WEATHER_FOR_SIGHT = re.compile(
+    rf"\b(?:weather|forecast)\b.*\b{_DATED_SIGHT}\b|\b{_DATED_SIGHT}\b.*\b(?:weather|forecast)\b|"
+    rf"\b(?:will|is|are|any|how|gonna|going to|be|looks?|looking)\b.*\b(?:clear|cloudy|clouds?|cloud cover|overcast|rainy?|raining|rained out|good night|nice night|viewing conditions)\b"
+    rf".*\b(?:for|during|at|of|on)\b.*\b{_DATED_SIGHT}\b|"
+    rf"\b{_DATED_SIGHT}\b.*\b(?:clear|cloudy|clouds?|cloud cover|overcast|rainy?|raining|rained out|viewing conditions)\b")
+_NOT_A_TOWN = r"(?!the\b|night\b|my\b|our\b|here\b|this\b|that\b)"  # "at night", "in the evening", "over my house"
+_SIGHT_PLACE = re.compile(rf"\b{_DATED_SIGHT}\b.*?\b(?:in|at|over|from)\s+{_NOT_A_TOWN}(?P<place>[a-z][\w\s'-]*?)\s*$|"
+                          rf"\b(?:in|at|over)\s+{_NOT_A_TOWN}(?P<place2>[a-z][\w\s'-]*?)\s+(?:for|during|on|at)\b.*\b{_DATED_SIGHT}\b")
 _ALERTS_ON = re.compile(
     rf"\b(?:turn on|enable|start|switch on|i want|give me)\b.*\b{_WATCHED} {_NOTICES}\b|"
     rf"\b(?:turn on|enable|start|switch on)\b.*\b{_NOTICES} (?:for|about|on) (?:the )?{_WATCHED}\b|"
@@ -517,6 +531,69 @@ def request(text: str) -> str | None:
     return None
 
 
+def _plain_words(text: str) -> str:
+    said = re.sub(r"[^\w\s-]", "", put_right(text).lower().replace("'", ""))
+    return re.sub(r"\s+", " ", said.replace("-", " ")).strip()
+
+
+def weather_for_sight(text: str) -> bool:
+    """Asking about the weather for one: "what's the weather for the Leonids?", "will it be clear for the eclipse?"."""
+    said = _plain_words(text)
+    if re.search(rf"\b(?:{_NOTICES}|commands?|comments?)\b", said):
+        return False  # "turn on weather alerts for the eclipse" isn't asking for a forecast
+    return bool(_WEATHER_FOR_SIGHT.search(said)) and not _OTHER_TOPIC.search(said) and not _CLOSING.search(said)
+
+
+def place_for_sight(text: str) -> str:
+    """The town in "the weather for the meteor shower in Salem", or nothing for home."""
+    found = _SIGHT_PLACE.search(re.sub(r"[?!.]+\s*$", "", put_right(text).lower().replace(",", " ")))
+    place = (found.group("place") or found.group("place2")) if found else ""
+    return re.sub(r"\s+", " ", place).strip()
+
+
+def shower_named(text: str) -> str | None:
+    """Which shower was named, as it's written in SHOWERS, with Whisper's versions put right: "land aids meteor shower"."""
+    found = re.search(rf"\b{_SHOWER_NAME}\b", _plain_words(text))
+    return found.group().title() if found else None
+
+
+def chosen_sight(here: "Sky", now: datetime, text: str) -> dict | None:
+    """The next one of what was asked about."""
+    said = _plain_words(text)
+    if re.search(r"\beclipses?\b", said):
+        kinds = [kind for kind in ("solar", "lunar") if re.search(rf"\b{kind}\b", said)]
+        found = sorted(here.lunar_eclipses(now, 1100) + here.solar_eclipses(now, 1100), key=lambda e: e["start"])
+        found = [e for e in found if not kinds or e["kind"].startswith(kinds[0])]
+    else:
+        name = shower_named(said)
+        found = [e for e in here.meteor_showers(now) if not name or name in e["name"]]
+    return found[0] if found else None
+
+
+def sight_weather_words(event: dict, data: dict, now: datetime, place_name: str, phrase) -> tuple[str, date | None]:
+    """What he says about the weather for that event, and the day to show on the screen if the forecast reaches it."""
+    daily = data["daily"]
+    times = daily.get("time") or []
+    day = event["start"].date()
+    if event["kind"] == "meteors":
+        moon = " Bright moonlight will be in the way too." if event["moon_lit"] >= 60 else ""
+        said = f"The {event['title']} peaks the night of {spoken_dates.spoken(day)}."
+    else:
+        moon = ""
+        said = f"{event['title']} {event_when(event, now)}, peaking at {clock(event['peak'])}."
+    index = (day - date.fromisoformat(times[0])).days if times else -1
+    if not 0 <= index < len(times):
+        last = date.fromisoformat(times[-1]) if times else now.date()
+        ask_again = day - timedelta(days=max(0, len(times) - 1))
+        year = f", {ask_again.year}" if (ask_again - now.date()).days > 300 else ""
+        return (f"{said} That's too far out for a forecast. Mine only goes through {spoken_dates.spoken(last)}. "
+                f"Ask me again around {spoken_dates.spoken(ask_again)}{year}.{moon}", None)
+    clouds = sky_words(clouds_at(data, event["peak"]))
+    sky_then = f" In {place_name}, the sky looks {clouds} around {clock(event['peak'])}." if clouds else f" In {place_name}:"
+    guide = " That's a rough guide, this far out." if index >= 7 else ""
+    return f"{said}{sky_then} That day: {phrase(daily, index)}.{guide}{moon}", day
+
+
 # --- What he says -----------------------------------------------------------------------------------------
 
 def _article_moon(name: str) -> str:
@@ -540,7 +617,9 @@ def event_when(event: dict, now: datetime) -> str:
         return "tomorrow"
     if (when - now).days < 7:
         return f"on {when.strftime('%A')}"
-    return f"on {when.strftime('%B')} {when.day}"
+    # An eclipse can be years off: a bare "January 11" would be heard as the coming one.
+    year = f", {when.year}" if (when - now).days > 300 else ""
+    return f"on {when.strftime('%B')} {when.day}{year}"
 
 
 def event_words(event: dict, now: datetime) -> str:

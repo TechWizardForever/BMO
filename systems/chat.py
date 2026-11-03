@@ -386,6 +386,7 @@ class Chat:
         )
         self._booted_from_standby_wake = os.environ.get("BEMO_STANDBY_WAKE", "0") == "1"
         self._current_turn_explicit_wake = False
+        self._current_turn_followup = False
         self._mic_capture_suspended = False
         self._manual_profile_pin = False
 
@@ -1850,8 +1851,9 @@ class Chat:
                         logger.trace("Ignored speech without Hey Bemo prefix: {!r}", prompt)
                         self.state = State.READY
                         continue
-                    if (not self._current_turn_explicit_wake and getattr(self, "_answer_followup_open", False)
-                            and len(gated_prompt.split()) > int(config.VOICE_FOLLOWUP_MAX_WORDS)):
+                    self._current_turn_followup = (not self._current_turn_explicit_wake
+                                                   and getattr(self, "_answer_followup_open", False))
+                    if self._current_turn_followup and len(gated_prompt.split()) > int(config.VOICE_FOLLOWUP_MAX_WORDS):
                         # A follow-up after an answer is a question, not a long stretch of TV talk.
                         self._answer_followup_open = False
                         logger.info("VOICE follow-up ignored: {} words (TV or room talk?)", len(gated_prompt.split()))
@@ -3062,6 +3064,8 @@ class Chat:
         try:
             settings_place = self._weather_tools()[0].load()
             data = self._weather_tools()[1].forecast(place)  # the same answer, from the cache
+            if weather_data.date_problem(command, data["daily"].get("time", [])):
+                return  # he's saying the forecast doesn't reach it: not today's weather on the screen
             days = weather_data.days_asked(command, data["daily"].get("time", []))
             cards = [weather_data.day_card(data, day) for day in days]
             current = weather_data.station(data, bool(config.WEATHER_FAHRENHEIT))
@@ -3107,10 +3111,13 @@ class Chat:
         """'What's in the sky tonight?', the moon, the space station, what's coming up, and the alerts (owner 2026-11-03;
         systems/sky.py). Worked out here, never by a brain."""
         from systems import sky
-        asked = sky.request(command)
+        for_weather = sky.weather_for_sight(command)
+        asked = "weather" if for_weather else sky.request(command)
         if asked is None or not getattr(config, "ENABLE_WEATHER", True):
             return False
         place = self._weather_tools()[0].load()
+        if for_weather and sky.available():
+            return self._say_local(command, self._sight_weather(command, place))
         if place is None:
             return self._say_local(command, "I need to know where you are first. Say, Hey BMO, set my weather location "
                                             "to, and then your town.")
@@ -3131,6 +3138,35 @@ class Chat:
         logger.info("SKY screen: {}", asked)
         return self._say_local(command, line)
 
+    def _sight_weather(self, command, place):
+        """'What's the weather for the Leonids?' (owner 2026-11-03): the night it peaks, from the forecast if it reaches
+        that far, and when to ask again if it doesn't."""
+        from systems import sky, spoken_dates, weather as weather_data
+        named = without_when_words(sky.place_for_sight(command))
+        try:
+            if named:
+                place = geocode(named)
+                if place is None:
+                    return f"I couldn't find a place called {named}."
+            if place is None:
+                return ("I don't have a weather location yet. "
+                        "Say Hey BMO, set my weather location to, and then your town.")
+            here = sky.Sky(place.latitude, place.longitude, place.timezone)
+            now = here.now()
+            event = sky.chosen_sight(here, now, command)
+            if event is None:
+                return "I don't see one of those coming up from here."
+            line, day = sky.sight_weather_words(event, self._weather_tools()[1].forecast(place), now, place.name,
+                                                weather_data._day_phrase)
+        except WeatherError as exc:
+            logger.warning("WEATHER fetch failed: {}", exc.__cause__ or exc)
+            return f"{exc}, so I can't tell you the weather right now."
+        logger.info("SKY weather for {}", event["title"])
+        if day:
+            self._weather_place = place
+            self._show_weather(f"the weather on {spoken_dates.spoken(day)}")
+        return line
+
     def _handle_help(self, command):
         """'Hey BMO, help' and 'weather commands' (owner 2026-11-03): the help center on his screen. When the screen isn't
         free, "help" still gets the spoken summary further on."""
@@ -3141,6 +3177,8 @@ class Chat:
         if view.active and view.kind == "help" and self._help_screen_command(command):
             return True
         asked = help_center.request(command)
+        if asked and getattr(self, "_current_turn_followup", False) and help_center.needs_hey_bmo(command):
+            return False  # part of the conversation (owner 2026-11-03): "My sink's leaking." "What can you do?"
         return self._open_help(command, asked) if asked else False
 
     def _help_screen_command(self, heard):
@@ -3297,8 +3335,10 @@ class Chat:
             if re.search(r"\beclipses?\b", said):
                 chosen = sorted(here.lunar_eclipses(now, 1100) + here.solar_eclipses(now, 1100), key=lambda e: e["start"])
                 line = sky.event_words(chosen[0], now) if chosen else "There's no eclipse you can see from here in the next three years."
-            elif re.search(r"\b(?:meteors?|meteor showers?|shooting stars?|falling stars?)\b", said):
+            elif sky.shower_named(said) or re.search(r"\b(?:meteors?|meteor showers?|shooting stars?|falling stars?)\b", said):
                 chosen = here.meteor_showers(now)
+                named = sky.shower_named(said)
+                chosen.sort(key=lambda e: 0 if named and named in e["name"] else 1)  # the one asked about, then the rest in order
                 line = sky.event_words(chosen[0], now) if chosen else "No meteor showers coming up."
             elif re.search(r"\b(?:aurora|northern lights)\b", said):
                 level = sky.fetch_aurora(place.latitude, now)

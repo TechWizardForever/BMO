@@ -11,6 +11,7 @@ from __future__ import annotations
 import re
 
 from systems.sound_alikes import put_right
+from systems.spoken_dates import ALONE_MONTH, FROM_NOW, SPOKEN_DATE
 
 _WEATHER_QUESTION = re.compile(
     r"\b(weather|forecast)\b.*\b(today|tonight|tomorrow|now|right now|outside|this (?:week|weekend|morning|afternoon|evening)|like|going to|gonna)\b"
@@ -23,6 +24,11 @@ _WEATHER_QUESTION = re.compile(
     r"|\bwhat(?:'s| is) it like (?:outside|out there)\b"
     r"|\bis it (?:cold|hot|warm|chilly|raining|snowing|sunny|windy|foggy) (?:outside|out)\b"
     # The long-term forecast and the screens (owner 2026-11-02).
+    # A date (owner 2026-11-03), and "what will the weather be" (live: it went to the brain).
+    rf"|\b(?:weather|forecast)\b.*\b(?:{SPOKEN_DATE}|{FROM_NOW}|(?:in|for) {ALONE_MONTH})"
+    r"|\bwhat will the (?:weather|forecast) be\b"
+    rf"|\b(?:will it|is it (?:going to|gonna)|it gonna|it going to)\b.*\b(?:rain(?:y|ing)?|snow(?:y|ing)?|storm(?:y|ing)?|cold|hot|warm|chilly|freezing|sunny|cloudy|clear|nice|windy)\b.*\b{SPOKEN_DATE}"
+    rf"|\b(?:temperature|how (?:hot|cold|warm))\b.*\b{SPOKEN_DATE}"
     r"|\b(?:weather|forecast)\b.*\b(?:weeks?|weekends?|long[- ]?(?:term|range)|extended|(?:mon|tues|wednes|thurs|fri|satur|sun)day|"
     r"\w+[- ]days?)\b"
     r"|\b(?:long[- ]?(?:term|range)|extended|weekly|\w+[- ]day|week(?:end)?(?:'s)?|tomorrow(?:'s)?|today(?:'s)?)\s+(?:weather|forecast)\b"

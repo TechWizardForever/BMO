@@ -8,7 +8,7 @@ Failures are reported plainly; BMO never fills gaps with guesses.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 import json
 from pathlib import Path
 import re
@@ -16,6 +16,7 @@ import time
 import urllib.parse
 import urllib.request
 
+from systems import spoken_dates
 from systems.sound_alikes import put_right
 
 GEOCODE_URL = "https://geocoding-api.open-meteo.com/v1/search"
@@ -177,12 +178,18 @@ class WeatherService:
         speed = "miles per hour" if self.fahrenheit else "kilometers per hour"
         updated = _spoken_time(current.get("time", ""))
         source = f"That's from {SOURCE_NAME}" + (f", updated at {updated}." if updated else ".")
-        days = days_asked(question, daily.get("time", []))
+        dates = daily.get("time", [])
+        problem = date_problem(question, dates)
+        if problem:
+            return problem
+        days, stops = days_asked(question, dates), _forecast_stops(question, dates)
+        dated = _dates_said(question, dates) is not None
         if len(days) > 2:
-            return f"{_range_phrase(place, daily, days)} {source}"
+            return f"{_range_phrase(place, daily, days, dated)}{stops} {source}"
         if days != [0]:
-            said = " ".join(f"{_day_name(daily, i)} in {place.name}: {_day_phrase(daily, i)}." for i in days)
-            return f"{said} {source}"
+            said = " ".join(f"{_spoken_day(daily, i, dated)} in {place.name}: {_day_phrase(daily, i)}." for i in days)
+            guide = " Past about a week, treat it as a rough guide." if days[-1] >= 7 else ""
+            return f"{said}{guide}{stops} {source}"
         temperature, wind = current.get("temperature_2m"), current.get("wind_speed_10m")
         sky = _sky_words(current.get("weather_code"), "unclear conditions")
         now = f"Right now in {place.name} it's " + (f"{round(temperature)} degrees and {sky}"
@@ -219,9 +226,9 @@ def _day_phrase(daily: dict, i: int) -> str:
     return text
 
 
-def _range_phrase(place: Place, daily: dict, days: list[int]) -> str:
+def _range_phrase(place: Place, daily: dict, days: list[int], dated: bool = False) -> str:
     where = (f"The next {len(days)} days in {place.name}" if days[0] == 0 else
-             f"{_day_name(daily, days[0])} to {_day_name(daily, days[-1])} in {place.name}")
+             f"{_spoken_day(daily, days[0], dated)} to {_spoken_day(daily, days[-1], dated)} in {place.name}")
     spans = []
     for word, name in (("highs", "temperature_2m_max"), ("lows", "temperature_2m_min")):
         values = [round(value) for value in (_at(daily, name, i) for i in days) if value is not None]
@@ -262,6 +269,12 @@ def _day_name(daily: dict, i: int) -> str:
     return day.strftime("%A") if day else "That day"
 
 
+def _spoken_day(daily: dict, i: int, dated: bool = False) -> str:
+    """With its date when one was asked for, and past a week, where a bare "Saturday" would be heard as the coming one."""
+    day = _date(_at(daily, "time", i))
+    return f"{_day_name(daily, i)}, {spoken_dates.spoken(day)}" if day and i >= 2 and (dated or i >= 7) else _day_name(daily, i)
+
+
 # --- Which days were asked about ------------------------------------------------------------------------
 
 _WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
@@ -273,7 +286,10 @@ _MANY_DAYS = re.compile(rf"\b(?:next |coming )?({_NUMBER}) days?\b")
 _ONE_DAY = re.compile(r"\b(day after tomorrow|tomorrow|today|tonight|" + "|".join(_WEEKDAYS) + r")(?:s)?\b")
 # Words about when, not where: "the weather for Friday" isn't a town called Friday.
 _WHEN_WORDS = re.compile(
-    r"\b(?:the |this |next |on |for |in |coming |upcoming )*(?:long ?(?:term|range)|extended|(?:two|2) weeks?|"
+    r"\b(?:the |this |next |on |for |in |coming |upcoming |night of |evening of |morning of |day of |month of |rest of |"
+    r"from |to |through |thru |until |till |and )*(?:"
+    rf"{spoken_dates.SPOKEN_DATE}|{spoken_dates.FROM_NOW}|(?:{spoken_dates.ORDINAL}){spoken_dates._AFTER_A_DAY}|{spoken_dates.ALONE_MONTH}|"
+    r"a week|long ?(?:term|range)|extended|(?:two|2) weeks?|"
     rf"(?:{_NUMBER}) days?|week(?:end)?|weekly|day after tomorrow|tomorrow|today|tonight|right now|now|month|forecast|"
     + "|".join(_WEEKDAYS) + r")(?:s)?\b", re.I)
 # What's left of "the weather for the week ahead" or "for the weekend looking like".
@@ -281,7 +297,43 @@ _ASKING_WORDS = re.compile(r"\b(?:ahead|looking like|look like|looking|going to 
 
 
 def without_when_words(text: str) -> str:
-    return re.sub(r"\s+", " ", _ASKING_WORDS.sub(" ", _WHEN_WORDS.sub(" ", str(text)))).strip(" ,.?!")
+    left = re.sub(r"\s+", " ", _ASKING_WORDS.sub(" ", _WHEN_WORDS.sub(" ", str(text)))).strip(" ,.?!")
+    return re.sub(r"^(?:in|at|for|on|near)\s+", "", left, flags=re.I)  # "for November 8th in Salem"
+
+
+def _dates_said(question: str, dates) -> spoken_dates.Said | None:
+    today = _date(dates[0]) if len(dates) else None
+    return spoken_dates.read(put_right(question), today) if today else None
+
+
+def _days_of(said: spoken_dates.Said, dates) -> list[int]:
+    today = _date(dates[0])
+    return [n for n in ((day - today).days for day in said.dates) if 0 <= n < len(dates)]
+
+
+def date_problem(question: str, dates) -> str | None:
+    """What to say instead of a forecast when none of the dates asked about are in it. Never today's weather in their place
+    (live 2026-11-03: "November 17th" got today's)."""
+    said = _dates_said(question, dates)
+    if said is None or _days_of(said, dates):
+        return None
+    if said.no_such:
+        return f"There's no {said.no_such}."
+    today, last = _date(dates[0]), _date(dates[-1])
+    if not said.dates:  # a month whose days have all gone, which can't happen, or nothing usable
+        return f"I don't have a forecast for {said.label}."
+    if said.dates[-1] < today:
+        return f"{said.label} has already passed, so I don't have a forecast for it."
+    ask_again = said.dates[0] - timedelta(days=len(dates) - 1)
+    return (f"{said.label} is too far out for a forecast. Mine only goes through {spoken_dates.spoken(last)}. "
+            f"Ask me again around {spoken_dates.spoken(ask_again)}.")
+
+
+def _forecast_stops(question: str, dates) -> str:
+    said = _dates_said(question, dates)
+    if said is None or not len(dates) or not any((day - _date(dates[0])).days >= len(dates) for day in said.dates):
+        return ""
+    return f" My forecast stops at {spoken_dates.spoken(_date(dates[-1]))}."
 
 
 def days_asked(question: str, dates) -> list[int]:
@@ -295,6 +347,9 @@ def days_asked(question: str, dates) -> list[int]:
     def within(days):
         return [day for day in days if day < available] or [0]
 
+    said = _dates_said(question, dates)
+    if said is not None:
+        return _days_of(said, dates) or [0]  # with date_problem() to say why
     if _LONG_TERM.search(text):
         return list(range(available))
     many = _MANY_DAYS.search(text)

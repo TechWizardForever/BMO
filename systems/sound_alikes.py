@@ -2,7 +2,7 @@
 gets alternates, because Whisper mishears). For matching only; the logs and the brain keep the words as heard.
 
 Each entry needs the words around it to be sure: "the whether", not any "whether" ("tell me whether it matters"), and
-"next the clips", not any "clip". None has been heard live yet: they're what these words sound like. Add what the logs
+"next the clips", not any "clip". Most haven't been heard live yet: they're what these words sound like. Add what the logs
 show, and name where it was heard, as systems/voice_intents.py does.
 """
 from __future__ import annotations
@@ -52,10 +52,24 @@ _TABLE = tuple((re.compile(heard, re.IGNORECASE), meant) for heard, meant in (
     (r"\b(next|upcoming|any|another|solar|lunar) (?:the|a|e|ee|i) clips?e?s?\b", r"\1 eclipse"),
     (r"\b(?:e|ee) clips?e?s?\b", "eclipse"),
     (r"\b(?:media|meter|metro|meaty|meteorite|meteoric|metier|meet your|meat your)s? showers?\b", "meteor shower"),
+    # "land aids" and "Leonades" heard live 2026-11-03; the rest are what these names sound like.
+    (r"\b(?:land aids|leonades|leonides|leonards?|lee on ids|leon ids|lion ids|lionids|leo nids|lee and ids|leonid)(?= (?:meteors?|showers?)\b)", "Leonids"),
+    (r"\b(?:gem in ids|gemini ids|gemini'?s?|jim in ids|gem and ids|geminoids|geminid)(?= (?:meteors?|showers?)\b)", "Geminids"),
+    (r"\b(?:per seeds?|purse ids|percy ids|perseus|perseid|purse aids)(?= (?:meteors?|showers?)\b)", "Perseids"),
+    (r"\b(?:orion ids|orion'?s?|orionid)(?= (?:meteors?|showers?)\b)", "Orionids"),
+    (r"\b(?:er sids|earth sids|her sids|your sids|ursid)(?= (?:meteors?|showers?)\b)", "Ursids"),
+    (r"\b(?:lyrics|lear ids|lie rids|lyrid)(?= (?:meteors?|showers?)\b)", "Lyrids"),
+    (r"\b(?:quadrant ids|quadrants?|quadrantid)(?= (?:meteors?|showers?)\b)", "Quadrantids"),
+    (r"\b(eta|delta) (?:aquarius|aquarids|aquariid)(?= (?:meteors?|showers?)\b)", r"\1 Aquariids"),
     (r"\bnorther(?:n)? (?:lights?|lites?|lines?|flights?)\b", "northern lights"),
     (r"\b(?:a roar a|auroras|aurora's)\b", "aurora"),
     (r"\b(space|sky) (?:a lurch(?:es)?|a lerts?|allerts?|allergies)\b", r"\1 alerts"),
     (r"\bskype (alerts?)\b", r"sky \1"),
+    # Dates, only right before the day
+    (r"\b(?:no vember|no member|know vember|novembers)(?= (?:the )?\d)", "November"),
+    (r"\b(?:the cember|this ember|dis ember|decembers)(?= (?:the )?\d)", "December"),
+    (r"\b(?:sep tember|septembers)(?= (?:the )?\d)", "September"),
+    (r"\ba gust(?= (?:the )?\d)", "August"),
     # The project list
     (r"\b(my|our) (?:prospects|products|objects|projex)\b", r"\1 projects"),
 ))

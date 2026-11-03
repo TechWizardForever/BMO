@@ -36,12 +36,14 @@ _SUBJECT = "(?P<subject>" + "|".join(sorted(map(re.escape, _BY_WORD), key=len, r
 _COMMANDS = r"(?:commands?|comments?)"  # Whisper writes "voice comments"
 _THE = r"(?: the| your| my| all the| all)?"
 _SHOW = r"(?:show|open|bring up|pull up|give me|display|see|list|read|go to|what are)"
-# "What can you do?" alone (owner 2026-11-03). With more on it, "on this computer" or "about the leak", it isn't this.
+# "Hey BMO, what can you do?" alone (owner 2026-11-03). With more on it, "on this computer" or "about the leak", it isn't this,
+# and right after an answer, with no "Hey BMO", it's part of the conversation: needs_hey_bmo().
 _WHAT_YOU_DO = (r"what(?: all| else| things| (?:kind|kinds|sort|sorts) of things)? (?:can|could) (?:you|ya|bmo|bemo|beemo) do|"
                 r"(?:(?:show|tell) me )?what you can do|what are you (?:able to do|capable of)|"
                 r"what are your (?:abilities|skills|features)|what do you (?:do|know how to do)|"
                 r"what can you help(?: me)? with|how can you help(?: me)?")
 
+_ASKS_WHAT_YOU_DO = re.compile(rf"^(?:{_WHAT_YOU_DO})$")
 _HOME = re.compile(
     r"^(?:(?:i need )?help(?: me)?|help (?:center|centre|menu|screen|page)|voice " + _COMMANDS + r"|commands|command list|"
     rf"(?:the )?(?:command list|help (?:center|centre|menu|screen|page))|list of commands|"
@@ -78,6 +80,10 @@ def _spoken(text: str) -> str:
 def request(text: str) -> str | None:
     """HOME for "help", a subject for "weather commands", else None."""
     return first(_spoken(text), _parse)
+
+
+def needs_hey_bmo(text: str) -> bool:
+    return bool(first(_spoken(text), _ASKS_WHAT_YOU_DO.match))
 
 
 def subject_named(text: str) -> str | None:
