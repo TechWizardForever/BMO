@@ -1310,14 +1310,15 @@ class FaceRenderer:
         screen = self._app._screen
         w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
         px = max(1, round(h * 0.004))
-        x, y = int(w * INDICATOR_INSET), int(h * INDICATOR_INSET)
+        right, y = w - int(w * INDICATOR_INSET), int(h * INDICATOR_INSET)  # top right (owner 2026-11-02)
         level = 0.625 + 0.375 * math.sin(now * 2 * math.pi / INDICATOR_PULSE_SECONDS)  # a quarter to full strength
         color = tuple(int(back + (part - back) * level) for part, back in zip(color, self.BACKGROUND_COLOR))
         if kind == "ready":
             radius = px * 3
-            pygame.draw.circle(screen, color, (x + radius, y + radius), radius)
+            pygame.draw.circle(screen, color, (right - radius, y + radius), radius)
             return
         art = {"listening": self._MIC, "testing": self._WATCH}.get(kind, self._BRAIN)
+        x = right - len(art[0]) * px
         for j, row in enumerate(art):
             for i, cell in enumerate(row):
                 if cell == "X":

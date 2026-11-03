@@ -221,11 +221,12 @@ class FaceRenderTests(unittest.TestCase):
 
     def test_the_corner_symbol_is_the_only_mark_on_the_face(self):
         # 2026-10-31 the owner asked for one: green circle ready, microphone once woken, brain thinking; nothing while
-        # he talks. Everything outside the top-left corner stays exactly the face.
+        # he talks. Everything outside the top-right corner stays exactly the face.
         app = smoke.FakeApp()
         renderer = FaceRenderer(app)
         w, h = app.SCREEN_WIDTH, app.SCREEN_HEIGHT
-        corner = pygame.Rect(0, 0, int(w * render.INDICATOR_INSET) + 13 * max(1, round(h * 0.004)) + 2,
+        corner_width = int(w * render.INDICATOR_INSET) + 13 * max(1, round(h * 0.004)) + 2
+        corner = pygame.Rect(w - corner_width, 0, corner_width,
                              int(h * render.INDICATOR_INSET) + 11 * max(1, round(h * 0.004)) + 2)
 
         def frame(kind):
@@ -249,7 +250,7 @@ class FaceRenderTests(unittest.TestCase):
         def lit(now):  # where the symbol is, and how strong, at a moment of its pulse
             app._screen.fill(renderer.BACKGROUND_COLOR)
             renderer._draw_indicator("listening", now)
-            spots = [(x, y) for x in range(corner.width) for y in range(corner.height)
+            spots = [(x, y) for x in range(corner.left, corner.right) for y in range(corner.top, corner.bottom)
                      if tuple(app._screen.get_at((x, y)))[:3] != renderer.BACKGROUND_COLOR]
             return spots, tuple(app._screen.get_at(spots[0]))[:3]
         quarter = render.INDICATOR_PULSE_SECONDS / 4
@@ -259,8 +260,8 @@ class FaceRenderTests(unittest.TestCase):
         self.assertNotEqual(faint, renderer.BACKGROUND_COLOR)
 
     def test_the_corner_symbol_stays_clear_of_a_tubes_corners(self):
-        # 2026-11-02: on the owner's CRT (1024x768) the symbols were cropped 3% in from the edges, and it's calibrated
-        # right up to the left edge. The face itself starts about 29% in, so nothing crowds it there.
+        # 2026-11-02: on the owner's CRT (1024x768) the symbols were cropped 3% in from the edges. The face itself
+        # starts about 29% in from each side, so nothing crowds it there. The owner then moved them to the top right.
         for size in ((640, 480), (1024, 768), (1280, 720), (1920, 1080)):
             app = smoke.FakeApp()
             app.SCREEN_WIDTH, app.SCREEN_HEIGHT = size
@@ -273,7 +274,8 @@ class FaceRenderTests(unittest.TestCase):
                 mask.invert()
                 box = mask.get_bounding_rects()
                 self.assertTrue(box, (size, kind))
-                self.assertGreaterEqual(min(b.left for b in box), size[0] * 0.09, (size, kind))
+                self.assertGreater(min(b.left for b in box), size[0] / 2, (size, kind))  # the right-hand side
+                self.assertLessEqual(max(b.right for b in box), size[0] * 0.91, (size, kind))
                 self.assertGreaterEqual(min(b.top for b in box), size[1] * 0.09, (size, kind))
 
     def test_which_symbol_when(self):
