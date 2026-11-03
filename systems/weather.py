@@ -286,18 +286,20 @@ _MANY_DAYS = re.compile(rf"\b(?:next |coming )?({_NUMBER}) days?\b")
 _ONE_DAY = re.compile(r"\b(day after tomorrow|tomorrow|today|tonight|" + "|".join(_WEEKDAYS) + r")(?:s)?\b")
 # Words about when, not where: "the weather for Friday" isn't a town called Friday.
 _WHEN_WORDS = re.compile(
-    r"\b(?:the |this |next |on |for |in |coming |upcoming |night of |evening of |morning of |day of |month of |rest of |"
+    r"\b(?:the |this |next |on |for |in |coming |upcoming |night of |evening of |morning of |day of |month of |rest of |week of |weekend of |"
     r"from |to |through |thru |until |till |and )*(?:"
     rf"{spoken_dates.SPOKEN_DATE}|{spoken_dates.FROM_NOW}|(?:{spoken_dates.ORDINAL}){spoken_dates._AFTER_A_DAY}|{spoken_dates.ALONE_MONTH}|"
     r"a week|long ?(?:term|range)|extended|(?:two|2) weeks?|"
     rf"(?:{_NUMBER}) days?|week(?:end)?|weekly|day after tomorrow|tomorrow|today|tonight|right now|now|month|forecast|"
     + "|".join(_WEEKDAYS) + r")(?:s)?\b", re.I)
+_POLITE_END = re.compile(r"(?:(?:^|[\s,]+)(?:please|thanks|thank you|bmo|bemo|beemo))+$", re.I)
 # What's left of "the weather for the week ahead" or "for the weekend looking like".
 _ASKING_WORDS = re.compile(r"\b(?:ahead|looking like|look like|looking|going to be|gonna be)\b", re.I)
 
 
 def without_when_words(text: str) -> str:
     left = re.sub(r"\s+", " ", _ASKING_WORDS.sub(" ", _WHEN_WORDS.sub(" ", str(text)))).strip(" ,.?!")
+    left = _POLITE_END.sub("", left).strip(" ,.?!")  # not "ok": that's Oklahoma
     return re.sub(r"^(?:in|at|for|on|near)\s+", "", left, flags=re.I)  # "for November 8th in Salem"
 
 

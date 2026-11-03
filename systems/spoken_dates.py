@@ -34,13 +34,13 @@ def _either(words) -> str:
 MONTH = _either(_MONTHS)
 ORDINAL = r"\d{1,2} ?(?:st|nd|rd|th)|" + _either(_ORDINALS)
 DAY = ORDINAL + r"|\d{1,2}|" + _either(_CARDINALS)
-_AFTER_A_DAY = r"(?=\W*$| (?:in|at|for|and|to|through|thru|until|till)\b)"
+_AFTER_A_DAY = r"(?=\W*$|\W+(?:in|at|for|and|to|through|thru|until|till|please|thanks|thank you|bmo|bemo|beemo|of this month)\b)"
 _MORE_DAYS = rf"(?:(?: (?:and|to|through|thru|until|till)(?: the)? | ?- ?)(?:{DAY}))*"
 # Regex text for a date with no groups, for the other patterns: a question about the weather on one.
 SPOKEN_DATE = (rf"(?:(?:{MONTH})\.?,?(?: the)? (?:{DAY})(?:,? 20\d\d)?{_MORE_DAYS}|(?:the )?(?:{ORDINAL})(?: of| in)? (?:{MONTH})|"
-               rf"(?:1[0-2]|0?[1-9])/\d{{1,2}}(?:/\d{{2,4}})?|(?:on|for|from) the (?:{ORDINAL}){_AFTER_A_DAY}{_MORE_DAYS})"
+               rf"(?:1[0-2]|0?[1-9])/\d{{1,2}}(?:/\d{{2,4}})?|(?:on|for|from|{'|'.join(_WEEKDAYS)})(?: the)? (?:{ORDINAL}){_AFTER_A_DAY}{_MORE_DAYS})"
                r"(?!\w)")
-ALONE_MONTH = rf"(?:{'|'.join(_MONTH_NAMES)})(?=\W*$| (?:in|at|for)\b)"
+ALONE_MONTH = rf"(?:{'|'.join(_MONTH_NAMES)}){_AFTER_A_DAY}"
 _NUMBER = r"\d{1,2}|" + _either(_SMALL)
 FROM_NOW = (rf"(?:in (?:about )?(?:{_NUMBER}|a|an) (?:days?|weeks?)|"
             rf"(?:{_NUMBER}|a) (?:days?|weeks?) from (?:now|today|tomorrow|{'|'.join(_WEEKDAYS)}))(?!\w)")
@@ -49,13 +49,13 @@ _MENTION = re.compile(
     rf"\b(?P<month>{MONTH})(?: the)? (?P<day>{DAY})(?: (?P<year>20\d\d))?\b|"
     rf"\b(?P<day2>{ORDINAL})(?: of| in)? (?P<month2>{MONTH})\b(?: (?P<year2>20\d\d)\b)?|"
     rf"\b(?P<month3>1[0-2]|0?[1-9])/(?P<day3>\d{{1,2}})(?:/\d{{2,4}})?(?!\w)|"
-    rf"\b(?:on|for|from) the (?P<day4>{ORDINAL})\b{_AFTER_A_DAY}")
+    rf"\b(?:(?:on|for|from) the|(?:{'|'.join(_WEEKDAYS)})(?: the)?) (?P<day4>{ORDINAL})\b{_AFTER_A_DAY}")
 _MORE = re.compile(rf" (?P<word>and|to|through|thru|until|till)(?: the)? (?P<day>{DAY})\b(?! (?:days?|weeks?)\b)(?! (?:{MONTH})\b)")
 _SPAN = re.compile(r"\s*\b(?:to|through|thru|until|till)\b\s*(?:the\s*)?")
 _FROM_NOW = re.compile(
     rf"\bin (?:about )?(?P<count>{_NUMBER}|a|an) (?P<unit>day|week)s?\b|"
     rf"\b(?P<count2>{_NUMBER}|a) (?P<unit2>day|week)s? from (?P<base>now|today|tomorrow|{'|'.join(_WEEKDAYS)})\b")
-_MONTH_ALONE = re.compile(rf"\b(?:in|for|during|this|next|rest of(?: the month of)?) (?:the month of )?(?P<month>{'|'.join(_MONTH_NAMES)})\b(?=\W*$| (?:in|at|for)\b)")
+_MONTH_ALONE = re.compile(rf"\b(?:in|for|during|this|next|rest of(?: the month of)?) (?:the month of )?(?P<month>{'|'.join(_MONTH_NAMES)})\b{_AFTER_A_DAY}")
 
 
 class Said(NamedTuple):
@@ -169,6 +169,11 @@ def read(text: str, today: date) -> Said | None:
             days.extend(_between(days[-1], when))
         days.append(when)
         place = found.end()
+        before = said[:found.start()]
+        if before.endswith("week of "):
+            days.extend(when + timedelta(days=n) for n in range(1, 7))
+        elif before.endswith("weekend of ") and when.weekday() == 5:
+            days.append(when + timedelta(days=1))
         more = _MORE.match(said, place)
         while more:
             number = _day_number(more.group("day"))

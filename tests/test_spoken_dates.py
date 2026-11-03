@@ -51,11 +51,14 @@ class Reading(unittest.TestCase):
         for said in ("weather on November 8th", "weather on November 8", "the weather November eighth", "weather for November eight", "weather November the 8th",
                      "the weather for the 8th of November", "the weather for the eighth of November", "weather for the 8th November", "the weather on Nov 8",
                      "the weather on Nov. 8th", "weather on 11/8", "the weather on the 8th", "forecast for the eighth", "Forecast for November 8th, 2026.",
-                     "weather for november 8 th", "what's the weather going to be on Sunday, November 8th?", "no member 8 weather"):
+                     "weather for november 8 th", "what's the weather going to be on Sunday, November 8th?", "no member 8 weather",
+                     "the weather on the 8th please", "what's the weather on the 8th, BMO?", "weather on the 8th thanks", "weather on the 8th of this month",
+                     "the weather on Sunday the 8th", "the weather for Sunday the eighth"):
             self.assertEqual(self.days(said), [5], said)
 
     def test_more_than_one_day(self):
-        for said, days in (("weather November 8th through the 10th", [5, 6, 7]), ("weather November 8-10", [5, 6, 7]), ("weather November 8th to 10th", [5, 6, 7]),
+        for said, days in (("the forecast for the week of November 8th", list(range(5, 12))), ("the weather for the weekend of November 7th", [4, 5]),
+                           ("weather November 8th through the 10th", [5, 6, 7]), ("weather November 8-10", [5, 6, 7]), ("weather November 8th to 10th", [5, 6, 7]),
                            ("weather November 8th and 9th", [5, 6]), ("weather from the 8th to the 10th", [5, 6, 7]), ("weather on November 8th and November 12th", [5, 9]),
                            ("the weather for the rest of November", list(range(15))), ("weather November 15th through the 20th", [12, 13, 14]), ("weather November 4th through the 9th", [1, 2, 3, 4, 5, 6]),
                            ("weather November 4th to November 9th", [1, 2, 3, 4, 5, 6])):
@@ -78,6 +81,7 @@ class Reading(unittest.TestCase):
 
     def test_the_next_one_of_a_date(self):
         self.assertEqual(spoken_dates.read("on the 2nd", TODAY).dates, [date(2026, 12, 2)])
+        self.assertEqual(spoken_dates.read("for tuesday the 10th", TODAY).dates, [date(2026, 11, 10)])  # today's a Tuesday: never today
         self.assertEqual(spoken_dates.read("january 5th", TODAY).dates, [date(2027, 1, 5)])
         self.assertEqual(spoken_dates.read("november 30th to december 2nd", TODAY).dates, [date(2026, 11, 30), date(2026, 12, 1), date(2026, 12, 2)])
         self.assertEqual(spoken_dates.read("december 30th through the 2nd", TODAY).dates[-1], date(2027, 1, 2))
@@ -117,12 +121,14 @@ class WhatHeSays(unittest.TestCase):
 
 class TheTown(unittest.TestCase):
     def test_a_date_is_not_a_town(self):
-        for said in ("November 8th", "the 8th", "the 8th of November", "November 8th through the 10th", "November 8-10", "the rest of November", "December", "the night of November 8th", "11/8"):
+        for said in ("November 8th", "the 8th", "the 8th of November", "November 8th through the 10th", "November 8-10", "the rest of November", "December", "the night of November 8th", "11/8",
+                     "the week of November 8th", "the weekend of November 7th", "Tuesday the 10th", "November 8th please", "November 8th, BMO", "the 8th please", "December please", "Friday please"):
             self.assertEqual(wx.without_when_words(said), "", said)
 
     def test_the_town_is_left(self):
         for said, town in (("November 8th in Salem", "Salem"), ("Salem on November 8th", "Salem"), ("Salem, Oregon on November 8th", "Salem, Oregon"), ("Salem for the 8th", "Salem"),
-                           ("Friday in Salem", "Salem"), ("Marchfield", "Marchfield"), ("May, Oklahoma", "May, Oklahoma")):
+                           ("Friday in Salem", "Salem"), ("Marchfield", "Marchfield"), ("May, Oklahoma", "May, Oklahoma"),
+                           ("Salem please", "Salem"), ("Salem, BMO", "Salem"), ("Salem on the 8th please", "Salem"), ("Tulsa, OK", "Tulsa, OK"), ("Salem thank you", "Salem")):
             self.assertEqual(wx.without_when_words(said), town, said)
 
 
@@ -130,7 +136,9 @@ class Routing(unittest.TestCase):
     def test_a_weather_question_with_a_date(self):
         for said in ("what will the weather be on November 8th", "what will the weather be in Paris", "the forecast for November 8th", "weather on the 8th", "weather on 11/8",
                      "weather from the 8th to the 10th", "will it rain on November 8th", "is it going to be cold on the 8th", "is it gonna snow on November 8th",
-                     "how cold will it be on November 8th", "what's the temperature on November 8th", "the weather in December", "the weather in five days"):
+                     "how cold will it be on November 8th", "what's the temperature on November 8th", "the weather in December", "the weather in five days",
+                     "what's the weather on the 8th please", "what's the weather on the 8th, BMO?", "any rain on November 8th", "will there be rain on the 8th", "what's the high on November 8th",
+                     "what's it going to be like on November 8th", "how's November 8th looking", "the forecast for Tuesday the 10th"):
             self.assertEqual(live_data_topic(said), "weather", said)
 
     def test_a_date_without_the_weather_stays_out(self):
