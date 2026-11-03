@@ -174,6 +174,8 @@ class App:
         self._pointer = PointerHider(pygame.mouse.set_visible)
         try:
             while self._running:
+                if self.chat.worker_failed:
+                    raise RuntimeError("BMO stopped listening; leaving so the Supervisor starts him again")
                 # Timeout rollback is owned by the UI loop, so it still happens
                 # even if the LLM is busy or unavailable.
                 self.display_manager.tick()

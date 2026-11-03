@@ -918,6 +918,9 @@ class SupervisorService:
         if action == "sky":
             watcher = getattr(self, "sky", None)
             return watcher.handle(request) if watcher is not None else {"ok": False}
+        if action == "weather_alerts":
+            watcher = getattr(self, "weather_alerts", None)
+            return watcher.handle(request) if watcher is not None else {"ok": False}
         if action == "import_files_into_project_from_removable":
             return self.import_files_into_project_from_removable(request.get("project_slug", ""))
         if action == "export_project_items_to_removable":
@@ -1262,6 +1265,16 @@ def run_supervised(command: list[str], *, standby: bool = False) -> int:
         service.sky.start()
     except Exception:
         LOG.exception("Could not start the sky alerts")
+
+    try:
+        # Severe weather alerts too (2026-11-03): the urgent ones come at any hour, even over a movie.
+        from systems.weather import WeatherSettings
+        from systems.weather_alerts import AlertWatcher
+        service.weather_alerts = AlertWatcher(config.WEATHER_ALERTS_STATE_PATH, WeatherSettings(config.WEATHER_SETTINGS_PATH).load,
+                                              busy=lambda: _watching_something(service), hours=tuple(config.WEATHER_ALERT_HOURS))
+        service.weather_alerts.start()
+    except Exception:
+        LOG.exception("Could not start the weather alerts")
 
     if not standby:
         service.request_start_bemo("startup")

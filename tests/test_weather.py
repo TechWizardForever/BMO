@@ -101,7 +101,7 @@ class VoiceTests(unittest.TestCase):
     def setUp(self):
         src = (ROOT / "systems" / "chat.py").read_text()
         chat = next(n for n in ast.parse(src).body if isinstance(n, ast.ClassDef) and n.name == "Chat")
-        keep = {"_handle_weather_setup", "_weather_reply", "_weather_tools", "_WEATHER_SET",
+        keep = {"_handle_weather_setup", "_weather_reply", "_weather_tools", "_serious_weather_alert", "_WEATHER_SET",
                 "_WEATHER_ASK_SAVED", "_WEATHER_FORGET", "_WEATHER_SETUPISH", "_weather_words",
                 "_normalize_command_text", "_say_local"}
         body = [n for n in chat.body if (isinstance(n, ast.FunctionDef) and n.name in keep)
@@ -116,7 +116,7 @@ class VoiceTests(unittest.TestCase):
               "WeatherService": lambda fahrenheit: WeatherService(fetch=fake(FORECAST)),
               "geocode": lambda q: self.geo.setdefault("asked", []).append(q) or self.geo["result"],
               "live_data_topic": live_data_topic, "without_when_words": without_when_words, "radar": radar,
-              "put_right": put_right}
+              "put_right": put_right, "SupervisorError": RuntimeError}
         exec(compile(ast.fix_missing_locations(ast.Module(body=[ast.ClassDef(
             name="Mini", bases=[], keywords=[], body=body, decorator_list=[])], type_ignores=[])), "mini", "exec"), ns)
         self.c = ns["Mini"]()

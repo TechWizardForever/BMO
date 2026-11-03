@@ -507,6 +507,7 @@ class Chat:
         self.stt = None
         self.thread = None
         self.stop_event = threading.Event()
+        self.worker_failed = False  # the listening loop died: app.py exits so the Supervisor starts him again
         # Cancels only the current reply (Backspace in the UI), not the app.
         self.cancel_turn_event = threading.Event()
         self.models_ready = threading.Event()
@@ -1890,8 +1891,21 @@ class Chat:
         except Exception:
             logger.exception("Chat worker stopped because of an unrecoverable error")
             self.state = State.DONE
+            self._restart_after_failure()
         finally:
             self._active_microphone = None
+
+    def _restart_after_failure(self):
+        """A failure outside any one command (the microphone, say) used to leave him on screen and deaf until Esc. Now he
+        says so and leaves with an error, and the Supervisor starts him again (app.py). Not while closing, and not during
+        the install screen, which saves each step and has its own retry."""
+        if self.stop_event.is_set() or self.setup_view.active:
+            return
+        try:
+            self.speak("Something went wrong, so I'm restarting.")
+        except Exception:
+            logger.exception("Could not say that BMO is restarting")
+        self.worker_failed = True
 
     def _fit_tool_rounds(self, messages, tools):
         """Before each round: if the messages outgrow the context (less the answer's room), the older tool results and
@@ -3003,6 +3017,7 @@ class Chat:
                 return f"I don't have GPS, but your saved weather location is {place.spoken}."
             return HONEST_REPLIES["location"]
         command = put_right(command)  # "the whether in Paris" is still Paris, not home
+        home = place
         # "weather in Paris": one-off report for that place; the saved one stays.
         elsewhere = re.search(r"\b(?:weather|forecast|radar)\b.*?\b(?:in|for|at)\s+(?P<place>[a-z][\w\s,.'-]*?)\W*$",
                               command, re.I)
@@ -3022,7 +3037,9 @@ class Chat:
         if radar.asked_for(command):
             return self._open_radar(place)
         try:
-            return service.report(place, command)
+            report = service.report(place, command)
+            warning = self._serious_weather_alert() if place is home else None
+            return f"{warning} in effect here. {report}" if warning else report
         except WeatherError as exc:
             logger.warning("WEATHER fetch failed: {}", exc.__cause__ or exc)
             return f"{exc}, so I can't tell you the weather right now."
@@ -3037,12 +3054,15 @@ class Chat:
             return
         from systems import library, weather as weather_data
         try:
+            settings_place = self._weather_tools()[0].load()
             data = self._weather_tools()[1].forecast(place)  # the same answer, from the cache
             days = weather_data.days_asked(command, data["daily"].get("time", []))
             cards = [weather_data.day_card(data, day) for day in days]
             current = weather_data.station(data, bool(config.WEATHER_FAHRENHEIT))
             source = f"{weather_data.SOURCE_NAME} {current['updated']}".strip()
             extra = {"place": place.name.upper(), "source": source, "all_days": cards}
+            if place == settings_place:
+                extra["warning"] = self._serious_weather_alert()
             if len(days) == 1:
                 extra.update(station=True, hours=weather_data.hours(data, days[0]),
                              current=current if days[0] == 0 else None)
@@ -3104,6 +3124,86 @@ class Chat:
             self.note_user_activity()
         logger.info("SKY screen: {}", asked)
         return self._say_local(command, line)
+
+    def _handle_weather_alerts(self, command):
+        """'Any weather alerts?', and turning the spoken ones on and off (owner 2026-11-03; systems/weather_alerts.py)."""
+        from datetime import datetime
+        from systems import weather_alerts as alerts
+        asked = alerts.request(command)
+        if asked is None or not getattr(config, "ENABLE_WEATHER", True):
+            return False
+        if asked == "which":
+            return self._say_local(command, "Which ones? Say space alerts or weather alerts.")
+        place = self._weather_tools()[0].load()
+        if asked == "alerts off":
+            return self._set_weather_alerts(command, False)
+        if place is None:
+            return self._say_local(command, "I need to know where you are first. Say, Hey BMO, set my weather location "
+                                            "to, and then your town.")
+        if asked == "alerts on":
+            try:
+                alerts.fetch_alerts(place.latitude, place.longitude)
+            except alerts.OutsideCoverage as exc:
+                return self._say_local(command, f"I can't, because {exc}, and {place.name} is outside it.")
+            except alerts.AlertError as exc:
+                logger.warning("WEATHER alerts check failed while turning them on: {}", exc)
+            return self._set_weather_alerts(command, True)
+        target = place
+        named = re.search(r"\b(?:alerts?|warnings?|watch|watches|advisory|advisories|weather)\b.*?\b(?:in|for|at)\s+"
+                          r"(?P<place>[a-z][\w\s,.'-]*?)\W*$", command, re.I)
+        named = without_when_words(named.group("place")) if named else ""
+        if named and named.lower() not in {"here", "my area", "our area", "this area", "my town", "town"}:
+            try:
+                target = geocode(named)
+            except WeatherError as exc:
+                return self._say_local(command, f"{exc}, so I can't check for alerts in {named}.")
+            if target is None:
+                return self._say_local(command, f"I couldn't find a place called {named}.")
+        try:
+            found = alerts.fetch_alerts(target.latitude, target.longitude)
+        except alerts.OutsideCoverage as exc:
+            return self._say_local(command, f"I can't check {target.name}, because {exc}.")
+        except alerts.AlertError as exc:
+            logger.warning("WEATHER alerts: {}", exc)
+            return self._say_local(command, f"{exc}, so I don't know if there are any alerts right now.")
+        now = datetime.now().astimezone()
+        cards = [alerts.screen_card(alert, target, now) for alert in found]
+        self._show_alert_cards(cards, target.name.upper())
+        logger.info("WEATHER alerts screen: {} active", len(found))
+        return self._say_local(command, alerts.spoken_summary(found, target, now))
+
+    def _show_alert_cards(self, cards, place_name=""):
+        from systems import library
+        view = getattr(self, "library_view", None)
+        if view is None or self.managed_display_active():
+            return
+        items = [library.Item(card["event"], "alert", str(n), data=card) for n, card in enumerate(cards)]
+        view.open("weather", items, grid=False, per_page=3, idle_close=180.0,
+                  extra={"alerts": True, "place": place_name, "source": "National Weather Service"})
+        self.note_user_activity()
+
+    def _set_weather_alerts(self, command, on):
+        try:
+            reply = self.supervisor.request("weather_alerts", op="set", on=on) if self.supervisor is not None else {}
+        except SupervisorError:
+            reply = {}
+        if not reply.get("ok"):
+            return self._say_local(command, "I can't reach my weather watcher right now, so nothing changed.")
+        logger.info("WEATHER alerts {}", "on" if on else "off")
+        return self._say_local(command, "Okay. I'll warn you about severe weather from the National Weather Service. Warnings "
+                                        "that need action now come right away, day or night, even over a movie. The rest wait "
+                                        "until morning or until the movie's off. It isn't a replacement for a weather radio."
+                               if on else "Okay, no more weather alerts.")
+
+    def _serious_weather_alert(self):
+        """The serious alert in effect at home, if the owner has them on: nothing is contacted for this."""
+        supervisor = getattr(self, "supervisor", None)
+        try:
+            reply = supervisor.request("weather_alerts", op="get") if supervisor is not None else {}
+        except SupervisorError:
+            return None
+        serious = reply.get("serious") or []
+        return serious[0] if reply.get("on") and serious else None
 
     def _set_sky_alerts(self, command, on):
         try:
@@ -3200,6 +3300,14 @@ class Chat:
                 pass
             except Exception:
                 logger.exception("Could not show a sky alert")
+            try:
+                cards = self.supervisor.request("weather_alerts", op="alert").get("cards")
+                if cards:
+                    self._show_alert_cards(cards)
+            except SupervisorError:
+                pass
+            except Exception:
+                logger.exception("Could not show a weather alert")
 
     def _confirm_specialist_switch(self, profile_name):
         """Ask the human BEFORE a model change, including an offered return to Main.
@@ -6008,6 +6116,9 @@ class Chat:
             return True
 
         if self._handle_sky_command(command):
+            return True
+
+        if self._handle_weather_alerts(command):
             return True
 
         offered = getattr(self, "_quick_scan_offered_at", None)

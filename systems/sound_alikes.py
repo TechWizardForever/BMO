@@ -18,7 +18,11 @@ _TABLE = tuple((re.compile(heard, re.IGNORECASE), meant) for heard, meant in (
     (r"\bthe (?:whether|wether)\b(?! or\b)", "the weather"),
     (r"\b(what(?:'?s| is)|how(?:'?s| is)|today'?s|tomorrow'?s|long[- ]?term|long[- ]range|extended|weekend) "
      r"(?:whether|wether)\b(?! or\b)", r"\1 weather"),
-    (r"\b(?:whether|wether)(?= (?:forecast|report|radar|station|map|outlook|update)\b)", "weather"),
+    (r"\b(?:whether|wether)(?= (?:forecast|report|radar|station|map|outlook|update|alerts?|warnings?)\b)", "weather"),
+    # Severe weather alerts
+    (r"\bsevere (?:whether|wether)\b", "severe weather"),
+    (r"\b(any|is there|are there) several weather\b", r"\1 severe weather"),
+    (r"\b(weather) (?:a lurch(?:es)?|a lerts?|allerts?|allergies)\b", r"\1 alerts"),
     (r"^\W*(?:whether|wether)\W*$", "weather"),
     (r"\blong[- ]?(?:turn|tern|terms?|time)(?= (?:forecast|weather|outlook)\b)", "long term"),
     (r"\blonger (?:forecast|outlook)\b", "long term forecast"),

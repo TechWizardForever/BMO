@@ -536,6 +536,8 @@ REMINDERS_PATH = DATA_ROOT / "reminders.json"
 SKY_STATE_PATH = DATA_ROOT / "sky.json"
 SKY_ORBIT_PATH = DATA_ROOT / "sky-iss-orbit.json"
 SKY_ALERT_HOURS = (8, 23)
+WEATHER_ALERTS_STATE_PATH = DATA_ROOT / "weather-alerts.json"
+WEATHER_ALERT_HOURS = (8, 23)  # only for alerts that can wait: the urgent ones come at any hour
 # Give Whisper a tiny spelling hint for Bemo's invented name. This does not
 # bypass the wake gate; it only nudges transcription toward the intended name.
 # Do not seed Whisper with a full sentence about Bemo: on the target mic it

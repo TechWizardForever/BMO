@@ -11,6 +11,7 @@ import pygame
 from systems import radar as radar_data
 
 TEXT, DIM, HEAD, WARM, COOL = (205, 236, 228), (96, 150, 140), (108, 245, 206), (255, 196, 110), (130, 190, 255)
+LEVEL_COLORS = {"urgent": (255, 86, 74), "serious": (255, 196, 110), "notice": (130, 190, 255)}
 BOX, EDGE, RAIN_BAR = (6, 30, 16), (28, 96, 44), (70, 150, 240)
 SUN, CLOUD, DARK_CLOUD, DROP, SNOW, BOLT, FOG, MOON = ((255, 214, 90), (205, 216, 222), (120, 132, 142),
                                                        (90, 170, 250), (235, 245, 255), (255, 240, 120),
@@ -375,12 +376,85 @@ def render_radar(renderer, lib, now, fonts):
     _text(screen, small_font, "HEAVY", TEXT, bottomright=(legend_right, legend_top - 1))
 
 
+# --- Severe weather alerts -------------------------------------------------------------------------------
+
+def _wrapped(font, text, room, lines):
+    """Up to `lines` lines that fit; a sentence that runs past them ends in dots."""
+    rows, row = [], ""
+    for word in str(text).split():
+        trial = f"{row} {word}".strip()
+        if font.size(trial)[0] <= room:
+            row = trial
+        else:
+            rows.append(row)
+            row = word
+    if row:
+        rows.append(row)
+    if len(rows) > lines:
+        rows = rows[:lines]
+        rows[-1] = _fitted(font, rows[-1], room - font.size("...")[0]) + "..."
+    return rows
+
+
+def _alert_box(screen, rect, card, now, fonts):
+    _, row_font, small_font = fonts
+    color = LEVEL_COLORS.get(card.get("level"), COOL)
+    _box(screen, rect)
+    pad = max(6, rect.height // 12)
+    stripe = pygame.Rect(rect.left, rect.top, max(6, rect.width // 80), rect.height)
+    pulsing = card.get("level") == "urgent" and math.sin(now * 5) < -0.2  # only the stripe: the words stay easy to read
+    pygame.draw.rect(screen, (150, 50, 44) if pulsing else color, stripe)
+    left = stripe.right + pad
+    room = rect.right - left - pad
+    place = _text(screen, row_font, _fitted(row_font, card.get("event", "").upper(), room), color, topleft=(left, rect.top + pad))
+    y = place.bottom + 2
+    if card.get("until"):
+        y = _text(screen, small_font, _fitted(small_font, card["until"].upper(), room), TEXT, topleft=(left, y)).bottom + 2
+    line = small_font.get_linesize()
+    for row in _wrapped(small_font, card.get("instruction") or card.get("area", ""), room, max(1, (rect.bottom - pad - y) // line)):
+        y = _text(screen, small_font, row, TEXT if card.get("level") != "notice" else DIM, topleft=(left, y)).bottom
+
+
+def _render_alerts(renderer, lib, now, fonts):
+    screen = renderer._app._screen
+    tiles, total, first = lib.get("tiles") or [], int(lib.get("total") or 0), int(lib.get("first") or 1)
+    extra = lib.get("extra") or {}
+    note = f"{first}-{first + len(tiles) - 1} of {total}" if total > len(tiles) else extra.get("source", "")
+    hint = "Say: scroll down, scroll up, or close" if total > len(tiles) else "Say: close"
+    area = _frame(renderer, f"ALERTS {extra.get('place', '')}".strip(), note, hint, now, fonts)
+    if not tiles:
+        _text(screen, fonts[0], _fitted(fonts[0], "NO ACTIVE ALERTS", area.width), HEAD, center=area.center)
+        return
+    gap = max(4, area.height // 40)
+    rows = max(len(tiles), 1)
+    height = (area.height - gap * (rows - 1)) // rows if len(tiles) >= 3 else min(area.height // 2, (area.height - gap) // rows)
+    for n, tile in enumerate(tiles):
+        _alert_box(screen, pygame.Rect(area.left, area.top + n * (height + gap), area.width, height), tile["data"], now, fonts)
+
+
+def _warning_strip(renderer, event, now, fonts):
+    """A serious alert in effect shows on every weather screen, over the line of what to say."""
+    screen = renderer._app._screen
+    w, h = renderer._app.SCREEN_WIDTH, renderer._app.SCREEN_HEIGHT
+    small_font = fonts[2]
+    text = f"{event} IN EFFECT".upper()
+    height = small_font.get_linesize() + 6
+    strip = pygame.Rect(int(w * MARGIN), int(h * (1 - MARGIN)) - height + 2, int(w * (1 - 2 * MARGIN)), height)
+    pygame.draw.rect(screen, (190, 44, 38) if math.sin(now * 4) > -0.4 else (120, 30, 26), strip)
+    _text(screen, small_font, _fitted(small_font, text, strip.width - 8), (255, 240, 230), center=strip.center)
+
+
 def render(renderer, lib, now):
     """The screen for an open weather view."""
     fonts = renderer._setup_fonts(renderer._app.SCREEN_HEIGHT)
+    extra = lib.get("extra") or {}
     if lib.get("kind") == "radar":
         render_radar(renderer, lib, now, fonts)
-    elif (lib.get("extra") or {}).get("station"):
+    elif extra.get("alerts"):
+        _render_alerts(renderer, lib, now, fonts)
+    elif extra.get("station"):
         _render_station(renderer, lib, now, fonts)
     else:
         _render_days(renderer, lib, now, fonts)
+    if extra.get("warning"):
+        _warning_strip(renderer, extra["warning"], now, fonts)
