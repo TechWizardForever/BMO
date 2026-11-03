@@ -1881,7 +1881,7 @@ class Chat:
                     for request in requests:
                         if self._turn_cancelled():
                             break
-                        self._handle_one_request(request)
+                        self._handle_request_safely(request)
                     self.note_user_activity()
                     self._open_answer_followup()
                     self.state = State.DONE
@@ -2145,6 +2145,15 @@ class Chat:
         with self._visual_lock:
             self._parts_menu_until = time.monotonic() + float(seconds)
             self._parts_menu_busy = bool(busy)
+
+    def _handle_request_safely(self, request):
+        """One command that breaks mustn't cost him his hearing: live 2026-11-03 a weather crash ended this worker and
+        left him on screen, deaf, until Esc."""
+        try:
+            self._handle_one_request(request)
+        except Exception:
+            logger.exception("A request failed; BMO keeps listening")
+            self._say_local(request, "Sorry, something went wrong with that one.")
 
     def _handle_one_request(self, request):
         """One question or command: BMO's own commands first, then "didn't catch", then the brain."""

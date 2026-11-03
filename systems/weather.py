@@ -165,6 +165,7 @@ class WeatherService:
         data = self._fetch(FORECAST_URL, params, self.timeout)
         if "current" not in data or "daily" not in data:
             raise WeatherError("the weather service sent an answer I couldn't read")
+        _drop_empty_last_days(data["daily"])
         self._cache = (key, self._clock(), data)
         return data
 
@@ -180,34 +181,60 @@ class WeatherService:
         if days != [0]:
             said = " ".join(f"{_day_name(daily, i)} in {place.name}: {_day_phrase(daily, i)}." for i in days)
             return f"{said} {source}"
-        now = (f"Right now in {place.name} it's {round(current['temperature_2m'])} degrees and "
-               f"{_WMO.get(int(current.get('weather_code', -1)), 'unclear conditions')}, "
-               f"wind {round(current.get('wind_speed_10m', 0))} {speed}.")
+        temperature, wind = current.get("temperature_2m"), current.get("wind_speed_10m")
+        sky = _sky_words(current.get("weather_code"), "unclear conditions")
+        now = f"Right now in {place.name} it's " + (f"{round(temperature)} degrees and {sky}"
+                                                    if temperature is not None else sky)
+        now += f", wind {round(wind)} {speed}." if wind is not None else "."
         return f"{now} Today: {_day_phrase(daily, 0)}. {source}"
 
 
+def _drop_empty_last_days(daily: dict) -> None:
+    """The last day can come back with a date and no high or low (live 2026-11-03, day 16 of a 16-day forecast), which
+    isn't a forecast for that day, so the forecast ends before it."""
+    count = len(daily.get("time") or [])
+    while count and _at(daily, "temperature_2m_max", count - 1) is None and _at(daily, "temperature_2m_min", count - 1) is None:
+        count -= 1
+    for name, values in daily.items():
+        if isinstance(values, list):
+            daily[name] = values[:count]
+
+
+def _sky_words(code, otherwise: str) -> str:
+    return otherwise if code is None else _WMO.get(int(code), otherwise)
+
+
 def _day_phrase(daily: dict, i: int) -> str:
-    sky = _WMO.get(int(daily["weather_code"][i]), "mixed conditions")
+    parts = [_sky_words(_at(daily, "weather_code", i), "mixed conditions")]
+    for word, name in (("high", "temperature_2m_max"), ("low", "temperature_2m_min")):
+        value = _at(daily, name, i)
+        if value is not None:
+            parts.append(f"{word} {round(value)}")
+    text = ", ".join(parts)
     rain = _at(daily, "precipitation_probability_max", i)
-    text = f"{sky}, high {round(daily['temperature_2m_max'][i])}, low {round(daily['temperature_2m_min'][i])}"
     if rain is not None:
         text += f", {int(rain)} percent chance of rain"
     return text
 
 
 def _range_phrase(place: Place, daily: dict, days: list[int]) -> str:
-    highs = [round(daily["temperature_2m_max"][i]) for i in days]
-    lows = [round(daily["temperature_2m_min"][i]) for i in days]
-    text = (f"The next {len(days)} days in {place.name}: highs from {min(highs)} to {max(highs)}, "
-            f"lows from {min(lows)} to {max(lows)}." if days[0] == 0 else
-            f"{_day_name(daily, days[0])} to {_day_name(daily, days[-1])} in {place.name}: highs from {min(highs)} "
-            f"to {max(highs)}, lows from {min(lows)} to {max(lows)}.")
+    where = (f"The next {len(days)} days in {place.name}" if days[0] == 0 else
+             f"{_day_name(daily, days[0])} to {_day_name(daily, days[-1])} in {place.name}")
+    spans = []
+    for word, name in (("highs", "temperature_2m_max"), ("lows", "temperature_2m_min")):
+        values = [round(value) for value in (_at(daily, name, i) for i in days) if value is not None]
+        if values:
+            spans.append(f"{word} from {min(values)} to {max(values)}")
+    text = f"{where}: {', '.join(spans)}." if spans else f"{where}: the service didn't send any temperatures."
     chances = [(_at(daily, "precipitation_probability_max", i), i) for i in days]
     chances = [pair for pair in chances if pair[0] is not None]
     if chances:
         chance, day = max(chances, key=lambda pair: pair[0])
         name = _day_name(daily, day)
         name = name.lower() if day < 2 else name
+        when = _date(_at(daily, "time", day))
+        if day >= 7 and when:  # a bare "Saturday" would be heard as the coming one
+            name += f", {when.strftime('%B')} {when.day}"
         text += f" Rain is most likely {name}, at {int(chance)} percent." if chance else " No rain in the forecast."
     if days[-1] >= 7:
         text += " Past about a week, treat it as a rough guide."
@@ -378,7 +405,7 @@ def station(data: dict, fahrenheit: bool = True) -> dict:
     return {"temp": _round(current.get("temperature_2m")), "feels": _round(current.get("apparent_temperature")),
             "humidity": _round(current.get("relative_humidity_2m")), "dew": _round(current.get("dew_point_2m")),
             "kind": sky_kind(current.get("weather_code")), "night": current.get("is_day") == 0,
-            "sky": _WMO.get(int(current.get("weather_code", -1)), "unclear"),
+            "sky": _sky_words(current.get("weather_code"), "unclear"),
             "clouds": _round(current.get("cloud_cover")),
             "pressure": None if pressure is None else (f"{float(pressure) * 0.02953:.2f} in" if fahrenheit
                                                        else f"{round(float(pressure))} hPa"),

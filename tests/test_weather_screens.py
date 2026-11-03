@@ -49,6 +49,16 @@ def forecast(days=16):
     }
 
 
+def empty_last_day():
+    """As Open-Meteo answered live on 2026-11-03: the last day has its date, rain chance and sun times, nothing else."""
+    data = forecast()
+    for name, values in data["daily"].items():
+        if name not in ("time", "precipitation_probability_max", "sunrise", "sunset"):
+            values[-1] = None
+    data["hourly"]["temperature_2m"][-1] = data["hourly"]["weather_code"][-1] = None
+    return data
+
+
 class WhichDaysTests(unittest.TestCase):
     def test_days_mentioned(self):
         for said, days in (("what's the weather", [0]), ("how's the weather today", [0]), ("tonight's forecast", [0]),
@@ -141,6 +151,42 @@ class ReportTests(unittest.TestCase):
         self.assertEqual(weather_screen.dash(card["high"]), "--")
         self.assertEqual(wx.station({})["temp"], None)
 
+    def test_an_empty_last_day_ends_the_forecast(self):
+        # Live 2026-11-03: every one of these crashed him on the last day's missing high.
+        for said in ("show me the long-term forecast.", "the extended forecast", "two week forecast", "16 day forecast"):
+            reply = self.service(empty_last_day()).report(SPRINGFIELD, said)
+            self.assertTrue(reply.startswith("The next 15 days in Springfield: highs from 60 to 74, lows from 40 to 54."), reply)
+        data = self.service(empty_last_day()).forecast(SPRINGFIELD)
+        self.assertEqual(wx.days_asked("long term forecast", data["daily"]["time"]), list(range(15)))
+        for name in ("time", "weather_code", "temperature_2m_max", "precipitation_probability_max", "sunset"):
+            self.assertEqual(len(data["daily"][name]), 15, name)
+
+    def test_rain_past_a_week_names_the_date(self):
+        said = self.service(forecast()).report(SPRINGFIELD, "long term forecast")
+        self.assertIn("Rain is most likely Monday, November 16, at 98 percent.", said)
+
+    def test_a_full_forecast_keeps_every_day(self):
+        data = self.service(forecast()).forecast(SPRINGFIELD)
+        self.assertEqual(len(data["daily"]["time"]), 16)
+
+    def test_gaps_in_the_middle_are_left_out_of_the_answer(self):
+        data = forecast()
+        for name in ("weather_code", "temperature_2m_max", "temperature_2m_min", "precipitation_probability_max"):
+            data["daily"][name][4] = None
+        service = self.service(data)
+        self.assertIn("highs from 60 to 66, lows from 40 to 46.", service.report(SPRINGFIELD, "this week"))
+        said = service.report(SPRINGFIELD, "Friday")
+        self.assertIn("Friday in Springfield: mixed conditions.", said)
+        for name in ("temperature_2m_max", "temperature_2m_min"):
+            data["daily"][name][:7] = [None] * 7
+        self.assertIn("didn't send any temperatures", service.report(SPRINGFIELD, "this week"))
+
+    def test_gaps_in_right_now_are_left_out_of_the_answer(self):
+        data = forecast()
+        data["current"].update(temperature_2m=None, weather_code=None, wind_speed_10m=None)
+        self.assertIn("Right now in Springfield it's unclear conditions. Today:", self.service(data).report(SPRINGFIELD))
+        self.assertEqual(wx.station(data)["sky"], "unclear")
+
     def test_rain_and_snow_amounts_read_cleanly(self):
         data = forecast()
         data["daily"]["precipitation_sum"][0] = 0.177
@@ -199,6 +245,15 @@ class ScreenTests(unittest.TestCase):
                 for _ in range(2 if len(days) > 8 else 1):
                     weather_screen.render(renderer, view.snapshot(), 12.3)
                     view.scroll(1)
+
+    def test_the_long_term_forecast_with_an_empty_last_day_draws(self):
+        data = wx.WeatherService(fetch=lambda url, params, timeout: empty_last_day()).forecast(SPRINGFIELD)
+        days = wx.days_asked("long term forecast", data["daily"]["time"])
+        app, renderer = self.renderer((1024, 768))
+        view = self.view(days, data)
+        for _ in range(2):
+            weather_screen.render(renderer, view.snapshot(), 1.0)
+            view.scroll(1)
 
     def test_a_forecast_with_gaps_still_draws(self):
         app, renderer = self.renderer((640, 480))
@@ -423,6 +478,25 @@ class CommandListTests(unittest.TestCase):
         for phrase in ("long term forecast", "radar", "this weekend"):
             self.assertIn(phrase, (ROOT / "VOICE_COMMANDS.md").read_text())
             self.assertIn(phrase, (ROOT / "voice_commands.py").read_text())
+
+
+class FailedRequestTests(unittest.TestCase):
+    def test_a_failed_request_is_said_and_he_keeps_listening(self):
+        chat = mock.Mock()
+        chat._handle_one_request.side_effect = TypeError("type NoneType doesn't define __round__ method")
+        Chat._handle_request_safely(chat, "show me the long-term forecast.")
+        chat._say_local.assert_called_once_with("show me the long-term forecast.", "Sorry, something went wrong with that one.")
+
+    def test_a_good_request_says_nothing_extra(self):
+        chat = mock.Mock()
+        Chat._handle_request_safely(chat, "what's the weather")
+        chat._handle_one_request.assert_called_once_with("what's the weather")
+        chat._say_local.assert_not_called()
+
+    def test_the_voice_loop_uses_it(self):
+        source = (ROOT / "systems" / "chat.py").read_text()
+        self.assertIn("self._handle_request_safely(request)", source)
+        self.assertEqual(source.count("self._handle_one_request(request)"), 1)  # only inside the guard
 
 
 if __name__ == "__main__":
