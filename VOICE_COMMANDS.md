@@ -13,7 +13,8 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | **Hey BMO / BMO** | Wakes BMO. You can say just his name, wait for him, and then say the command. |
 | **yes / no** | Answers BMO when he asks before doing something. No works on its own; yes needs Hey BMO. |
 | **go to sleep / shutdown yourself** | BMO closes and lets go of his brain. He still hears Hey BMO, which starts him again. |
-| **list commands** | BMO names the kinds of things he can do. This page has the whole list. |
+| **help / list commands** | The help center on BMO's screen: every subject, numbered. Say a subject or a number to see its commands and what each does, then scroll down, back, or close. These work without Hey BMO while it's up. "What can I say?", "show me the commands" and "help center" work too. If a movie or game has the screen, he says a summary instead. |
+| **weather commands / help with the weather** | Goes straight to one subject's commands. Any subject works: "movie commands", "timer commands", "commands for the sky", "what can I say about my projects?" |
 | **what time is it? / what's the date?** | From this computer's clock. |
 | **what hardware am I on?** | What this computer has: processor, memory, graphics, free disk space, sound and screen. |
 | **what can you do on this computer?** | What works on this computer, what doesn't, and why. |

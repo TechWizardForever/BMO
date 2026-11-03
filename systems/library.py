@@ -375,7 +375,8 @@ _ON_SCREEN = (r"weather|forecast|weather station|weather radar|rain radar|radar 
 _CLOSE = re.compile(
     r"^(?:close|hide|exit|quit|leave|dismiss|put away)(?: (?:it|this|that|the|my))?"
     r"(?: (?:list|library|movies|games|shows|movie library|game library|movie list|game list|projects|project list|"
-    r"project folders|screen|menu|thing|window|weather alerts?|weather warnings?|alerts?|warnings?|" + _ON_SCREEN + r"))?(?: away)?$|"
+    r"project folders|screen|menu|thing|window|weather alerts?|weather warnings?|alerts?|warnings?|help|help center|help menu|"
+    r"commands|command list|subjects|" + _ON_SCREEN + r"))?(?: away)?$|"
     # "Turn off the weather alerts" means stop them, so turning off isn't a way to close their screen.
     r"^(?:get rid of|take away) (?:the |my )?(?:weather )?(?:alerts?|warnings?)$|"
     # These also mean other things ("turn off the screen", "turn off the sound"), so they name what's showing.

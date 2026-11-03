@@ -1187,6 +1187,8 @@ class Chat:
         """The weather screens have no numbers to pick, and the radar only closes (a heard "three" isn't for them)."""
         if view.kind == "radar":
             return action[0] == "close"
+        if view.kind == "help":  # numbers pick a subject; a subject's own commands have none
+            return action[0] != "play" or view.extra.get("page") == "home"
         if view.kind == "sky":
             return action[0] == "close" or (action[0] != "play" and len(view.items) > view.per_page)
         return not (view.kind == "weather" and action[0] == "play")
@@ -1385,6 +1387,8 @@ class Chat:
         if view is None or not view.active or len(str(heard).split()) > 5:
             return False
         from systems import library
+        if view.kind == "help" and self._help_screen_command(heard):
+            return True
         action = library.command(heard)
         if action is None or not self._screen_takes(view, action):
             return False
@@ -1467,6 +1471,8 @@ class Chat:
                                             f"{len(view.items)}.")
         if item.kind == "project":
             return self._handle_project_command(f"open project {item.key}")
+        if item.kind == "help":
+            return self._open_help(command, item.key)
         if item.kind == "game":
             view.close()
             try:
@@ -3123,6 +3129,43 @@ class Chat:
             view.open("sky", items, grid=False, per_page=per_page, extra=extra, idle_close=180.0)
             self.note_user_activity()
         logger.info("SKY screen: {}", asked)
+        return self._say_local(command, line)
+
+    def _handle_help(self, command):
+        """'Hey BMO, help' and 'weather commands' (owner 2026-11-03): the help center on his screen. When the screen isn't
+        free, "help" still gets the spoken summary further on."""
+        from systems import help_center
+        view = getattr(self, "library_view", None)
+        if view is None or self.managed_display_active():
+            return False
+        if view.active and view.kind == "help" and self._help_screen_command(command):
+            return True
+        asked = help_center.request(command)
+        return self._open_help(command, asked) if asked else False
+
+    def _help_screen_command(self, heard):
+        """With the help center up: a subject's name opens it, and back goes to the subjects, then closes."""
+        from systems import help_center
+        view = self.library_view
+        subject = help_center.subject_named(heard)
+        if subject:
+            return self._open_help(heard, subject)
+        if not help_center.asks_back(heard):
+            return False
+        if view.extra.get("page") == "home":
+            view.close()
+            self.state = State.READY
+            return True
+        return self._open_help(heard, help_center.HOME)
+
+    def _open_help(self, command, subject):
+        from systems import help_center, library
+        cards, line, per_page = help_center.items(subject)
+        items = [library.Item(card.get("subject") or card["say"], "help", card.get("subject", ""), data=card) for card in cards]
+        extra = {"page": "home"} if subject == help_center.HOME else {"page": "subject", "subject": subject, "per_page": per_page}
+        self.library_view.open("help", items, grid=False, per_page=per_page, extra=extra, idle_close=300.0)
+        self.note_user_activity()
+        logger.info("HELP screen: {}", subject)
         return self._say_local(command, line)
 
     def _handle_weather_alerts(self, command):
@@ -6110,6 +6153,10 @@ class Chat:
                     self.supervisor.stop_bemo()
             except SupervisorError:
                 logger.warning("Supervisor unreachable; staying up with the conversation closed")
+            return True
+
+        # Before the timers, which would take "timer commands" for a timer with no time.
+        if self._handle_help(command):
             return True
 
         if self._handle_reminder_command(command):
