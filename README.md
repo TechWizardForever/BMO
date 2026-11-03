@@ -1,7 +1,8 @@
 # BMO
 
 BMO from Adventure Time, living on your computer. You say "Hey BMO" and he talks back. Everything runs on your
-own machine: no cloud, no account, and nothing you say ever leaves the PC.
+own machine: no cloud, no account, and nothing you say ever leaves the PC, except a town name when you ask for its
+weather.
 
 This is a fan project. It's free and non-commercial, and it has nothing to do with Cartoon Network or anyone
 behind Adventure Time. BMO's name and look belong to them.

@@ -192,6 +192,9 @@ class TheScreens(unittest.TestCase):
                             break
                 self.assertEqual(cut, [], size)
 
+    def test_the_printed_list_is_current(self):
+        self.assertEqual((Path(voice_commands.__file__).parent / "VOICE_COMMANDS.md").read_text(), voice_commands.markdown_catalog())
+
     def test_every_command_is_on_a_page(self):
         total = 0
         for subject in hc.subjects():
