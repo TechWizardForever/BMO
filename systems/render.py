@@ -1093,7 +1093,7 @@ class FaceRenderer:
                 screen.blit(row_font.render(name, True, text), (x + number_w + 16, y))
         hint = "Say: scroll down, scroll up, play number 3, or close" if total else "Say: close"
         if total and lib.get("kind") == "projects":
-            hint = "Say: scroll down, scroll up, open number 2, or close"
+            hint = "Say: open number 2, delete number 2, scroll down, or close"
         surface = small_font.render(hint, True, number_color)
         screen.blit(surface, surface.get_rect(center=(w // 2 + dx, int(h * 0.94) + dy)))
 

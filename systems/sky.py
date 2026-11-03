@@ -440,7 +440,9 @@ def sky_words(percent: int | None) -> str:
 
 _PLANET = r"(?:mercury|venus|mars|jupiter|saturn)"
 _SHOWER_NAME = r"(?:leonids|geminids|perseids|orionids|ursids|lyrids|quadrantids|(?:eta |delta )?aquariids)"
-_BIG_EVENT = rf"(?:eclipses?|(?:{_SHOWER_NAME} )?meteor showers?|{_SHOWER_NAME}(?: meteors)?|meteors|shooting stars?|falling stars?|aurora|northern lights)"
+_ECLIPSE_SORT = r"(?:partial|total|annular|hybrid|solar|lunar)"
+_ECLIPSE = rf"(?:{_ECLIPSE_SORT} ){{0,2}}eclipses?(?: of the (?:sun|moon))?(?! of the heart)"
+_BIG_EVENT = rf"(?:{_ECLIPSE}|(?:{_SHOWER_NAME} )?meteor showers?|{_SHOWER_NAME}(?: meteors)?|meteors|shooting stars?|falling stars?|aurora|northern lights)"
 _WATCHED = r"(?:space|sky|iss|space station|astronomy)"
 _NOTICES = r"(?:alerts?|notifications?|warnings?)"
 _RIGHT_NOW = r"(?: tonight| today| tomorrow| right now| now)?"
@@ -469,6 +471,8 @@ _MOON = re.compile(r"\b(?:moon phase|phase of the moon|what phase is the moon|ho
                    rf"is the moon (?:full|new|out|up)|where(?: is)? the moon{_RIGHT_NOW}$|next (?:full|new) moon)\b")
 _STATION = r"\b(?:space station|the iss|iss|i s s)\b"
 _ISS = re.compile(rf"\b(?:when|where|show|track|next|see|find|pull up|bring up|spot|what time)\b.*{_STATION}|"
+                  # "Just the next pass" with no question waiting went to the brain, which made up a date (live 2026-11-03).
+                  r"^(?:no )?(?:just )?(?:the |my )?next (?:pass|passes|past)$|^(?:when(?: is)?|what time is) the next pass$|"
                   rf"{_STATION}.*\b(?:pass|passes|passing|overhead|tonight|fly|flying|going over|go over|visible|above)\b|"
                   rf"^(?:the )?(?:international )?{_STATION}$|^(?:is|will|can)\b.*{_STATION}.*\b(?:up|out|coming)\b")
 _EVENTS = re.compile(
@@ -477,7 +481,7 @@ _EVENTS = re.compile(
     r"anything (?:cool |big |good )?(?:happening|going on|coming up) in (?:the sky|space)|space weather|"
     r"(?:cool|big) (?:things|stuff) in the sky|"
     # Heard live 2026-11-03, a shower off the list on his screen.
-    rf"(?:what|how) about (?:the |that )?(?:next )?{_BIG_EVENT}\b|tell me about (?:the )?{_SHOWER_NAME}\b|"
+    rf"(?:what|how) about (?:the |that |an? )?(?:next )?{_BIG_EVENT}\b|tell me about (?:the |that )?(?:next )?(?:{_SHOWER_NAME}|{_ECLIPSE_SORT} eclipse)\b|"
     rf"when\b.*\b{_BIG_EVENT}\b|next(?: \w+)? {_BIG_EVENT}\b|any(?: \w+){{0,2}} {_BIG_EVENT}\b|"
     rf"show(?: me)?(?: the| an?| any| all)?(?: next| upcoming)? {_BIG_EVENT}\b|(?:coming up|upcoming)(?: \w+)? {_BIG_EVENT}\b|"
     rf"\b(?:eclipses?|meteor showers?)\b.*\b(?:coming|this (?:year|month)|next)\b|"
@@ -596,13 +600,20 @@ def shower_named(text: str) -> str | None:
     return found.group().title() if found else None
 
 
+def eclipse_kind(said: str) -> str | None:
+    """'solar' for "the solar eclipse" or "the eclipse of the sun", 'lunar' likewise, or None if it could be either."""
+    if re.search(r"\b(?:solar|of the sun)\b", said):
+        return "solar"
+    return "lunar" if re.search(r"\b(?:lunar|of the moon)\b", said) else None
+
+
 def chosen_sight(here: "Sky", now: datetime, text: str) -> dict | None:
     """The next one of what was asked about."""
     said = _plain_words(text)
     if re.search(r"\beclipses?\b", said):
-        kinds = [kind for kind in ("solar", "lunar") if re.search(rf"\b{kind}\b", said)]
+        kind = eclipse_kind(said)
         found = sorted(here.lunar_eclipses(now, 1100) + here.solar_eclipses(now, 1100), key=lambda e: e["start"])
-        found = [e for e in found if not kinds or e["kind"].startswith(kinds[0])]
+        found = [e for e in found if not kind or e["kind"].startswith(kind)]
     else:
         name = shower_named(said)
         found = [e for e in here.meteor_showers(now) if not name or name in e["name"]]

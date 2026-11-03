@@ -51,6 +51,8 @@ _TABLE = tuple((re.compile(heard, re.IGNORECASE), meant) for heard, meant in (
     (r"\bwhat plants\b(?=.*\b(?:tonight|visible|in the sky)\b)", "what planets"),
     (r"\b(next|upcoming|any|another|solar|lunar) (?:the|a|e|ee|i) clips?e?s?\b", r"\1 eclipse"),
     (r"\b(?:e|ee) clips?e?s?\b", "eclipse"),
+    (r"\b(partial|total|annular|the|that|next) clips?(?= of the (?:sun|moon)\b)", r"\1 eclipse"),  # heard live 2026-11-03
+    (r"\b(solar|lunar) clips?e?s?\b", r"\1 eclipse"),
     (r"\b(?:media|meter|metro|meaty|meteorite|meteoric|metier|meet your|meat your)s? showers?\b", "meteor shower"),
     # "land aids" and "Leonades" heard live 2026-11-03; the rest are what these names sound like.
     (r"\b(?:land aids|leonades|leonides|leonards?|lee on ids|leon ids|lion ids|lionids|leo nids|lee and ids|leonid)(?= (?:meteors?|showers?)\b)", "Leonids"),
@@ -70,6 +72,8 @@ _TABLE = tuple((re.compile(heard, re.IGNORECASE), meant) for heard, meant in (
     (r"\b(?:the cember|this ember|dis ember|decembers)(?= (?:the )?\d)", "December"),
     (r"\b(?:sep tember|septembers)(?= (?:the )?\d)", "September"),
     (r"\ba gust(?= (?:the )?\d)", "August"),
+    # Deleting from the project list
+    (r"^\W*(?:the lead|the leet|de lete|dee lete|dilete|dilute)(?= (?:number|project \w+|the \w+ project|my \w+ project)\b)", "delete"),
     # The project list
     (r"\b(my|our) (?:prospects|products|objects|projex)\b", r"\1 projects"),
 ))

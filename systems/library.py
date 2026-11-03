@@ -392,6 +392,39 @@ _PLAY_NUMBER = re.compile(
     r"(?:the )?(?P<n>.+?)(?: please)?$")
 
 
+_DELETING = r"(?:delete|deletes|deleted(?= (?:number|project)\b)|remove|removes|trash|erase|scrap|get rid of|throw away|throw out)"
+_DELETE = re.compile(rf"^{_DELETING} (?P<what>.+)$")
+_DELETE_THIS = re.compile(r"^(?:it|this|that|project|(?:this|that|the|my|the open) project)$")
+# Named as a project, so it means one anywhere, not "delete this file from my project" or a file called anything else.
+_NAMES_A_PROJECT = re.compile(r"^(?:the |my |this |that )?(?:\w+ ){0,4}project$|^(?:the |my )?project (?:called |named )?(?:\w+ ){0,4}\w+$")
+_NOT_A_PROJECT = re.compile(r"\b(?:from|in|of|to|on|at|files?|folders?)\b")
+
+
+def delete_request(text: str) -> dict | None:
+    """"Delete number 2" -> {"number": 2}, "delete project garden" -> {"name": "garden"}, "delete it" -> {"this": True}, each
+    with "says_project" when it names a project outright. Only reads the words: the list and a yes decide what happens."""
+    from systems.media_phrases import first
+    from systems.sound_alikes import put_right
+
+    def read(said):
+        found = _DELETE.match(said)
+        if not found:
+            return None
+        what = found.group("what")
+        says_project = bool(_NAMES_A_PROJECT.match(what)) and not _NOT_A_PROJECT.search(what)
+        if _DELETE_THIS.match(what):
+            return {"this": True, "says_project": says_project}
+        words = re.sub(r"^(?:the |my )?(?:project )?(?:(?:number|no) )?(?:the )?", "", what)
+        if words.endswith(" one") and words.split()[-2] in _ORDINALS:
+            words = words[:-4]  # "the third one"
+        number = spoken_number(words)
+        if number:
+            return {"number": number, "says_project": says_project}
+        name = re.sub(r" project$", "", re.sub(r"^(?:the |my )?(?:project )?(?:called |named )?", "", what))
+        return {"name": name, "says_project": says_project} if name else None
+    return first(put_right(text), read)
+
+
 def command(text: str) -> tuple[str, int] | None:
     """For an open library: ('down', 0), ('up', 0), ('top', 0), ('bottom', 0), ('close', 0) or ('play', n)."""
     from systems.media_phrases import first

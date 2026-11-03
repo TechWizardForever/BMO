@@ -1177,6 +1177,11 @@ class Chat:
         if kind:
             return self._open_library(command, kind)
         view = getattr(self, "library_view", None)
+        asked = library.delete_request(command)
+        if asked and view is not None and view.active and view.kind == "projects":
+            return self._delete_from_list(command, asked)
+        if asked:  # deleted from the list, by number or name. Never "number 1" with a stray word in front: that plays it.
+            return self._open_project_list(command, to_delete=True) if asked["says_project"] else False
         if view is None or not view.active:
             if library.command(command) and library.command(command)[0] == "play":
                 return self._say_local(command, "Say, show my movies, or show my games, and then the number.")
@@ -1391,6 +1396,9 @@ class Chat:
         from systems import library
         if view.kind == "help" and self._help_screen_command(heard):
             return True
+        asked = library.delete_request(heard)
+        if asked:
+            return self._delete_from_list(heard, asked) if view.kind == "projects" else False  # it still takes "Hey BMO, yes"
         action = library.command(heard)
         if action is None or not self._screen_takes(view, action):
             return False
@@ -1426,7 +1434,7 @@ class Chat:
         logger.info("LIBRARY {} open: {} items", kind, len(items))
         return self._say_local(command, line)
 
-    def _open_project_list(self, command):
+    def _open_project_list(self, command, to_delete=False):
         """'Hey BMO, show my projects' (owner 2026-11-02): a plain list on the library's screen."""
         from systems import library
         items = library.project_items(self.project_manager.list_projects())
@@ -1435,6 +1443,8 @@ class Chat:
         self.note_user_activity()
         if not items:
             line = "I don't have any projects yet. Say, Hey BMO, create project, and a name."
+        elif to_delete:
+            line = "Here are your projects. Say delete and its number."
         elif len(items) == 1:
             line = "Here's your project. Say open number one to open it."
         else:
@@ -1442,6 +1452,44 @@ class Chat:
             line += ", or scroll down." if len(items) > view.per_page else "."
         logger.info("LIBRARY projects open: {} items", len(items))
         return self._say_local(command, line)
+
+    def _delete_from_list(self, command, asked):
+        """'Delete number 2' with the project list up (owner 2026-11-03). He names it and it takes "Hey BMO, yes"; silence, or
+        anything he can't hear, keeps it. It goes to the Trash, so it can be restored."""
+        from systems import library
+        view, manager = self.library_view, self.project_manager
+        self.note_user_activity()
+        if "number" in asked:
+            item = view.item(asked["number"])
+            if item is None:
+                return self._say_local(command, f"There's no number {asked['number']}. The list goes up to {len(view.items)}.")
+        elif "this" in asked:
+            if len(view.items) != 1:
+                return self._say_local(command, "Which one? Say delete and its number.")
+            item = view.items[0]
+        else:
+            slug = manager.resolve_project(asked["name"])
+            item = next((row for row in view.items if row.key == slug), None) if slug else None
+            if item is None:
+                return self._say_local(command, f"I don't see a project called {asked['name']}. Say delete and its number.")
+        name = item.title.removesuffix(" (open)")
+        count = manager.file_count(item.key)
+        files = f" It has {count} file{'' if count == 1 else 's'}." if count else ""
+        approved = self._confirm_by_voice(f"Delete the project {name}?{files} It goes to the Trash. Say Hey BMO, yes, or no.",
+                                          tag="PROJECT_DELETE", target=item.key,
+                                          extra_yes={"delete it", "yes delete it"}, extra_no={"keep it"})
+        self.note_user_activity()
+        if not approved:
+            return self._say_local(command, f"Okay, I kept {name}.")
+        try:
+            manager.trash_project(item.key)
+        except OSError:
+            logger.exception("Could not move the project to the Trash")
+            return self._say_local(command, f"I couldn't move {name} to the Trash, so it's still here.")
+        logger.info("PROJECT moved to the Trash: {}", item.key)
+        if view.active and view.kind == "projects":
+            view.open("projects", library.project_items(manager.list_projects()), grid=False)
+        return self._say_local(command, f"{name} is in the Trash, if you change your mind.")
 
     def _close_project_list(self):
         """The list marks which project is open, so it goes once that changes."""
@@ -3365,7 +3413,12 @@ class Chat:
             said = put_right(command).lower()
             if re.search(r"\beclipses?\b", said):
                 chosen = sorted(here.lunar_eclipses(now, 1100) + here.solar_eclipses(now, 1100), key=lambda e: e["start"])
-                line = sky.event_words(chosen[0], now) if chosen else "There's no eclipse you can see from here in the next three years."
+                kind = sky.eclipse_kind(said)
+                chosen.sort(key=lambda e: 0 if kind and e["kind"].startswith(kind) else 1)  # the kind asked about, then the rest
+                if chosen and (not kind or chosen[0]["kind"].startswith(kind)):
+                    line = sky.event_words(chosen[0], now)
+                else:
+                    line = f"There's no {kind + ' ' if kind else ''}eclipse you can see from here in the next three years."
             elif sky.shower_named(said) or re.search(r"\b(?:meteors?|meteor showers?|shooting stars?|falling stars?)\b", said):
                 chosen = here.meteor_showers(now)
                 named = sky.shower_named(said)

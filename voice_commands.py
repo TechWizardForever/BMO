@@ -317,6 +317,7 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
 
     VoiceCommand("Projects", "Hey Bemo, list projects", "Your projects."),
     VoiceCommand("Projects", "Hey Bemo, show my projects", "Your projects as a list on BMO's screen, with the open one marked. Scroll up and down, say open number 2 to open one, or close. These work without Hey BMO while the list is up. \"My projects\", \"project list\" and \"my project folders\" work too."),
+    VoiceCommand("Projects", "delete number 2 / delete project <name>", "With your project list up. He says its name and how many files it has, and it takes \"Hey BMO, yes\". \"No\", or saying nothing, keeps it. It goes to the Trash, so you can get it back from there. \"Remove\", \"trash\" and \"get rid of\" work too. Ask with the list closed and he opens it first."),
     VoiceCommand("Projects", "Hey Bemo, current project", "The project that's open. \"What am I working on?\" works too."),
     VoiceCommand("Projects", "Hey Bemo, create project <name>", "Makes a new project and opens it."),
     VoiceCommand("Projects", "Hey Bemo, open project <name>", "Opens a project. It stays open until you close it or he sleeps or restarts."),

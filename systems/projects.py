@@ -55,6 +55,17 @@ def _has_words(part: str, whole: str) -> bool:
     return bool(re.search(rf"(?<![a-z0-9]){re.escape(part)}(?![a-z0-9])", whole))
 
 
+def _to_trash(path: Path) -> bool:
+    from systems.adapters import system
+    command = system().trash_command()
+    if not command:
+        return False
+    try:
+        return subprocess.run([*command, str(path)], capture_output=True, timeout=120, check=False).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+
+
 def _slugify(value: str) -> str:
     value = re.sub(r"[^a-zA-Z0-9]+", "-", value.strip().lower()).strip("-")
     return value[:64] or "project"
@@ -286,6 +297,24 @@ class ProjectManager:
     def close_project(self) -> None:
         self._active_slug = None
         self._save_state()
+
+    def file_count(self, slug: str) -> int:
+        workspace = self._workspace(slug)
+        return sum(1 for path in workspace.rglob("*") if path.is_file()) if workspace.exists() else 0
+
+    def trash_project(self, slug: str, *, trash=_to_trash) -> None:
+        """To the desktop's Trash, where it can be restored, and never deleted outright: with no Trash, nothing happens.
+        Raises OSError if it's still here."""
+        if slug not in {str(project["slug"]) for project in self.list_projects()}:
+            raise OSError(f"No project {slug}")
+        was_open = slug == self._active_slug
+        if was_open:
+            self.close_project()
+        folder = self._project_dir(slug)
+        if not trash(folder) or folder.exists():
+            if was_open:
+                self.activate_slug(slug)
+            raise OSError(f"Couldn't move {slug} to the Trash")
 
     def active_metadata(self) -> dict | None:
         return self._read_metadata(self._active_slug) if self._active_slug else None

@@ -180,6 +180,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 |---|---|
 | **list projects** | Your projects. |
 | **show my projects** | Your projects as a list on BMO's screen, with the open one marked. Scroll up and down, say open number 2 to open one, or close. These work without Hey BMO while the list is up. "My projects", "project list" and "my project folders" work too. |
+| **delete number 2 / delete project [name]** | With your project list up. He says its name and how many files it has, and it takes "Hey BMO, yes". "No", or saying nothing, keeps it. It goes to the Trash, so you can get it back from there. "Remove", "trash" and "get rid of" work too. Ask with the list closed and he opens it first. |
 | **current project** | The project that's open. "What am I working on?" works too. |
 | **create project [name]** | Makes a new project and opens it. |
 | **open project [name]** | Opens a project. It stays open until you close it or he sleeps or restarts. |

@@ -556,9 +556,31 @@ class ChatTests(unittest.TestCase):
 
     def test_without_a_question_these_mean_nothing(self):
         self.supervisor_says(False)
-        for said in ("yes", "no", "turn them on", "both", "the next pass", "alerts"):
+        for said in ("yes", "no", "turn them on", "both", "alerts"):
             self.assertFalse(self.chat._handle_sky_command(said), said)
         self.assertFalse(self.turned_on())
+
+    def test_heard_live_going_to_the_brain(self):
+        for said, kind in (("Just the next pass.", "iss"), ("the next pass", "iss"), ("next pass", "iss"), ("when's the next pass", "iss"), ("what time is the next pass", "iss"),
+                           ("Tell me about the space station passes", "iss"), ("what about the partial clips of the Sun?", "events"),
+                           ("what about the partial eclipse of the sun", "events"), ("what about the total eclipse of the moon", "events"), ("what about the lunar eclipse", "events"),
+                           ("tell me about the solar eclipse", "events"), ("what about the solar clips", "events")):
+            self.assertEqual(sky.request(said), kind, said)
+        for said in ("what about the total eclipse of the heart", "tell me about solar eclipses", "what is a partial eclipse", "a forward pass", "the next past president", "my next password"):
+            self.assertIsNone(sky.request(said), said)
+        self.assertEqual((sky.eclipse_kind("partial eclipse of the sun"), sky.eclipse_kind("the lunar eclipse"), sky.eclipse_kind("the next eclipse")), ("solar", "lunar", None))
+
+    def test_the_eclipse_asked_about_comes_first(self):
+        with mock.patch.object(sky.Sky, "lunar_eclipses", return_value=[{"kind": "lunar eclipse", "start": datetime(2027, 1, 1, tzinfo=timezone.utc), "peak": datetime(2027, 1, 1, tzinfo=timezone.utc), "title": "Partial eclipse of the moon"}]), \
+                mock.patch.object(sky.Sky, "solar_eclipses", return_value=[{"kind": "solar eclipse", "start": datetime(2027, 6, 1, tzinfo=timezone.utc), "peak": datetime(2027, 6, 1, tzinfo=timezone.utc), "title": "Partial eclipse of the sun"}]):
+            self.chat._handle_sky_command("what about the partial eclipse of the sun")
+            self.assertIn("eclipse of the sun", self.said[-1])
+            self.chat._handle_sky_command("when's the next eclipse")
+            self.assertIn("eclipse of the moon", self.said[-1])
+        with mock.patch.object(sky.Sky, "lunar_eclipses", return_value=[{"kind": "lunar eclipse", "start": datetime(2027, 1, 1, tzinfo=timezone.utc), "peak": datetime(2027, 1, 1, tzinfo=timezone.utc), "title": "Partial eclipse of the moon"}]), \
+                mock.patch.object(sky.Sky, "solar_eclipses", return_value=[]):
+            self.chat._handle_sky_command("what about the solar eclipse")
+            self.assertEqual(self.said[-1], "There's no solar eclipse you can see from here in the next three years.")
 
     def test_not_now_leaves_them_off(self):
         for said in ("not now", "not right now", "Not now."):
