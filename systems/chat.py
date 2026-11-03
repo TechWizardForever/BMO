@@ -387,6 +387,7 @@ class Chat:
         self._booted_from_standby_wake = os.environ.get("BEMO_STANDBY_WAKE", "0") == "1"
         self._current_turn_explicit_wake = False
         self._current_turn_followup = False
+        self._sky_offer = None  # "turn on space alerts, or did you just want to know the next pass?" is waiting for its answer
         self._mic_capture_suspended = False
         self._manual_profile_pin = False
 
@@ -3111,10 +3112,14 @@ class Chat:
         """'What's in the sky tonight?', the moon, the space station, what's coming up, and the alerts (owner 2026-11-03;
         systems/sky.py). Worked out here, never by a brain."""
         from systems import sky
-        for_weather = sky.weather_for_sight(command)
-        asked = "weather" if for_weather else sky.request(command)
+        reply, kind = self._sky_offer_reply(command)
+        for_weather = not reply and sky.weather_for_sight(command)
+        asked = {"alerts": "alerts on", "both": "alerts on", "answer": kind, "no": "leave off"}.get(reply)
+        asked = asked or ("weather" if for_weather else sky.request(command))
         if asked is None or not getattr(config, "ENABLE_WEATHER", True):
             return False
+        if asked == "leave off":
+            return self._say_local(command, "Okay, I'll leave them off.")
         place = self._weather_tools()[0].load()
         if for_weather and sky.available():
             return self._say_local(command, self._sight_weather(command, place))
@@ -3123,13 +3128,24 @@ class Chat:
                                             "to, and then your town.")
         if not sky.available():
             return self._say_local(command, "I don't have my star charts installed yet.")
-        if asked.startswith("alerts"):
+        note = "If you want alerts too, say turn on space alerts." if reply == "answer" else ""
+        if reply == "both":
+            self._set_sky_alerts(command, True)
+            asked = kind
+        elif asked.startswith("alerts"):
             return self._set_sky_alerts(command, asked == "alerts on")
+        elif asked.startswith("ask "):
+            kind = asked.split()[1]
+            if not self._sky_alerts_on():
+                self._sky_offer = {"kind": kind, "at": time.monotonic()}
+                return self._say_local(command, sky.offer_question(kind))
+            asked, note = kind, "Space alerts are already on."
         try:
             line, extra, items, per_page = self._sky_screen(asked, command, place)
         except Exception:
             logger.exception("Could not work out the sky")
             return self._say_local(command, "I couldn't work out the sky just now.")
+        line = f"{line} {note}" if note else line
         view = getattr(self, "library_view", None)
         if view is not None and not self.managed_display_active():
             extra.update(mode=asked, place=place.name.upper(), per_page=per_page)
@@ -3137,6 +3153,21 @@ class Chat:
             self.note_user_activity()
         logger.info("SKY screen: {}", asked)
         return self._say_local(command, line)
+
+    def _sky_offer_reply(self, command):
+        """What this says to "turn on space alerts, or did you just want to know the next pass?", and which it was about.
+        Anything else, and the question is over."""
+        from systems import sky
+        offer, self._sky_offer = getattr(self, "_sky_offer", None), None
+        if not offer or time.monotonic() - offer["at"] > sky.OFFER_SECONDS:
+            return None, None
+        return sky.offer_reply(command), offer["kind"]
+
+    def _sky_alerts_on(self):
+        try:
+            return bool(self.supervisor.request("sky", op="get").get("on")) if self.supervisor is not None else False
+        except SupervisorError:
+            return False
 
     def _sight_weather(self, command, place):
         """'What's the weather for the Leonids?' (owner 2026-11-03): the night it peaks, from the forecast if it reaches

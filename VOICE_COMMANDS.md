@@ -102,7 +102,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | **when's the next eclipse / next meteor shower?** | Just those. "Eclipse", "meteor shower" and "any shooting stars?" work too. "Any chance of northern lights?" or "the aurora" checks for a solar storm strong enough to reach you. |
 | **what about the Leonids?** | When that meteor shower peaks, and how many to expect. Any shower on his list works: Quadrantids, Lyrids, Eta and Delta Aquariids, Perseids, Orionids, Leonids, Geminids and Ursids. |
 | **what's the weather for the meteor shower?** | The forecast for the night it peaks, with how cloudy it looks. If it's too far out, he says when to ask again. "Will it be clear for the Leonids?", "is it going to be cloudy for the eclipse?" and "the weather for the Geminids in Salem" work too. |
-| **turn on space alerts** | BMO says out loud when the space station is about to pass over and when something big is on in the sky, even while he sleeps, between 8 AM and 11 PM. No alert if it's overcast or a movie or game is on. "Turn space alerts on" and "let me know when the space station passes" work too. |
+| **turn on space alerts** | BMO says out loud when the space station is about to pass over and when something big is on in the sky, even while he sleeps, between 8 AM and 11 PM. No alert if it's overcast or a movie or game is on. "Turn space alerts on" works too. "Tell me when the space station passes" could mean either, so he asks: alerts, or just the next pass? Say "turn them on" or "just the next pass". |
 | **turn off space alerts** | No more of those. "Cancel space alerts" and "stop telling me about the space station" work too. |
 
 ## Sound

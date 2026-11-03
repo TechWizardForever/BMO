@@ -126,10 +126,13 @@ class SkyPhrases(unittest.TestCase):
         self.check("alerts on", ["turn on space alerts", "turn on the space alerts", "turn space alerts on",
                                  "turn the space alerts on", "turn on sky alerts", "turn on the space alert", "enable space alerts",
                                  "turn on space notifications", "turn on ISS alerts", "turn on space station alerts",
-                                 "turn on alerts for the space station", "let me know when the space station passes",
-                                 "tell me when the ISS goes over", "tell me when the space station is overhead",
-                                 "let me know when something's happening in the sky", "alert me when the space station passes",
+                                 "turn on alerts for the space station",
                                  "space alerts on", "turn on space a lurch", "turn on space a lerts", "turn on Skype alerts"])
+
+    def test_might_mean_the_alerts(self):
+        self.check("ask iss", ["let me know when the space station passes", "tell me when the space station passes", "tell me when the ISS goes over",
+                               "tell me when the space station is overhead", "alert me when the space station passes", "warn me if the space station passes"])
+        self.check("ask events", ["let me know when something's happening in the sky", "tell me if anything's happening in space"])
 
     def test_alerts_off(self):
         self.check("alerts off", ["turn off space alerts", "turn off the space alerts", "turn space alerts off",
@@ -233,11 +236,11 @@ class NotTheseCommands(unittest.TestCase):
             for method in group.body:
                 if not (isinstance(method, ast.FunctionDef) and method.name in (
                         "test_heard_live", "test_ways_to_ask", "test_what_whisper_may_write", "test_tonight", "test_moon",
-                        "test_space_station", "test_events", "test_alerts_on", "test_alerts_off")):
+                        "test_space_station", "test_events", "test_alerts_on", "test_might_mean_the_alerts", "test_alerts_off")):
                     continue
                 for node in ast.walk(method):
                     if not (isinstance(node, ast.Constant) and isinstance(node.value, str)) or node.value in (
-                            "weather", "tonight", "moon", "iss", "events", "alerts on", "alerts off", "projects"):
+                            "weather", "tonight", "moon", "iss", "events", "alerts on", "ask iss", "ask events", "alerts off", "projects"):
                         continue
                     said = node.value
                     claims = [name for name, claimed in (("sky", sky.request(said)), ("weather", live_data_topic(said) == "weather"),

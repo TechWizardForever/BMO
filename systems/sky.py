@@ -23,6 +23,7 @@ import urllib.request
 from zoneinfo import ZoneInfo
 
 from systems import spoken_dates
+from systems.media_phrases import first
 from systems.sound_alikes import put_right
 
 try:
@@ -497,10 +498,26 @@ _SIGHT_PLACE = re.compile(rf"\b{_DATED_SIGHT}\b.*?\b(?:in|at|over|from)\s+{_NOT_
 _ALERTS_ON = re.compile(
     rf"\b(?:turn on|enable|start|switch on|i want|give me)\b.*\b{_WATCHED} {_NOTICES}\b|"
     rf"\b(?:turn on|enable|start|switch on)\b.*\b{_NOTICES} (?:for|about|on) (?:the )?{_WATCHED}\b|"
-    rf"\b(?:turn|switch) (?:the |my )?{_WATCHED} {_NOTICES} on\b|^(?:the )?{_WATCHED} {_NOTICES} on$|"
-    # "Tell me when the next pass is" is a question; "tell me if the sky is clear" isn't about alerts at all.
-    r"\b(?:tell|alert|warn|let|notify) (?:me|us)\b(?!.*\bnext\b).*\b(?:when|if)\b.*\b(?:space station|iss)\b|"
-    r"\b(?:tell|alert|warn|let|notify) (?:me|us)\b.*\b(?:when|if)\b.*\b(?:somethings?|anythings?)\b.*\b(?:sky|space)\b")
+    rf"\b(?:turn|switch) (?:the |my )?{_WATCHED} {_NOTICES} on\b|^(?:the )?{_WATCHED} {_NOTICES} on$")
+# These could mean the alerts or just the answer, so he asks. "Tell me when the next pass is" is plainly a question, and
+# "tell me if the sky is clear" isn't about alerts at all.
+_MAYBE_PASSES = re.compile(r"\b(?:tell|alert|warn|let|notify) (?:me|us)\b(?!.*\bnext\b).*\b(?:when|if)\b.*\b(?:space station|iss)\b")
+_MAYBE_EVENTS = re.compile(r"\b(?:tell|alert|warn|let|notify) (?:me|us)\b.*\b(?:when|if)\b.*\b(?:somethings?|anythings?)\b.*\b(?:sky|space)\b")
+OFFER_SECONDS = 60  # as long as "turn them on" still answers the question, with Hey BMO after the follow-up window
+_ALERT_WORD = r"(?:alerts?|a lurch(?:es)?|a lerts?|allergies)"
+_OFFER_ALERTS = re.compile(
+    rf"^(?:turn (?:them|it|those|that|(?:the )?(?:space |sky )?{_ALERT_WORD}) on|turn on(?: them| those| it| that)?(?: the)?(?: space| sky)?(?: {_ALERT_WORD})?|"
+    rf"(?:the )?(?:space |sky )?{_ALERT_WORD}|(?:i want|i wanted|i want to|i wanna)(?: the)?(?: space| sky)? {_ALERT_WORD}|give me(?: the)? {_ALERT_WORD}|"
+    r"alert me|warn me|(?:the )?first(?: one)?)$")
+_OFFER_BOTH = re.compile(r"^(?:both|both of them|both please|(?:i want )?both(?: of those)?)$")
+_ABOUT_IT = r"(?: (?:the|when|whats|what|next|it|is|its|pass|past|one|time|coming|up))*"  # never "just tell me a joke"
+_OFFER_ANSWER = re.compile(
+    r"^(?:yes|yeah|yep|yup|sure|right|correct|exactly|thats it|"
+    r"(?:no |nope |nah )?(?:just )?(?:the |my )?(?:next )?(?:one|pass|past|passed|passes|path|time)|"
+    rf"(?:no |nope |nah )?(?:i )?(?:just )?(?:(?:wanted|want|wanna)(?: to)? )?know{_ABOUT_IT}|"
+    rf"(?:no |nope |nah )?(?:just )?(?:tell me|that|when|the answer|whats coming){_ABOUT_IT}|"
+    r"(?:the )?second(?: one)?|when is it|whens it|when is the next (?:one|pass)|what is coming(?: up)?)$")
+_OFFER_NO = re.compile(r"^(?:no|nope|nah|no thanks|no thank you|never mind|nevermind|neither|forget it|cancel|not now|leave them off|leave it off|none)$")
 _ALERTS_OFF = re.compile(
     rf"\b(?:turn off|shut off|disable|stop|switch off|no more|quiet|mute|silence|cancel|kill)\b.*\b{_WATCHED} {_NOTICES}\b|"
     rf"\b(?:turn|shut|switch) (?:the |my )?{_WATCHED} {_NOTICES} off\b|^(?:the )?{_WATCHED} {_NOTICES} off$|"
@@ -508,7 +525,7 @@ _ALERTS_OFF = re.compile(
 
 
 def request(text: str) -> str | None:
-    """'alerts on', 'alerts off', 'moon', 'iss', 'events' or 'tonight'."""
+    """'alerts on', 'alerts off', 'ask iss', 'ask events' (might mean the alerts: he asks), 'moon', 'iss', 'events' or 'tonight'."""
     said = re.sub(r"[^\w\s]", "", put_right(text).lower())
     said = re.sub(r"\s+", " ", said).strip()
     said = re.sub(r"\b(when|where)s\b", r"\1", said)  # "where's" without its apostrophe
@@ -518,6 +535,10 @@ def request(text: str) -> str | None:
         return "alerts off"
     if _ALERTS_ON.search(said):
         return "alerts on"
+    if _MAYBE_PASSES.search(said):
+        return "ask iss"
+    if _MAYBE_EVENTS.search(said):
+        return "ask events"
     if _CLOSING.search(said):
         return None
     if _MOON.search(said):
@@ -529,6 +550,24 @@ def request(text: str) -> str | None:
     if _TONIGHT.search(said):
         return "tonight"
     return None
+
+
+def offer_question(kind: str) -> str:
+    """Asked when "tell me when the space station passes" could mean either (owner 2026-11-03)."""
+    answer = "the next pass" if kind == "iss" else "what's coming up"
+    return f"Do you want me to turn on space alerts, or did you just want to know {answer}?"
+
+
+def offer_reply(text: str) -> str | None:
+    """The answer to offer_question(): 'alerts', 'answer', 'both' or 'no', or None if this is about something else. A plain
+    "yes" gets the answer, which changes nothing: a setting that talks out loud takes words that ask for it."""
+    def read(said):
+        said = re.sub(r"[^\w\s]", "", said)
+        for name, form in (("both", _OFFER_BOTH), ("alerts", _OFFER_ALERTS), ("no", _OFFER_NO), ("answer", _OFFER_ANSWER)):
+            if form.match(said):
+                return name
+        return None
+    return first(put_right(str(text or "")), read)
 
 
 def _plain_words(text: str) -> str:

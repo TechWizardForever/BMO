@@ -179,7 +179,7 @@ class PhraseTests(unittest.TestCase):
                            ("any cool space events coming up", "events"), ("next meteor shower", "events"),
                            ("any chance of a meteor shower coming up", "events"),
                            ("turn on space alerts", "alerts on"), ("turn off sky alerts", "alerts off"),
-                           ("tell me when the space station passes overhead", "alerts on")):
+                           ("tell me when the space station passes overhead", "ask iss")):
             self.assertEqual(sky.request(said), kind, said)
 
     def test_not_asks(self):
@@ -466,6 +466,94 @@ class ChatTests(unittest.TestCase):
         self.chat._handle_sky_command("what phase is the moon")
         self.assertIn("The moon is", self.said[-1])
         self.assertFalse(self.chat.library_view.active)
+
+    def supervisor_says(self, on):
+        self.chat.supervisor = mock.Mock()
+        self.chat.supervisor.request.side_effect = lambda action, **kw: {"ok": True, "on": on}
+
+    def turned_on(self):
+        return mock.call("sky", op="set", on=True) in self.chat.supervisor.request.call_args_list
+
+    def asked(self, said="tell me when the space station passes"):
+        self.assertTrue(self.chat._handle_sky_command(said))
+        self.assertEqual(self.said[-1], "Do you want me to turn on space alerts, or did you just want to know the next pass?")
+
+    def test_a_maybe_asks_and_changes_nothing(self):
+        self.supervisor_says(False)
+        self.asked()
+        self.assertFalse(self.turned_on())
+
+    def test_saying_to_turn_them_on(self):
+        for said in ("turn them on", "Turn them on.", "turn it on", "yes, turn them on", "turn on alerts", "alerts", "the alerts", "the first one", "Hey BMO, turn them on", "alerts please", "space a lurch"):
+            self.supervisor_says(False)
+            self.asked()
+            self.assertTrue(self.chat._handle_sky_command(said), said)
+            self.assertTrue(self.turned_on(), said)
+
+    def test_just_the_next_pass_changes_nothing(self):
+        with mock.patch.object(Chat, "_sky_screen", return_value=("The pass is at nine.", {}, [], None)) as screen:
+            for said in ("just the next pass", "the next pass", "next pass", "no, just the next pass", "yes", "Yeah.", "sure", "just tell me when", "I just wanted to know", "I just want to know the next pass", "the second one", "the next past"):
+                self.supervisor_says(False)
+                self.asked()
+                self.assertTrue(self.chat._handle_sky_command(said), said)
+                self.assertFalse(self.turned_on(), said)
+                self.assertEqual(screen.call_args[0][0], "iss", said)
+                self.assertEqual(self.said[-1], "The pass is at nine. If you want alerts too, say turn on space alerts.", said)
+
+    def test_no_leaves_them_off(self):
+        for said in ("no", "No.", "no thanks", "never mind", "neither"):
+            self.supervisor_says(False)
+            self.asked()
+            self.assertTrue(self.chat._handle_sky_command(said), said)
+            self.assertFalse(self.turned_on(), said)
+            self.assertEqual(self.said[-1], "Okay, I'll leave them off.", said)
+
+    def test_both(self):
+        self.supervisor_says(False)
+        with mock.patch.object(Chat, "_sky_screen", return_value=("The pass is at nine.", {}, [], None)):
+            self.asked()
+            self.assertTrue(self.chat._handle_sky_command("both"))
+        self.assertTrue(self.turned_on())
+        self.assertEqual(self.said[-1], "The pass is at nine.")
+
+    def test_something_in_the_sky_offers_whats_coming_up(self):
+        self.supervisor_says(False)
+        self.chat._handle_sky_command("let me know when something's happening in the sky")
+        self.assertIn("what's coming up?", self.said[-1])
+        with mock.patch.object(Chat, "_sky_screen", return_value=("Soon.", {}, [], None)) as screen:
+            self.chat._handle_sky_command("just what's coming up")
+        self.assertEqual(screen.call_args[0][0], "events")
+
+    def test_already_on_just_answers(self):
+        self.supervisor_says(True)
+        with mock.patch.object(Chat, "_sky_screen", return_value=("The pass is at nine.", {}, [], None)):
+            self.chat._handle_sky_command("tell me when the space station passes")
+        self.assertEqual(self.said[-1], "The pass is at nine. Space alerts are already on.")
+
+    def test_the_question_is_over_after_anything_else(self):
+        self.supervisor_says(False)
+        self.asked()
+        self.assertFalse(self.chat._handle_sky_command("why is the sky blue"))
+        self.assertFalse(self.chat._handle_sky_command("turn them on"))  # about something else now
+        self.assertFalse(self.turned_on())
+
+    def test_the_question_runs_out(self):
+        self.supervisor_says(False)
+        self.asked()
+        self.chat._sky_offer["at"] -= sky.OFFER_SECONDS + 1
+        self.assertFalse(self.chat._handle_sky_command("turn them on"))
+        self.assertFalse(self.turned_on())
+
+    def test_without_a_question_these_mean_nothing(self):
+        self.supervisor_says(False)
+        for said in ("yes", "no", "turn them on", "both", "the next pass", "alerts"):
+            self.assertFalse(self.chat._handle_sky_command(said), said)
+        self.assertFalse(self.turned_on())
+
+    def test_whisper_in_silence_doesnt_answer(self):
+        for said in ("you", "Thank you.", "thanks", "Bye.", "okay", "I just want to watch a movie", "just tell me a joke", "I want pizza", "know what I mean", "what time is it",
+                     "turn on the lights", "turn the lights on", "the first time", "the one with the dragon", "set a timer"):
+            self.assertIsNone(sky.offer_reply(said), said)
 
     def test_alerts_by_voice(self):
         calls = []
