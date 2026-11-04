@@ -1,4 +1,4 @@
-"""BMO's sky screens (owner 2026-11-03): tonight's sky, the moon, the space station and what's coming up, with pixel art that
+"""BMO's sky screens (2026-11-03): tonight's sky, the moon, the space station and what's coming up, with pixel art that
 stays crisp on a CRT: a moon that shows its phase, a little International Space Station flying over the curve of the Earth,
 meteors, eclipses, and two lights drawing together. Everything sits 6% in from the edges, like the weather screens.
 """

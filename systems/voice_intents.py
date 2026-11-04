@@ -1,4 +1,4 @@
-"""One clean-up step for what the owner says (voice-command plan V2, approved 2026-10-19).
+"""One clean-up step for what the owner says (voice-command plan V2, 2026-10-19).
 
 Whisper's text is cleaned once, here, before BMO's own commands are matched:
 wake-word leftovers, fillers and politeness, verb forms, and a table of known

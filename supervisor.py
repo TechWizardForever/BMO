@@ -1156,7 +1156,7 @@ def _hand_over_to_running_supervisor(*, standby: bool, socket_path=None, wait=ti
 
 def _update_rolled_back() -> bool:
     """Installer plan I5: a just-installed update that crashes before it is ready is put back. No time limit
-    (owner 2026-10-27): the first start can sit in the setup screen for hours."""
+    (2026-10-27): the first start can sit in the setup screen for hours."""
     try:
         from systems.updates import default_updater
         if default_updater().roll_back_after_crash():

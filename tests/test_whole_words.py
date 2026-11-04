@@ -1,4 +1,4 @@
-"""BMO never finds a command inside a longer word (owner 2026-11-03, after "show me Miss Congeniality" opened the space
+"""BMO never finds a command inside a longer word (2026-11-03, after "show me Miss Congeniality" opened the space
 station screen because "iss" is in "Miss"), and older commands keep their sentences.
 
 The attack below takes every regular expression in BMO's code, writes a sentence for each word it listens for, and glues

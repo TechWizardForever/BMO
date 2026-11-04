@@ -1,4 +1,4 @@
-"""Dates for the weather, and the weather for what's coming up in the sky (owner 2026-11-03). Heard live: "what will the
+"""Dates for the weather, and the weather for what's coming up in the sky (2026-11-03). Heard live: "what will the
 weather be like on November 17th?" got today's weather, and "the forecast for Springfield, Oregon on November 8th" was looked
 up as a town with the date on it. A date the forecast doesn't reach never gets today's in its place."""
 from datetime import date, datetime, timedelta, timezone
@@ -218,7 +218,7 @@ class TheSky(unittest.TestCase):
 
 
 class WhatCanYouDo(unittest.TestCase):
-    """Owner 2026-11-03: "Hey BMO, what can you do?" gets the list; in the middle of a conversation it's part of the conversation."""
+    """2026-11-03: "Hey BMO, what can you do?" gets the list; in the middle of a conversation it's part of the conversation."""
 
     def chat(self, followup):
         chat = Chat.__new__(Chat)

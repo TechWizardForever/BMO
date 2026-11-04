@@ -1,4 +1,4 @@
-"""What's in the sky where you are (owner 2026-11-03): the moon, the planets, the space station, eclipses, meteor showers,
+"""What's in the sky where you are (2026-11-03): the moon, the planets, the space station, eclipses, meteor showers,
 and spoken alerts for the big ones.
 
 Worked out on this PC by PyEphem, which needs no data files and gets the sky from your saved weather location. Only three
@@ -564,7 +564,7 @@ def only_a_pass(text: str) -> bool:
 
 
 def offer_question(kind: str) -> str:
-    """Asked when "tell me when the space station passes" could mean either (owner 2026-11-03)."""
+    """Asked when "tell me when the space station passes" could mean either (2026-11-03)."""
     answer = "the next pass" if kind == "iss" else "what's coming up"
     return f"Do you want me to turn on space alerts, or did you just want to know {answer}?"
 

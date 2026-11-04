@@ -23,8 +23,8 @@ _WEATHER_QUESTION = re.compile(
     r"|^\W*(?:the )?(?:weather|forecast) (?:in|for|at) [a-z]"
     r"|\bwhat(?:'s| is) it like (?:outside|out there)\b"
     r"|\bis it (?:cold|hot|warm|chilly|raining|snowing|sunny|windy|foggy) (?:outside|out)\b"
-    # The long-term forecast and the screens (owner 2026-11-02).
-    # A date (owner 2026-11-03), and "what will the weather be" (live: it went to the brain).
+    # The long-term forecast and the screens (2026-11-02).
+    # A date (2026-11-03), and "what will the weather be" (live: it went to the brain).
     rf"|\b(?:weather|forecast)\b.*\b(?:{SPOKEN_DATE}|{FROM_NOW}|(?:in|for) {ALONE_MONTH})"
     r"|\bwhat will the (?:weather|forecast) be\b"
     rf"|\b(?:will it|is it (?:going to|gonna)|it gonna|it going to)\b.*\b(?:rain(?:y|ing)?|snow(?:y|ing)?|storm(?:y|ing)?|cold|hot|warm|chilly|freezing|sunny|cloudy|clear|nice|windy)\b.*\b{SPOKEN_DATE}"
@@ -39,7 +39,7 @@ _WEATHER_QUESTION = re.compile(
     r"|\b(?:show|bring up|pull up|see|display|give me|open|tell me|check|get|read|look at)(?: me)?(?: (?:the|my|our|a|todays?|today's))*\s*"
     r"(?:weather|forecast|radar|rain radar|weather radar|weather station|weather map|radar map)\b(?! (?:app|man|channel)\b)"
     r"|\bweather (?:radar|station|map)s?\b|\brain radar\b|\bradar map\b"
-    # Other ways to ask (owner 2026-11-03: every command gets alternates).
+    # Other ways to ask (2026-11-03: every command gets alternates).
     r"|\b(?:how(?:'s| is)|what(?:'s| is)|what does)\s+(?:the |this |next )?(?:coming )?week(?:end)?\s+(?:looking|look)\b"
     r"|\bwhat(?:'s| is) the weather doing\b|\bwhat(?:'s| is) it doing (?:outside|out there)\b"
     r"|\b(?:current|weather) conditions\b|\btwo weeks of (?:weather|forecast)\b"
@@ -186,7 +186,7 @@ def live_data_topic(user_text: str) -> str | None:
     return None
 
 
-# Which tools can back each kind of claim (handoff 2026-10-31 #7). Others (file searches, calculators, references)
+# Which tools can back each kind of claim (2026-10-31). Others (file searches, calculators, references)
 # back none: the guard stays on for them.
 CLAIM_EVIDENCE = {
     "fabricated": {"instrument_telemetry", "computer_control", "gui", "ocr_image", "crop_zoom_image", "select_image",

@@ -201,7 +201,7 @@ class VoiceCommand:
 
 
 # The set phrases BMO always handles himself, before any brain sees them. VOICE_COMMANDS.md is made from this list
-# (markdown_catalog) and is the printable command list on GitHub (owner 2026-10-28: plain words, one line each,
+# (markdown_catalog) and is the printable command list on GitHub (2026-10-28: plain words, one line each,
 # grouped by what they're for). Placeholders are <like this>; "a|b" and "a / b" mean either one.
 VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("Talking to BMO", "Hey Bemo / Bemo / BMO", "Wakes BMO. You can say just his name, wait for him, and then say the command."),

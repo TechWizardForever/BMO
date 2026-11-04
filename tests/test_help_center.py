@@ -1,4 +1,4 @@
-"""The help center on BMO's screen (owner 2026-11-03), with no sound and no network."""
+"""The help center on BMO's screen (2026-11-03), with no sound and no network."""
 import os
 from pathlib import Path
 import sys

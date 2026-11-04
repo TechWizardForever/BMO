@@ -213,7 +213,7 @@ class ComputerController:
         verified = near >= 120 or whole >= 400
         note = (f"the screen changed ({whole} pixels, {near} near the click)" if verified
                 else f"nothing on screen changed after the click ({whole} pixels)")
-        # Pixels changing shows something happened, not that it was the right thing (handoff 2026-10-31 #8).
+        # Pixels changing shows something happened, not that it was the right thing (2026-10-31).
         return {"ok": True, "verified": verified, "level": "changed" if verified else "sent", "note": note,
                 "changed_pixels": whole, "changed_near": near}
 

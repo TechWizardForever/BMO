@@ -1,4 +1,4 @@
-"""Woken from sleep with the brain still loaded, he doesn't announce a boot (owner 2026-11-01)."""
+"""Woken from sleep with the brain still loaded, he doesn't announce a boot (2026-11-01)."""
 import os
 from pathlib import Path
 import sys
@@ -12,7 +12,7 @@ from systems.chat import Chat
 
 
 class QuickWakeTests(unittest.TestCase):
-    """Woken with the brain loaded he doesn't say he's booting (owner 2026-11-01)."""
+    """Woken with the brain loaded he doesn't say he's booting (2026-11-01)."""
     def woke(self, standby, loaded):
         c = Chat.__new__(Chat)
         c._booted_from_standby_wake = standby

@@ -1,4 +1,4 @@
-"""'Hey BMO, eject the USB' (owner 2026-11-01): unmounts the stick and powers it off, then checks it really let go, so
+"""'Hey BMO, eject the USB' (2026-11-01): unmounts the stick and powers it off, then checks it really let go, so
 it's safe to pull out. Live, the brain said "USB ejected." with nothing behind it."""
 from __future__ import annotations
 

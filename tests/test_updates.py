@@ -197,7 +197,7 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual(self.head(), before)
 
     def test_a_failed_rollback_says_so(self):
-        # Handoff 2026-10-31 #3: roll_back ignored both steps and always announced "I went back".
+        # 2026-10-31: roll_back ignored both steps and always announced "I went back".
         import subprocess as sp
         self.release("1.1.0")
         updater = self.updater()
@@ -221,7 +221,7 @@ class UpdateTests(unittest.TestCase):
         self.assertEqual(updater.state()["rollback_failed"], "packages")
 
     def test_a_long_setup_never_undoes_an_update(self):
-        # Owner 2026-10-27: give it all the time it needs. The other PC's setup (downloads, Enter, the screen)
+        # 2026-10-27: give it all the time it needs. The other PC's setup (downloads, Enter, the screen)
         # comes before "ready", and its 1.30 Supervisor puts back a version still "verifying" after 15 minutes.
         def old_supervisor_rolls_back(updater):  # what 1.31.0 and before check every 30 s while BMO runs
             record = updater.state()

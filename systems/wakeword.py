@@ -83,7 +83,7 @@ class WakeWordDetector:
 
 class LiveWake:
     """Listens for "Hey BMO" on the live microphone while BMO captures a phrase and calls on_wake once: the ear on
-    his face (owner 2026-10-31: the ear means he's been woken). Its own copy of the detector's model, with the
+    his face (2026-10-31: the ear means he's been woken). Its own copy of the detector's model, with the
     owner's voice check when there is one, so it never disturbs the detector's own checks."""
 
     def __init__(self, source: WakeWordDetector, on_wake):

@@ -220,7 +220,7 @@ class FaceRenderTests(unittest.TestCase):
         self.assertEqual(self.frame(renderer, app), face)  # closed: the face is back as it was
 
     def test_the_corner_symbol_is_the_only_mark_on_the_face(self):
-        # 2026-10-31 the owner asked for one: green circle ready, microphone once woken, brain thinking; nothing while
+        # Since 2026-10-31 there is one: green circle ready, microphone once woken, brain thinking; nothing while
         # he talks. Everything outside the top-right corner stays exactly the face.
         app = smoke.FakeApp()
         renderer = FaceRenderer(app)
@@ -335,7 +335,7 @@ class FaceRenderTests(unittest.TestCase):
         chat._warm_listening()
 
     def test_listening_windows(self):
-        # Owner 2026-11-01: 4 s after a bare "Hey BMO", counted from when "Yeah?" ends, and 6 s after an answer.
+        # 2026-11-01: 4 s after a bare "Hey BMO", counted from when "Yeah?" ends, and 6 s after an answer.
         import config
         self.assertEqual(config.VOICE_WAKE_FOLLOWUP_SECONDS, 4.0)
         if not os.environ.get("BEMO_ANSWER_FOLLOWUP_SECONDS"):

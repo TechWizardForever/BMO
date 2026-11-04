@@ -1,5 +1,4 @@
-"""Long requests keep their end, the answer keeps its room, and tool rounds stay inside the context (handoff
-2026-10-31 #4: a 12,065-character request kept only its first 4,729 characters and lost its final constraint;
+"""Long requests keep their end, the answer keeps its room, and tool rounds stay inside the context (2026-10-31: a 12,065-character request kept only its first 4,729 characters and lost its final constraint;
 ten tool rounds could each add 10,000 characters unchecked)."""
 import json
 import os

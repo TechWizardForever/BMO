@@ -13,7 +13,7 @@ checkout and the start-at-login service never moves):
   4. run the self-test; if it fails, go back at once;
   5. restart BMO. If the new version crashes before it is ready, the Supervisor goes back to the previous
      version and says so. There's no time limit: the first start can sit in the setup screen for hours
-     (owner 2026-10-27: give it all the time it needs).
+     (2026-10-27: give it all the time it needs).
 State: ~/.bemo/install/update.json.
 """
 from __future__ import annotations
@@ -193,7 +193,7 @@ class Updater:
         if not previous:
             return False
         current = self.git("rev-parse", "HEAD").stdout.strip()
-        # Both steps are checked (handoff 2026-10-31 #3): a rollback that didn't happen must not be announced as one.
+        # Both steps are checked (2026-10-31): a rollback that didn't happen must not be announced as one.
         checked_out = self.git("checkout", "--quiet", "--detach", previous).returncode == 0
         restored = checked_out and self._packages(current, previous)
         if not restored:

@@ -310,7 +310,7 @@ class Player:
 _THING = r"(?:movie|video|show|episode|film|player|media player|celluloid|playback|playing|tv|cartoon|thing)"
 _OBJ = r"(?: (?:it|this|that|(?:the|this|that|my) " + _THING + r"|" + _THING + r"))?"
 _A_BIT = r"(?: (?:a (?:bit|little|little bit|second|sec|moment|minute)|for a (?:bit|second|sec|moment|minute)))?"
-# Many ways to say each (owner 2026-10-28: not just one exact phrase). Checked in this order.
+# Many ways to say each (2026-10-28: not just one exact phrase). Checked in this order.
 _CONTROL = (
     ("Restart", re.compile(
         r"^(?:restart" + _OBJ + r"|start over|begin again|start" + _OBJ + r" over|"
@@ -422,7 +422,7 @@ def _control(said: str, titles=()) -> tuple[str, float] | None:
     return None
 
 
-# Ways in to playing a title (owner 2026-10-28); systems/media_phrases.clean() has already dropped "can you", "I want
+# Ways in to playing a title (2026-10-28); systems/media_phrases.clean() has already dropped "can you", "I want
 # to", "let's" and the rest. A title still has to match a movie or show here.
 _PLAY = re.compile(
     r"^(?:play|watch|put on|throw on|turn on|pull up|bring up|load|load up|queue up|start|start up|restart|open|open up|"

@@ -8,9 +8,9 @@ minutes without a word, and when something starts playing.
 Pictures, first found: a poster next to the movie ("Spirited Away.jpg", "Spirited Away-poster.jpg", or
 poster/folder/cover in a folder holding just that movie; for a show, in its folder), a game's cover from ES-DE's
 media folder or next to the ROM; else, for movies and shows, a still from the video itself, taken once with
-ffmpegthumbnailer (or ffmpeg) and kept in ~/.bemo/library-stills. Every tile shows its name too (owner 2026-10-28).
+ffmpegthumbnailer (or ffmpeg) and kept in ~/.bemo/library-stills. Every tile shows its name too (2026-10-28).
 
-"Hey BMO, show my projects" (owner 2026-11-02) uses the same screen as a plain list: "down" / "up" and "close" the
+"Hey BMO, show my projects" (2026-11-02) uses the same screen as a plain list: "down" / "up" and "close" the
 same way, and "open number 2" opens that project.
 """
 from __future__ import annotations
@@ -31,7 +31,7 @@ FOLDER_PICTURES = ("poster", "folder", "cover", "show")
 GAME_MEDIA = ("covers", "3dboxes", "miximages", "titlescreens", "screenshots")
 GRID_PAGE, LIST_PAGE = 8, 10
 # A 480-pixel JPEG this small is a solid colour or nearly (measured 2026-10-28: any solid colour ~1 KB, a title
-# card or a fade ~3.4 KB, real scenes 13 KB and up), so BMO tries a later spot (owner: never a solid colour).
+# card or a fade ~3.4 KB, real scenes 13 KB and up), so BMO tries a later spot (never a solid colour).
 MIN_STILL_BYTES = 8000
 STILL_SPOTS = ("15%", "30%", "45%", "60%")
 IDLE_CLOSE_SECONDS = 180.0
@@ -281,7 +281,7 @@ class LibraryView:
 
 
 # --- What was said -------------------------------------------------------------------------------------
-# Many ways to say each (owner 2026-10-28); systems/media_phrases.clean() has already dropped "Hey BMO", "can you",
+# Many ways to say each (2026-10-28); systems/media_phrases.clean() has already dropped "Hey BMO", "can you",
 # "I want to", "please" and the rest, and put Whisper's "Clothes" / "Say number one" right.
 
 # "open games" / "open the game library" stay the ES-DE game frontend (its app names), and "list games" stays the

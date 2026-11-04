@@ -1,4 +1,4 @@
-"""'Hey BMO, run the speed test' (owner 2026-11-01): a stopwatch on his face, he hears nothing until it's done, and he
+"""'Hey BMO, run the speed test' (2026-11-01): a stopwatch on his face, he hears nothing until it's done, and he
 uses the winner by himself."""
 import os
 from pathlib import Path

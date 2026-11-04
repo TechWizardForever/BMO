@@ -685,7 +685,7 @@ class ProjectManager:
     def index_project(self, slug: str | None = None, *, force: bool = False, now: bool = False) -> dict:
         """Bring the search index up to date. force: re-read every file (the "reindex project" command, imports).
         now: right away, even if it ran a moment ago, but still skipping files whose size and time haven't changed:
-        what BMO uses after writing files himself (handoff 2026-10-31 #6: force re-read the whole project every time)."""
+        what BMO uses after writing files himself (2026-10-31: force re-read the whole project every time)."""
         slug = slug or self._active_slug
         if not slug:
             return {"changed": 0, "removed": 0, "files": 0}

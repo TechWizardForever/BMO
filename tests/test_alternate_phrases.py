@@ -1,5 +1,4 @@
-"""Other ways to say the weather, radar, sky and project commands, and what Whisper may write for them (owner
-2026-11-03: every command gets alternates). What's said by mistake matters as much: the sky is checked early, so a loose
+"""Other ways to say the weather, radar, sky and project commands, and what Whisper may write for them (2026-11-03: every command gets alternates). What's said by mistake matters as much: the sky is checked early, so a loose
 phrase here would take a sentence from every other command."""
 import os
 from pathlib import Path

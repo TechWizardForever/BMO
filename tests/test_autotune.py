@@ -1,5 +1,5 @@
 """The speed test scores the wait for the first audio, at BMO's real context, in random order with a warm repeat
-(handoff 2026-10-31 #2; measured on the 5700U 2026-11-01)."""
+(2026-10-31; measured on the 5700U 2026-11-01)."""
 import os
 from pathlib import Path
 import sys

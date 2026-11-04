@@ -1,5 +1,4 @@
-"""After BMO writes files in a project, the index catches up right away but only re-reads what changed (handoff
-2026-10-31 #6: every write re-read the whole project; 300 files took 2.3 s against 0.04 s)."""
+"""After BMO writes files in a project, the index catches up right away but only re-reads what changed (2026-10-31: every write re-read the whole project; 300 files took 2.3 s against 0.04 s)."""
 import os
 from pathlib import Path
 import sys

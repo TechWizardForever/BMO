@@ -81,7 +81,7 @@ class ItemsTests(unittest.TestCase):
 
 class StillTests(unittest.TestCase):
     def test_a_solid_colour_frame_is_replaced_by_a_later_one(self):
-        # Owner 2026-10-28: never a solid colour. Any solid colour is ~1 KB, a title card ~3.4 KB, a scene 13 KB+.
+        # 2026-10-28: never a solid colour. Any solid colour is ~1 KB, a title card ~3.4 KB, a scene 13 KB+.
         folder = Path(tempfile.mkdtemp())
         sizes, calls = [985, 3340, 30000], []
 

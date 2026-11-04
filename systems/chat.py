@@ -612,7 +612,7 @@ class Chat:
         self._woken = True  # "Hey BMO" heard live, mid-phrase
 
     def _warm_listening(self):
-        """Load what the first listen needs before he says he's ready (owner 2026-11-01: green, but the first "Hey BMO"
+        """Load what the first listen needs before he says he's ready (2026-11-01: green, but the first "Hey BMO"
         didn't count). It used to load after the microphone came back on, so the start of a quick "Hey BMO" was lost."""
         started = time.monotonic()
         try:
@@ -644,7 +644,7 @@ class Chat:
         return live
 
     def _indicator(self):
-        """The corner symbol on BMO's face (owner 2026-10-31): 'ready'; 'listening' once he's been woken by "Hey BMO"
+        """The corner symbol on BMO's face (2026-10-31): 'ready'; 'listening' once he's been woken by "Hey BMO"
         (waiting for the command, or taking in what you say after it, or waiting for your yes/no); 'thinking';
         None while he talks (his microphone is paused then). 'testing' during the speed test."""
         if getattr(self, "_speed_testing", False):
@@ -1245,7 +1245,7 @@ class Chat:
         return self._say_local(command, line)
 
     def _handle_speed_test(self, command):
-        """'Hey BMO, run the speed test' (owner 2026-11-01): finds the best thread count for this PC, with a stopwatch
+        """'Hey BMO, run the speed test' (2026-11-01): finds the best thread count for this PC, with a stopwatch
         on his face, and uses the winner. This holds the turn, so he hears nothing until it's done. Stopping BMO part
         way saves nothing; he keeps what he had."""
         import hardware_autotune
@@ -1286,7 +1286,7 @@ class Chat:
         return self._say_local(command, f"Done. {threads} threads came out fastest, so I'm using that from now on.")
 
     def _back_to_face(self, closing=()):
-        """His face in front again after a USB job, and the file windows of an ejected stick closed (owner 2026-11-01:
+        """His face in front again after a USB job, and the file windows of an ejected stick closed (2026-11-01:
         plugging a stick in makes the desktop open one over his face, and it stayed there). Never stops the job."""
         try:
             from systems.adapters import desktop
@@ -1306,7 +1306,7 @@ class Chat:
                             r"|^put your face (?:back )?(?:up|on)(?: the screen)?$")
 
     def _handle_show_face(self, command):
-        """'Hey BMO, show your face' (owner 2026-11-01): his window in front, from anywhere. Nothing else closes. A
+        """'Hey BMO, show your face' (2026-11-01): his window in front, from anywhere. Nothing else closes. A
         movie or game keeps the screen: those have their own stop."""
         from systems.media_phrases import clean
         if not self._SHOW_FACE.match(clean(command)):
@@ -1320,7 +1320,7 @@ class Chat:
         return self._say_local(command, "Here I am!")
 
     def _handle_eject_usb(self, command):
-        """'Hey BMO, eject the USB' (owner 2026-11-01): really unmounts it (systems/usb_eject.py) and says so only
+        """'Hey BMO, eject the USB' (2026-11-01): really unmounts it (systems/usb_eject.py) and says so only
         once it has let go."""
         from systems import usb_eject
         if not usb_eject.is_request(command):
@@ -1341,7 +1341,7 @@ class Chat:
         return self._say_local(command, "I couldn't eject it. Don't pull it out yet.")
 
     def _handle_sort_usb(self, command):
-        """'Hey BMO, sort my USB' (owner 2026-10-31): games, movies and shows off a USB stick to where they go,
+        """'Hey BMO, sort my USB' (2026-10-31): games, movies and shows off a USB stick to where they go,
         copied, once the owner says yes (systems/sort_downloads.py)."""
         from systems import sort_downloads as sorter
         if not sorter.is_usb_request(command):
@@ -1436,7 +1436,7 @@ class Chat:
         return self._say_local(command, line)
 
     def _open_project_list(self, command, to_delete=False):
-        """'Hey BMO, show my projects' (owner 2026-11-02): a plain list on the library's screen."""
+        """'Hey BMO, show my projects' (2026-11-02): a plain list on the library's screen."""
         from systems import library
         items = library.project_items(self.project_manager.list_projects())
         view = self.library_view
@@ -1455,7 +1455,7 @@ class Chat:
         return self._say_local(command, line)
 
     def _delete_from_list(self, command, asked):
-        """'Delete number 2' with the project list up (owner 2026-11-03). He names it and it takes "Hey BMO, yes"; silence, or
+        """'Delete number 2' with the project list up (2026-11-03). He names it and it takes "Hey BMO, yes"; silence, or
         anything he can't hear, keeps it. It goes to the Trash, so it can be restored."""
         from systems import library
         view, manager = self.library_view, self.project_manager
@@ -1824,7 +1824,7 @@ class Chat:
             except Exception:
                 logger.exception("Could not turn off the USB file window")
 
-            # Sleeping or restarting closes the project (owner 2026-11-01): "open" means opened lately. Garden had
+            # Sleeping or restarting closes the project (2026-11-01): "open" means opened lately. Garden had
             # stayed open by itself for a week, and its notes were getting into plain questions.
             if self.project_manager.active_slug:
                 logger.info("Closing the project left open: {}", self.project_manager.active_slug)
@@ -1891,8 +1891,8 @@ class Chat:
                     self._current_turn_explicit_wake = self.voice_gate.has_wake_prefix(prompt)
                     gated_prompt = self._apply_command_gate(prompt)
                     # Without "Hey BMO" only the library's scroll / pick / close (nothing plays while it's open).
-                    # Movie and game commands always need it: the movie's or game's own sound talks too (owner
-                    # 2026-10-31; plain "pause" / "play" during a video, 2026-10-20 to 10-31, went).
+                    # Movie and game commands always need it: the movie's or game's own sound talks too
+                    # (2026-10-31; plain "pause" / "play" during a video, 2026-10-20 to 10-31, went).
                     if gated_prompt is None and self._bare_library_command(prompt):
                         self._current_turn_explicit_wake = False
                         self.state = State.READY
@@ -1970,7 +1970,7 @@ class Chat:
     def _fit_tool_rounds(self, messages, tools):
         """Before each round: if the messages outgrow the context (less the answer's room), the older tool results and
         the arguments of older tool calls (written file contents) shrink to a short excerpt, oldest first. Calls and
-        results stay in pairs; the request and the newest result are never touched (handoff 2026-10-31 #4: ten
+        results stay in pairs; the request and the newest result are never touched (2026-10-31: ten
         rounds could each add 10,000 characters unchecked). Returns how many characters were cut."""
         per_token = float(config.PROMPT_CHAR_PER_TOKEN_BUDGET)
         room = int(self._effective_context() * per_token
@@ -2025,8 +2025,8 @@ class Chat:
 
     @staticmethod
     def _tool_args_summary(arguments):
-        """What a tool was given, without the values: typed text, file contents and paths stay out of the log (the
-        owner's rule; handoff 2026-10-31 #10). config.LOG_TOOL_ARGUMENTS = True logs them in full for debugging."""
+        """What a tool was given, without the values: typed text, file contents and paths stay out of the log
+        (2026-10-31). config.LOG_TOOL_ARGUMENTS = True logs them in full for debugging."""
         if getattr(config, "LOG_TOOL_ARGUMENTS", False):
             return repr(arguments)
         if not isinstance(arguments, dict):
@@ -2388,8 +2388,8 @@ class Chat:
                 if audio is None:
                     peak = float(endpointer.last_stats.get("peak_voice_prob", 0.0))
                     if peak >= 0.3:
-                        # Possibly a quiet or clipped start; shows up when the
-                        # owner says BMO "didn't pick me up".
+                        # Possibly a quiet or clipped start; shows up when BMO
+                        # seems not to have heard someone.
                         logger.debug("VOICE near miss: peak voice prob {:.2f} (a phrase starts at {:.2f})",
                                      peak, config.STT_VAD_START_THRESHOLD)
                     return None
@@ -3105,7 +3105,7 @@ class Chat:
             return f"{exc}, so I can't tell you the weather right now."
 
     def _show_weather(self, command):
-        """The window that goes with a weather answer (owner 2026-11-02), even for just today: one day as a mini
+        """The window that goes with a weather answer (2026-11-02), even for just today: one day as a mini
         weather station, several as little boxes. Never stands in the way of the spoken answer."""
         place = getattr(self, "_weather_place", None)
         self._weather_place = None
@@ -3136,7 +3136,7 @@ class Chat:
             logger.exception("Could not show the weather screen")
 
     def _open_radar(self, place):
-        """'Hey BMO, show me the radar' (owner 2026-11-02): the last hour playing as a loop (systems/radar.py)."""
+        """'Hey BMO, show me the radar' (2026-11-02): the last hour playing as a loop (systems/radar.py)."""
         if not radar.covers(place.latitude, place.longitude):
             return f"I only have radar for the lower 48 states, so I can't show {place.name}."
         view = getattr(self, "library_view", None)
@@ -3160,7 +3160,7 @@ class Chat:
         return "Here's the radar for the last hour. It only shows what's already happened, not what comes next."
 
     def _handle_sky_command(self, command):
-        """'What's in the sky tonight?', the moon, the space station, what's coming up, and the alerts (owner 2026-11-03;
+        """'What's in the sky tonight?', the moon, the space station, what's coming up, and the alerts (2026-11-03;
         systems/sky.py). Worked out here, never by a brain."""
         from systems import sky
         reply, kind = self._sky_offer_reply(command)
@@ -3235,7 +3235,7 @@ class Chat:
             return False
 
     def _sight_weather(self, command, place):
-        """'What's the weather for the Leonids?' (owner 2026-11-03): the night it peaks, from the forecast if it reaches
+        """'What's the weather for the Leonids?' (2026-11-03): the night it peaks, from the forecast if it reaches
         that far, and when to ask again if it doesn't."""
         from systems import sky, spoken_dates, weather as weather_data
         named = without_when_words(sky.place_for_sight(command))
@@ -3264,7 +3264,7 @@ class Chat:
         return line
 
     def _handle_help(self, command):
-        """'Hey BMO, help' and 'weather commands' (owner 2026-11-03): the help center on his screen. When the screen isn't
+        """'Hey BMO, help' and 'weather commands' (2026-11-03): the help center on his screen. When the screen isn't
         free, "help" still gets the spoken summary further on."""
         from systems import help_center
         view = getattr(self, "library_view", None)
@@ -3274,7 +3274,7 @@ class Chat:
             return True
         asked = help_center.request(command)
         if asked and getattr(self, "_current_turn_followup", False) and help_center.needs_hey_bmo(command):
-            return False  # part of the conversation (owner 2026-11-03): "My sink's leaking." "What can you do?"
+            return False  # part of the conversation (2026-11-03): "My sink's leaking." "What can you do?"
         return self._open_help(command, asked) if asked else False
 
     def _help_screen_command(self, heard):
@@ -3303,7 +3303,7 @@ class Chat:
         return self._say_local(command, line)
 
     def _handle_weather_alerts(self, command):
-        """'Any weather alerts?', and turning the spoken ones on and off (owner 2026-11-03; systems/weather_alerts.py)."""
+        """'Any weather alerts?', and turning the spoken ones on and off (2026-11-03; systems/weather_alerts.py)."""
         from datetime import datetime
         from systems import weather_alerts as alerts
         asked = alerts.request(command)
@@ -3727,7 +3727,7 @@ class Chat:
             logger.info("Specialist turn completed; user chose to remain on {}", completed_profile_name)
 
     def _project_for_message(self, role, content):
-        """Only turns about the open project are filed under it (owner 2026-11-01): plain chat isn't project history,
+        """Only turns about the open project are filed under it (2026-11-01): plain chat isn't project history,
         and it stays findable after the project closes. An answer goes with its question."""
         if not self.project_manager.active_slug:
             return None
@@ -5121,7 +5121,7 @@ class Chat:
             task.setdefault("done", []).append(doing)
             outcome = f"VERIFIED: {doing} ({result.get('note') or 'confirmed'}). Done so far: {'; '.join(task['done'])}."
         elif level == "changed":
-            # Only the screen or the controls changed (handoff 2026-10-31 #8): something happened, not proof that it
+            # Only the screen or the controls changed (2026-10-31): something happened, not proof that it
             # did what was asked. The brain looks again before saying it worked.
             task.setdefault("done", []).append(doing + " (the screen changed; not confirmed)")
             outcome = (f"CHANGED: {doing}, and {result.get('note') or 'the screen changed'}. That shows something "
@@ -6473,7 +6473,7 @@ class Chat:
         project_before = self.project_manager.active_slug
         handled = self._handle_project_command(command)
         if self.project_manager.active_slug != project_before:
-            # Another project or none: the last one's talk leaves this conversation too (owner 2026-11-01).
+            # Another project or none: the last one's talk leaves this conversation too (2026-11-01).
             self.chat_history, self.chat_history_ids = [], []
             self._last_turn_project = False
         if handled:
@@ -6573,7 +6573,7 @@ class Chat:
                 user_input,
                 limit=config.MEMORY_RETRIEVAL_COUNT,
                 active_project_slug=self.project_manager.active_slug,
-                closed_projects_hidden=True,  # a closed project's talk stays out of his answers (owner 2026-11-01)
+                closed_projects_hidden=True,  # a closed project's talk stays out of his answers (2026-11-01)
                 exclude_ids=set(self.chat_history_ids),
                 heat_half_life_days=config.MEMORY_HEAT_HALF_LIFE_DAYS,
                 heat_warm_threshold=config.MEMORY_HEAT_WARM_THRESHOLD,
@@ -6641,7 +6641,7 @@ class Chat:
         )
         if tool_mode:
             budget = max(4500, budget - int(config.PROJECT_TOOL_SCHEMA_CHAR_RESERVE))
-        # Room for the answer (handoff 2026-10-31 #4): it never had any, so a full prompt squeezed the reply.
+        # Room for the answer (2026-10-31): it never had any, so a full prompt squeezed the reply.
         budget = max(1800, budget - int(int(getattr(config, "ANSWER_RESERVE_TOKENS", 0) or 0)
                                         * config.PROMPT_CHAR_PER_TOKEN_BUDGET))
 
@@ -6675,7 +6675,7 @@ class Chat:
             # reliable identity check than exact string equality.
             last = prior_history.pop()
             recorded = str(last.get("content", ""))
-            # The RAM copy is cut at RECENT_MESSAGE_CHAR_LIMIT; the request itself is whole (handoff 2026-10-31 #4).
+            # The RAM copy is cut at RECENT_MESSAGE_CHAR_LIMIT; the request itself is whole (2026-10-31).
             whole = str(user_input or "")
             current_message = {"role": "user", "content": whole if len(whole) > len(recorded) else recorded}
 
@@ -7610,7 +7610,7 @@ class Chat:
             return "I couldn't save the code as a file." + self._details_hint()
         if in_project:
             try:
-                pm.index_project(now=True)  # only what changed (handoff 2026-10-31 #6)
+                pm.index_project(now=True)  # only what changed (2026-10-31)
                 pm.snapshot(f"Bemo: saved {', '.join(saved)}")
             except Exception:
                 logger.exception("Could not snapshot the project after saving code")
@@ -8173,8 +8173,8 @@ class Chat:
         spoken_units = []
         stopped_at_sentence = False
         # A live reading, saved setting, made file or done action in the reply needs a tool result in this request
-        # that can back it; otherwise it is invented and never spoken. Any tool at all used to count (handoff
-        # 2026-10-31 #7: a file list let an invented temperature through).
+        # that can back it; otherwise it is invented and never spoken. Any tool at all used to count
+        # (2026-10-31: a file list let an invented temperature through).
         tools_used = {str(m.get("tool_name") or "") for m in messages if isinstance(m, dict) and m.get("role") == "tool"}
 
         def unbacked(text):
@@ -8760,7 +8760,7 @@ class Chat:
             self._specialist_chat_turn = False
             if self._project_tool_wrote:
                 try:
-                    self.project_manager.index_project(now=True)  # only what changed (handoff 2026-10-31 #6)
+                    self.project_manager.index_project(now=True)  # only what changed (2026-10-31)
                     short = self._normalize_spaces(user_input)[:72]
                     snapshot = self.project_manager.snapshot(f"Bemo: {short}")
                     logger.info("Post-change project snapshot: {}", snapshot)

@@ -1,4 +1,4 @@
-"""BMO's weather screens (owner 2026-11-02): a mini weather station for one day, little animated boxes for several, and
+"""BMO's weather screens (2026-11-02): a mini weather station for one day, little animated boxes for several, and
 the radar loop. Plain shapes that stay crisp on a CRT; everything sits at least 6% in from the edges, because a tube cuts
 off more than that near its corners. A number the service didn't send shows as a dash, never a guess.
 """

@@ -1,4 +1,4 @@
-"""The help center's screens (owner 2026-11-03): every subject as a numbered list, and a subject's commands with what each
+"""The help center's screens (2026-11-03): every subject as a numbered list, and a subject's commands with what each
 does. The same plain boxes and margins as the weather screens, so it stays inside a CRT's picture."""
 from __future__ import annotations
 

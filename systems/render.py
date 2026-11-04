@@ -24,8 +24,8 @@ def ui_font(size, bold=False):
     return pygame.font.SysFont(name, size, bold=bold)
 
 
-INDICATOR_PULSE_SECONDS = 2.6  # the corner symbol's slow pulse (owner 2026-10-31)
-INDICATOR_INSET = 0.10  # share of the screen from each edge: a tube's rounded corners cut off 3% (owner 2026-11-02)
+INDICATOR_PULSE_SECONDS = 2.6  # the corner symbol's slow pulse (2026-10-31)
+INDICATOR_INSET = 0.10  # share of the screen from each edge: a tube's rounded corners cut off 3% (2026-11-02)
 
 
 class FaceRenderer:
@@ -1020,7 +1020,7 @@ class FaceRenderer:
         return cache[key]
 
     def _render_library(self, lib, now):
-        """Numbered tiles, a picture with the name under it (every tile has its name: owner 2026-10-28), or a plain
+        """Numbered tiles, a picture with the name under it (every tile has its name: 2026-10-28), or a plain
         numbered list when nothing has a picture."""
         screen = self._app._screen
         w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
@@ -1267,10 +1267,10 @@ class FaceRenderer:
         )
 
 
-    # The corner symbol (owner 2026-10-31, in place of the listening dot turned down on 2026-10-18): a small green
+    # The corner symbol (2026-10-31, in place of the listening dot turned down on 2026-10-18): a small green
     # circle when he's ready, a microphone once "Hey BMO" has woken him, a brain while he works on something;
     # nothing while he talks. Pixel art, so it stays crisp on the CRT. It stays put (the static effect covers
-    # burn-in) and slowly pulses, never fading out completely. Both shapes the owner's picks.
+    # burn-in) and slowly pulses, never fading out completely.
     _MIC = ("...XXX...",
             "..XXXXX..",
             "..XXXXX..",
@@ -1312,7 +1312,7 @@ class FaceRenderer:
         screen = self._app._screen
         w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
         px = max(1, round(h * 0.004))
-        right, y = w - int(w * INDICATOR_INSET), int(h * INDICATOR_INSET)  # top right (owner 2026-11-02)
+        right, y = w - int(w * INDICATOR_INSET), int(h * INDICATOR_INSET)  # top right (2026-11-02)
         level = 0.625 + 0.375 * math.sin(now * 2 * math.pi / INDICATOR_PULSE_SECONDS)  # a quarter to full strength
         color = tuple(int(back + (part - back) * level) for part, back in zip(color, self.BACKGROUND_COLOR))
         if kind == "ready":

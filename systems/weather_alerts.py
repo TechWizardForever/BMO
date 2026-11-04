@@ -1,4 +1,4 @@
-"""Severe weather warnings for your town (owner 2026-11-03), from the National Weather Service.
+"""Severe weather warnings for your town (2026-11-03), from the National Weather Service.
 
 Free and open, no account (their page says a key may come later), and it covers the United States, Alaska and Hawaii
 included. Nothing is contacted until the owner asks or turns the alerts on by voice; then the Supervisor checks every two

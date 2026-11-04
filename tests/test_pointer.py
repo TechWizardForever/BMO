@@ -1,4 +1,4 @@
-"""The mouse pointer stays off BMO's face until it's used (owner 2026-11-01)."""
+"""The mouse pointer stays off BMO's face until it's used (2026-11-01)."""
 import os
 from pathlib import Path
 import sys

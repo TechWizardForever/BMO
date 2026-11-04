@@ -1,4 +1,4 @@
-"""The mouse pointer over BMO's face (owner 2026-11-01: it sat in the middle of his face on boot). Hidden until the
+"""The mouse pointer over BMO's face (2026-11-01: it sat in the middle of his face on boot). Hidden until the
 mouse really moves, and hidden again once it has been still a few seconds."""
 from __future__ import annotations
 

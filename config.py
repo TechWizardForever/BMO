@@ -63,7 +63,7 @@ APP_VERSION = "supervisor-v1.33.0-faster-and-more-honest"
 # live prompt. Historical summary and archive hits are retrieved on recall.
 MAX_RECENT_MESSAGES = 32
 HISTORY_CONTEXT_CHAR_BUDGET = 4800
-# Room kept for the answer in every prompt: without it a full prompt squeezed the reply (handoff 2026-10-31 #4).
+# Room kept for the answer in every prompt: without it a full prompt squeezed the reply (2026-10-31).
 ANSWER_RESERVE_TOKENS = 1024
 HISTORY_COMPACTION_BATCH = 8
 RECENT_MESSAGE_CHAR_LIMIT = 4000
@@ -583,16 +583,16 @@ VOICE_WAKE_ALIASES = (
 VOICE_REQUIRE_WAKE_PREFIX_EVERY_TURN = True
 # decided 2026-10-19: after BMO answers, one follow-up within a few seconds needs no "Hey BMO" (each answer
 # opens one). Only short ones count, so TV talk that happens to fall in the window isn't taken.
-VOICE_ANSWER_FOLLOWUP_SECONDS = float(os.environ.get("BEMO_ANSWER_FOLLOWUP_SECONDS", "6"))  # owner 2026-11-01, was 8
+VOICE_ANSWER_FOLLOWUP_SECONDS = float(os.environ.get("BEMO_ANSWER_FOLLOWUP_SECONDS", "6"))  # 2026-11-01, was 8
 VOICE_FOLLOWUP_MAX_WORDS = 20
 VOICE_SESSION_TIMEOUT_SECONDS = 90.0
 # A bare "Hey Bemo" explicitly arms one immediate unprefixed follow-up. This is
 # only a fallback for wake-name recognition; it does not open an always-listening session.
-VOICE_WAKE_FOLLOWUP_SECONDS = 4.0  # from when "Yeah?" finishes (owner 2026-11-01, was 12 from when he heard the name)
+VOICE_WAKE_FOLLOWUP_SECONDS = 4.0  # from when "Yeah?" finishes (2026-11-01, was 12 from when he heard the name)
 VOICE_WAKE_ACKNOWLEDGEMENT = "Yeah?"
 VOICE_STARTUP_LOADING_ANNOUNCEMENT = "Hi friend! Give me a couple minutes to full boot up and I'll let you know when Im ready!"
 VOICE_STARTUP_READY_ANNOUNCEMENT = "Hi friend I am all ready to talk to! All done loading"
-# Woken with the brain still loaded (STANDBY_KEEP_BRAIN_MINUTES): he isn't booting, so he doesn't say so (owner 2026-11-01).
+# Woken with the brain still loaded (STANDBY_KEEP_BRAIN_MINUTES): he isn't booting, so he doesn't say so (2026-11-01).
 VOICE_QUICK_WAKE_ANNOUNCEMENT = "One sec!"
 VOICE_QUICK_WAKE_READY_ANNOUNCEMENT = "I'm ready!"
 VOICE_SLEEP_ACKNOWLEDGEMENT = "Going to sleep."

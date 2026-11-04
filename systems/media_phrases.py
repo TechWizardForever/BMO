@@ -1,5 +1,5 @@
-"""Many ways to say BMO's movie, show and game commands (owner 2026-10-28: "can we add a substantial amount of
-similar phrases so I don't have to say just one exact one").
+"""Many ways to say BMO's movie, show and game commands (2026-10-28), so no one has to say
+just one exact phrase.
 
 clean() turns what Whisper heard into the plain words the commands match on:
   - "Hey BMO" and Whisper's versions of it go ("Heed Bemo", "Hibemo", "He be my");

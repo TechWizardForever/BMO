@@ -97,7 +97,7 @@ class MediaTests(unittest.TestCase):
 
 class BareCommandTests(unittest.TestCase):
     def test_movie_commands_always_need_hey_bmo(self):
-        # Owner 2026-10-31: a movie's or game's own sound talks too, so nothing for them works without "Hey BMO"
+        # 2026-10-31: a movie's or game's own sound talks too, so nothing for them works without "Hey BMO"
         # (plain "pause" / "play" did from 2026-10-20). Only the library's scroll / pick / close do (nothing plays then).
         chat = (ROOT / "systems" / "chat.py").read_text()
         self.assertNotIn("_bare_player_command", chat)

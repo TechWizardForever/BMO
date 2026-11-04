@@ -1,4 +1,4 @@
-"""A stopwatch for every voice turn (handoff 2026-10-31 #1): when each step happened, one JSON line per turn in
+"""A stopwatch for every voice turn (2026-10-31): when each step happened, one JSON line per turn in
 ~/.bemo/logs/turn-trace.jsonl. Times, counts and names only, never the words said or answered.
 
 Marks, in seconds from the end of speech: speech_start (negative), speech_end (0), stt_done, accepted, ollama_sent,

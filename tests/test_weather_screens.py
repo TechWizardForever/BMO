@@ -1,4 +1,4 @@
-"""The long-term forecast, the weather windows and the radar (owner 2026-11-02), with no network."""
+"""The long-term forecast, the weather windows and the radar (2026-11-02), with no network."""
 import io
 import os
 from pathlib import Path

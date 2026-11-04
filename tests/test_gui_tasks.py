@@ -364,7 +364,7 @@ class GuiToolTests(unittest.TestCase):
                 mock.patch("systems.gui_vision.raise_window"):
             self.assertIn("does not share its controls", c._gui_tool({"action": "observe", "app": "Firefox"}))
             out = c._gui_tool({"action": "click_seen", "app": "Firefox", "target": "the Say hello button"})
-        # Pixels changing shows something happened, not that it worked (handoff 2026-10-31 #8): CHANGED, not VERIFIED.
+        # Pixels changing shows something happened, not that it worked (2026-10-31): CHANGED, not VERIFIED.
         self.assertTrue(out.startswith("CHANGED: click the Say hello button"), out)
         self.assertIn("look again to check before saying it worked", out)
         self.assertEqual(c.questions, ["I'll click the Say hello button in Firefox. Say Hey BMO, yes, or just say no."])

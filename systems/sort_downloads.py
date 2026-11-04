@@ -1,6 +1,6 @@
 """Games and movies from the Downloads folder to where BMO keeps them (2026-10-28): "Hey BMO, sort my downloads".
 
-BMO looks first and says what he found; nothing moves until "Hey BMO, yes" (owner's choice: move, not copy).
+BMO looks first and says what he found; nothing moves until "Hey BMO, yes" (it moves them, it doesn't copy).
   - GameCube games (.iso .rvz ...) go to BMO's games folder, the same one "import games from USB" fills; a .zip or
     .7z holding them is unpacked there and the archive goes to the Trash.
   - Episodes ("Show - S02E03 ...") go to Videos/TV Shows/<show>/Season 2, into the show's folder if there is one.
@@ -9,7 +9,7 @@ Left alone: anything still downloading (a .part / .crdownload / .!qB file next t
 minutes), "sample" clips, something already there, hidden folders, and any folder with code in it (.git) such as
 BMO's own.
 
-"Hey BMO, sort my USB" (owner 2026-10-31) does the same for a USB stick, but copies: the stick stays as it is,
+"Hey BMO, sort my USB" (2026-10-31) does the same for a USB stick, but copies: the stick stays as it is,
 like "import games from USB".
 """
 from __future__ import annotations

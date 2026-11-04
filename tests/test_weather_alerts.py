@@ -1,4 +1,4 @@
-"""Severe weather alerts (owner 2026-11-03), and BMO restarting when his listening stops, with no network."""
+"""Severe weather alerts (2026-11-03), and BMO restarting when his listening stops, with no network."""
 from datetime import datetime, timedelta, timezone
 import json
 import os

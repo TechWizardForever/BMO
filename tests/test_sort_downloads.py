@@ -114,7 +114,7 @@ class PlanTests(unittest.TestCase):
 
 
 class UsbTests(unittest.TestCase):
-    """'Hey BMO, sort my USB' (owner 2026-10-31): the same sorting, copied, so the stick stays as it is."""
+    """'Hey BMO, sort my USB' (2026-10-31): the same sorting, copied, so the stick stays as it is."""
     def setUp(self):
         PlanTests.setUp(self)
         self.usb = self.root / "media" / "STICK"

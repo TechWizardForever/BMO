@@ -1,4 +1,4 @@
-"""The sky (owner 2026-11-03): real eclipses at the right times, passes only when you can see them, alerts that keep quiet at
+"""The sky (2026-11-03): real eclipses at the right times, passes only when you can see them, alerts that keep quiet at
 night and over movies, and the screens, with no network."""
 from datetime import datetime, timedelta, timezone
 import json
@@ -584,7 +584,7 @@ class ChatTests(unittest.TestCase):
     PASSES = ("Just the next pass.", "the next pass", "next pass", "when's the next pass", "what time is the next pass", "no, just the next pass")
 
     def test_a_pass_alone_never_means_the_space_station(self):
-        for said in self.PASSES:  # owner 2026-11-03: it doesn't say what passes
+        for said in self.PASSES:  # 2026-11-03: it doesn't say what passes
             self.assertIsNone(sky.request(said), said)
             self.chat._station_talk_at = None
             with mock.patch.object(Chat, "_sky_screen") as screen:

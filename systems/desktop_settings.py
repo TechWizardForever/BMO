@@ -198,7 +198,7 @@ class RevertJournal:
 
 
 def no_usb_popup(run=subprocess.run, which=shutil.which) -> bool:
-    """Plugging in a USB stick no longer opens a file window over BMO's face (owner 2026-11-01). The stick still mounts;
+    """Plugging in a USB stick no longer opens a file window over BMO's face (2026-11-01). The stick still mounts;
     only the window goes. True when the setting took."""
     if not which("xfconf-query"):
         return False

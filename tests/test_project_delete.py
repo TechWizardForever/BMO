@@ -1,4 +1,4 @@
-"""Deleting a project from the project list (owner 2026-11-03). Nothing goes without its name said back and "Hey BMO, yes", and
+"""Deleting a project from the project list (2026-11-03). Nothing goes without its name said back and "Hey BMO, yes", and
 it goes to the Trash. Any doubt keeps it: a wrong word, silence, no Trash, a project that isn't on the list."""
 import os
 from pathlib import Path

@@ -177,7 +177,7 @@ class ShapeCheckTests(unittest.TestCase):
                 self.kit().make_cad_part({"shape": shape, "name": "x", "settings": settings})
 
     def test_numbers_that_are_not_numbers_are_refused(self):
-        # handoff 2026-10-31: NaN passed the "at least 0" check and reached OpenSCAD as "nan"
+        # 2026-10-31: NaN passed the "at least 0" check and reached OpenSCAD as "nan"
         for bad in ("nan", "NaN", "inf", "-inf", float("nan"), float("inf")):
             with self.assertRaisesRegex(EngineeringToolError, "number of millimeters"):
                 self.kit().make_cad_part({"shape": "block", "name": "x",

@@ -1,4 +1,4 @@
-"""What Whisper may write for the weather, sky and project commands -> what was said (owner 2026-11-03: every command
+"""What Whisper may write for the weather, sky and project commands -> what was said (2026-11-03: every command
 gets alternates, because Whisper mishears). For matching only; the logs and the brain keep the words as heard.
 
 Each entry needs the words around it to be sure: "the whether", not any "whether" ("tell me whether it matters"), and

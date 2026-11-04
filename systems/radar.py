@@ -1,4 +1,4 @@
-"""The rain radar on BMO's screen (owner 2026-11-02): "Hey BMO, show me the radar".
+"""The rain radar on BMO's screen (2026-11-02): "Hey BMO, show me the radar".
 
 Open-Meteo has no radar pictures. These are the National Weather Service's radars (NEXRAD, lower 48 states) as tiles
 from the Iowa Environmental Mesonet, public domain, no account, over an OpenStreetMap map that's kept on disk once

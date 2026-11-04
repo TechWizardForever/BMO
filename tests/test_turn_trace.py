@@ -1,4 +1,4 @@
-"""The per-turn stopwatch (handoff 2026-10-31 #1): marks relative to the end of speech, tools and the owner's yes/no
+"""The per-turn stopwatch (2026-10-31): marks relative to the end of speech, tools and the owner's yes/no
 wait kept apart, one JSON line per turn with no words in it, and the summary table."""
 import json
 import os

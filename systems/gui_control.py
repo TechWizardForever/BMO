@@ -246,7 +246,7 @@ _CLOSES = re.compile(r"\b(?:close|quit|exit|discard|don'?t save|cancel)\b", re.I
 def step_level(control: dict, *, changed: bool, gone: bool) -> str:
     """For a button or menu (no value to read back): 'goal' when what changed is the point of the control (a menu
     opened its items, a Close / Quit / Discard closed the window), else 'changed' (something happened, not
-    necessarily the right thing), or 'sent' when nothing changed (handoff 2026-10-31 #8)."""
+    necessarily the right thing), or 'sent' when nothing changed (2026-10-31)."""
     if gone:
         return "goal" if _CLOSES.search(display_name(control) or "") else "changed"
     if not changed:

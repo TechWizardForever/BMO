@@ -1,4 +1,4 @@
-"""Many ways to say the movie, show, game and library commands (owner 2026-10-28: "can we add a substantial amount of
+"""Many ways to say the movie, show, game and library commands (2026-10-28: "can we add a substantial amount of
 similar phrases so I don't have to say just one exact one"). Every line is something a person might say; the
 mishearings are from BMO's own logs."""
 import os
@@ -194,7 +194,7 @@ class LibraryTests(unittest.TestCase):
 
 class ToolLogTests(unittest.TestCase):
     def test_tool_calls_are_logged_without_what_was_typed(self):
-        # Handoff 2026-10-31 #10: the full arguments (typed text, file contents, paths) went into the log.
+        # 2026-10-31: the full arguments (typed text, file contents, paths) went into the log.
         from systems.chat import Chat
         summary = Chat._tool_args_summary({"text": "SECRET-7f3a typed into an app", "path": "/home/someone/notes.txt",
                                            "count": 3, "submit": True})
@@ -208,7 +208,7 @@ class ToolLogTests(unittest.TestCase):
 
 class ClaimGuardTests(unittest.TestCase):
     def test_a_tool_only_backs_the_claims_it_can(self):
-        # Handoff 2026-10-31 #7: any tool result at all used to switch the guard off.
+        # 2026-10-31: any tool result at all used to switch the guard off.
         from systems.grounding import unbacked_claim
         weather = "It's 72 degrees and sunny outside right now."
         self.assertEqual(unbacked_claim(weather, set()), "fabricated")
@@ -224,7 +224,7 @@ class ClaimGuardTests(unittest.TestCase):
 
 class GuiLevelTests(unittest.TestCase):
     def test_done_only_when_the_point_of_the_control_happened(self):
-        # Handoff 2026-10-31 #8: "the screen changed" isn't "it worked".
+        # 2026-10-31: "the screen changed" isn't "it worked".
         from systems.gui_control import step_level
         button = {"role": "push button", "name": "Apply"}
         self.assertEqual(step_level(button, changed=True, gone=False), "changed")

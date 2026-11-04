@@ -1,4 +1,4 @@
-"""'Hey BMO, eject the USB' really does it (owner 2026-11-01). Live, the brain said "USB ejected." with nothing behind
+"""'Hey BMO, eject the USB' really does it (2026-11-01). Live, the brain said "USB ejected." with nothing behind
 it, and the stick was still mounted."""
 import os
 from pathlib import Path

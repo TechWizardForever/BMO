@@ -1,4 +1,4 @@
-"""The help center on BMO's screen (owner 2026-11-03): "Hey BMO, help" shows every subject, and "weather commands" goes
+"""The help center on BMO's screen (2026-11-03): "Hey BMO, help" shows every subject, and "weather commands" goes
 straight to one. It all comes from voice_commands.VOICE_COMMANDS, the same table as the printed list, so a new command
 shows up here by itself. Only whole sentences match: "help me with my project" is for the brain.
 """
@@ -36,7 +36,7 @@ _SUBJECT = "(?P<subject>" + "|".join(sorted(map(re.escape, _BY_WORD), key=len, r
 _COMMANDS = r"(?:commands?|comments?)"  # Whisper writes "voice comments"
 _THE = r"(?: the| your| my| all the| all)?"
 _SHOW = r"(?:show|open|bring up|pull up|give me|display|see|list|read|go to|what are)"
-# "Hey BMO, what can you do?" alone (owner 2026-11-03). With more on it, "on this computer" or "about the leak", it isn't this,
+# "Hey BMO, what can you do?" alone (2026-11-03). With more on it, "on this computer" or "about the leak", it isn't this,
 # and right after an answer, with no "Hey BMO", it's part of the conversation: needs_hey_bmo().
 _WHAT_YOU_DO = (r"what(?: all| else| things| (?:kind|kinds|sort|sorts) of things)? (?:can|could) (?:you|ya|bmo|bemo|beemo) do|"
                 r"(?:(?:show|tell) me )?what you can do|what are you (?:able to do|capable of)|"
