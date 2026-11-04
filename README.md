@@ -31,7 +31,11 @@ He can also:
 - find the fastest settings for your computer ("run the speed test")
 - set timers and reminders, which still go off when he's asleep
 - remember things you tell him ("remember that my sister's birthday is May 3rd")
-- keep projects, check the weather, back himself up to a USB stick, and a bunch more. Everything he understands
+- tell you the weather for any day in the next two weeks ("what's the weather on November 8th?"), show the rain
+  radar, and warn you about severe weather if you turn that on (radar and warnings are for the United States)
+- tell you what's in the sky: the moon, the planets, space station passes, eclipses and meteor showers
+- show you every command on his screen ("what can you do?")
+- keep projects, back himself up to a USB stick, and a bunch more. Everything he understands
   is in [VOICE_COMMANDS.md](VOICE_COMMANDS.md), a list you can print and keep next to him
 
 He was built with an old CRT in mind, so he has a moving face, a bit of static now and then, and the old Windows
