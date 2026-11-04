@@ -388,6 +388,7 @@ class Chat:
         self._current_turn_explicit_wake = False
         self._current_turn_followup = False
         self._sky_offer = None  # "turn on space alerts, or did you just want to know the next pass?" is waiting for its answer
+        self._station_talk_at = None  # when the space station last came up, so "the next pass" can mean it
         self._mic_capture_suspended = False
         self._manual_profile_pin = False
 
@@ -1477,7 +1478,9 @@ class Chat:
         files = f" It has {count} file{'' if count == 1 else 's'}." if count else ""
         approved = self._confirm_by_voice(f"Delete the project {name}?{files} It goes to the Trash. Say Hey BMO, yes, or no.",
                                           tag="PROJECT_DELETE", target=item.key,
-                                          extra_yes={"delete it", "yes delete it"}, extra_no={"keep it"})
+                                          extra_yes={"delete it", "yes delete it"},
+                                          extra_no={"keep it", "keep", "no keep it", "know", "now", "no no", "don t", "dont", "no don t", "no dont",
+                                                    "don t delete it", "dont delete it", "do not delete it", "no don t delete it", "no dont delete it"})
         self.note_user_activity()
         if not approved:
             return self._say_local(command, f"Okay, I kept {name}.")
@@ -3164,10 +3167,16 @@ class Chat:
         for_weather = not reply and sky.weather_for_sight(command)
         asked = {"alerts": "alerts on", "both": "alerts on", "answer": kind, "no": "leave off"}.get(reply)
         asked = asked or ("weather" if for_weather else sky.request(command))
+        if asked is None and sky.only_a_pass(command):
+            if not self._station_just_came_up():
+                return self._say_local(command, "Which pass do you mean? If it's the space station, say the space station.")
+            asked = "iss"
         if asked is None or not getattr(config, "ENABLE_WEATHER", True):
             return False
         if asked == "leave off":
             return self._say_local(command, "Okay, I'll leave them off.")
+        if asked in ("iss", "ask iss"):
+            self._station_talk_at = time.monotonic()
         place = self._weather_tools()[0].load()
         if for_weather and sky.available():
             return self._say_local(command, self._sight_weather(command, place))
@@ -3210,6 +3219,14 @@ class Chat:
         if not offer or time.monotonic() - offer["at"] > sky.OFFER_SECONDS:
             return None, None
         return sky.offer_reply(command), offer["kind"]
+
+    def _station_just_came_up(self):
+        from systems import sky
+        view = getattr(self, "library_view", None)
+        if view is not None and view.active and view.kind == "sky" and view.extra.get("mode") == "iss":
+            return True
+        talked = getattr(self, "_station_talk_at", None)
+        return talked is not None and time.monotonic() - talked < sky.STATION_TALK_SECONDS
 
     def _sky_alerts_on(self):
         try:

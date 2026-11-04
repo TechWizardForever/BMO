@@ -561,8 +561,7 @@ class ChatTests(unittest.TestCase):
         self.assertFalse(self.turned_on())
 
     def test_heard_live_going_to_the_brain(self):
-        for said, kind in (("Just the next pass.", "iss"), ("the next pass", "iss"), ("next pass", "iss"), ("when's the next pass", "iss"), ("what time is the next pass", "iss"),
-                           ("Tell me about the space station passes", "iss"), ("what about the partial clips of the Sun?", "events"),
+        for said, kind in (("Tell me about the space station passes", "iss"), ("what about the partial clips of the Sun?", "events"),
                            ("what about the partial eclipse of the sun", "events"), ("what about the total eclipse of the moon", "events"), ("what about the lunar eclipse", "events"),
                            ("tell me about the solar eclipse", "events"), ("what about the solar clips", "events")):
             self.assertEqual(sky.request(said), kind, said)
@@ -581,6 +580,54 @@ class ChatTests(unittest.TestCase):
                 mock.patch.object(sky.Sky, "solar_eclipses", return_value=[]):
             self.chat._handle_sky_command("what about the solar eclipse")
             self.assertEqual(self.said[-1], "There's no solar eclipse you can see from here in the next three years.")
+
+    PASSES = ("Just the next pass.", "the next pass", "next pass", "when's the next pass", "what time is the next pass", "no, just the next pass")
+
+    def test_a_pass_alone_never_means_the_space_station(self):
+        for said in self.PASSES:  # owner 2026-11-03: it doesn't say what passes
+            self.assertIsNone(sky.request(said), said)
+            self.chat._station_talk_at = None
+            with mock.patch.object(Chat, "_sky_screen") as screen:
+                self.assertTrue(self.chat._handle_sky_command(said), said)  # not to the brain, which made up a date for it
+            screen.assert_not_called()
+            self.assertEqual(self.said[-1], "Which pass do you mean? If it's the space station, say the space station.")
+            self.assertNotEqual(self.chat.library_view.kind, "sky")
+
+    def test_right_after_the_space_station_it_does(self):
+        with mock.patch.object(Chat, "_sky_screen", return_value=("The pass is at nine.", {"orbit": []}, [], None)) as screen:
+            self.chat._handle_sky_command("when does the space station pass over")
+            screen.reset_mock()
+            for said in self.PASSES:
+                self.assertTrue(self.chat._handle_sky_command(said), said)
+                self.assertEqual(screen.call_args[0][0], "iss", said)
+
+    def test_that_runs_out(self):
+        with mock.patch.object(Chat, "_sky_screen", return_value=("The pass is at nine.", {"orbit": []}, [], None)) as screen:
+            self.chat._handle_sky_command("when does the space station pass over")
+            self.chat.library_view.close()
+            self.chat._station_talk_at -= sky.STATION_TALK_SECONDS + 1
+            screen.reset_mock()
+            self.chat._handle_sky_command("the next pass")
+            screen.assert_not_called()
+        self.assertIn("Which pass", self.said[-1])
+
+    def test_its_screen_being_up_counts(self):
+        self.chat.library_view.open("sky", [], grid=False, extra={"mode": "iss"})
+        self.assertTrue(self.chat._station_just_came_up())
+        self.chat.library_view.open("sky", [], grid=False, extra={"mode": "moon"})
+        self.assertFalse(self.chat._station_just_came_up())
+
+    def test_the_moon_doesnt_make_a_pass_the_space_station(self):
+        with mock.patch.object(Chat, "_sky_screen", return_value=("Half.", {"moon": {}}, [], None)) as screen:
+            self.chat._handle_sky_command("what phase is the moon")
+            self.chat.library_view.close()
+            screen.reset_mock()
+            self.chat._handle_sky_command("the next pass")
+            screen.assert_not_called()
+
+    def test_other_passes_arent_this(self):
+        for said in ("a forward pass", "the next pass of the mountains", "next password", "when's the next pass in football", "pass the salt", "the next past president"):
+            self.assertFalse(sky.only_a_pass(said), said)
 
     def test_not_now_leaves_them_off(self):
         for said in ("not now", "not right now", "Not now."):

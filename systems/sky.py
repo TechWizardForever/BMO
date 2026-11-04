@@ -471,8 +471,6 @@ _MOON = re.compile(r"\b(?:moon phase|phase of the moon|what phase is the moon|ho
                    rf"is the moon (?:full|new|out|up)|where(?: is)? the moon{_RIGHT_NOW}$|next (?:full|new) moon)\b")
 _STATION = r"\b(?:space station|the iss|iss|i s s)\b"
 _ISS = re.compile(rf"\b(?:when|where|show|track|next|see|find|pull up|bring up|spot|what time)\b.*{_STATION}|"
-                  # "Just the next pass" with no question waiting went to the brain, which made up a date (live 2026-11-03).
-                  r"^(?:no )?(?:just )?(?:the |my )?next (?:pass|passes|past)$|^(?:when(?: is)?|what time is) the next pass$|"
                   rf"{_STATION}.*\b(?:pass|passes|passing|overhead|tonight|fly|flying|going over|go over|visible|above)\b|"
                   rf"^(?:the )?(?:international )?{_STATION}$|^(?:is|will|can)\b.*{_STATION}.*\b(?:up|out|coming)\b")
 _EVENTS = re.compile(
@@ -505,6 +503,10 @@ _ALERTS_ON = re.compile(
     rf"\b(?:turn|switch) (?:the |my )?{_WATCHED} {_NOTICES} on\b|^(?:the )?{_WATCHED} {_NOTICES} on$")
 # These could mean the alerts or just the answer, so he asks. "Tell me when the next pass is" is plainly a question, and
 # "tell me if the sky is clear" isn't about alerts at all.
+# "Just the next pass" doesn't say what passes. Right after the space station came up it means that; otherwise he asks
+# (2026-11-03), and it doesn't go to the brain, which made up a date for it live.
+_ONLY_A_PASS = re.compile(r"^(?:no )?(?:just )?(?:the |my )?next (?:pass|passes|past)$|^(?:when(?: is)?|what time is) the next pass$")
+STATION_TALK_SECONDS = 120
 _MAYBE_PASSES = re.compile(r"\b(?:tell|alert|warn|let|notify) (?:me|us)\b(?!.*\bnext\b).*\b(?:when|if)\b.*\b(?:space station|iss)\b")
 _MAYBE_EVENTS = re.compile(r"\b(?:tell|alert|warn|let|notify) (?:me|us)\b.*\b(?:when|if)\b.*\b(?:somethings?|anythings?)\b.*\b(?:sky|space)\b")
 OFFER_SECONDS = 60  # as long as "turn them on" still answers the question, with Hey BMO after the follow-up window
@@ -554,6 +556,11 @@ def request(text: str) -> str | None:
     if _TONIGHT.search(said):
         return "tonight"
     return None
+
+
+def only_a_pass(text: str) -> bool:
+    said = re.sub(r"\s+", " ", re.sub(r"[^\w\s]", "", put_right(text).lower())).strip()
+    return bool(_ONLY_A_PASS.match(re.sub(r"\b(when|where)s\b", r"\1", said)))
 
 
 def offer_question(kind: str) -> str:

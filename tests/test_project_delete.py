@@ -272,7 +272,10 @@ class TheConfirmation(unittest.TestCase):
             return False, text
         gate.clipped_wake = clipped_wake
         chat.voice_gate = gate
-        approved = chat._confirm_by_voice("Delete the project Garden?", tag="PROJECT_DELETE", target="garden", extra_yes={"delete it", "yes delete it"}, extra_no={"keep it"})
+        source = (ROOT / "systems" / "chat.py").read_text()
+        no = source[source.index('extra_no={"keep it", "keep"'):]
+        no = eval(no[len("extra_no="):no.index("})") + 1])  # the same words the real command passes
+        approved = chat._confirm_by_voice("Delete the project Garden?", tag="PROJECT_DELETE", target="garden", extra_yes={"delete it", "yes delete it"}, extra_no=no)
         return approved, spoken
 
     def test_only_hey_bmo_yes_counts(self):
@@ -287,6 +290,14 @@ class TheConfirmation(unittest.TestCase):
     def test_no_and_silence_keep_it(self):
         for heard in (("no",), ("keep it",), ("never mind",), ()):
             self.assertFalse(self.run_with(*heard)[0], heard)
+
+    def test_every_way_of_saying_no_counts_the_first_time(self):
+        import systems.chat as chat_module
+        for said in ("No.", "Know.", "Now.", "Nope.", "No, keep it.", "Don't.", "No, don't.", "Don't delete it.", "No, don't delete it.", "Do not delete it."):
+            with self.subTest(said=said), mock.patch.object(chat_module.logger, "info") as log:
+                approved, _ = self.run_with(said)
+                self.assertFalse(approved)
+                self.assertIn("declined", " ".join(str(call) for call in log.call_args_list))
 
 
 class TheScreen(unittest.TestCase):
