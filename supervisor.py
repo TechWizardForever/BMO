@@ -54,6 +54,14 @@ def _normalize_name(text: str) -> str:
     return " ".join(str(text).lower().replace("_", " ").replace("-", " ").split())
 
 
+
+def _context_for(model: str) -> int:
+    """The context a brain's requests use: its profile's own (Engineering's is bigger), else the default."""
+    for profile in config.MODEL_PROFILES.values():
+        if str(profile.get("model")) == str(model) and profile.get("num_ctx"):
+            return int(profile["num_ctx"])
+    return int(config.OLLAMA_NUM_CTX)
+
 class SupervisorService:
     def __init__(
         self,
@@ -497,7 +505,7 @@ class SupervisorService:
                     # num_ctx makes Ollama start the runner at its default
                     # context, then potentially unload/reinitialize it at 8192
                     # when the first user turn arrives (~36 s on 5700U).
-                    "num_ctx": int(config.OLLAMA_NUM_CTX),
+                    "num_ctx": _context_for(model),
                     "num_predict": 1,
                     "num_thread": int(config.OLLAMA_NUM_THREAD),
                     "use_mmap": bool(config.OLLAMA_USE_MMAP),  # as BMO's requests send it, or Ollama reloads
@@ -918,6 +926,9 @@ class SupervisorService:
         if action == "sky":
             watcher = getattr(self, "sky", None)
             return watcher.handle(request) if watcher is not None else {"ok": False}
+        if action == "music":
+            player = getattr(self, "music", None)
+            return player.handle(request) if player is not None else {"ok": False}
         if action == "weather_alerts":
             watcher = getattr(self, "weather_alerts", None)
             return watcher.handle(request) if watcher is not None else {"ok": False}
@@ -1071,7 +1082,15 @@ def _available_gb() -> float:
 
 def _enter_standby(service: SupervisorService) -> None:
     """BMO went to sleep. His main brain stays loaded for STANDBY_KEEP_BRAIN_MINUTES, so a wake in that time skips
-    the load and the warm-up (2026-10-31: 36 s + 12 s of a 49 s wake); 0 unloads it at once, as before."""
+    the load and the warm-up (2026-10-31: 36 s + 12 s of a 49 s wake); 0 unloads it at once, as before.
+    The music stops too: it would play on with nothing on the screen to stop it (2026-11-17)."""
+    music = getattr(service, "music", None)
+    if music is not None:
+        try:
+            music.handle({"op": "stop"})
+            LOG.info("Standby: music stopped")
+        except Exception:
+            LOG.exception("Could not stop the music for standby")
     minutes = float(getattr(config, "STANDBY_KEEP_BRAIN_MINUTES", 0) or 0)
     if minutes <= 0:
         service.standby_unload_at = None
@@ -1252,6 +1271,15 @@ def run_supervised(command: list[str], *, standby: bool = False) -> int:
         service.reminders.start()
     except Exception:
         LOG.exception("Could not start timers and reminders")
+
+    try:
+        # Music plays here, so it never stops BMO being used the way a movie does; sleep stops it (systems/music.py).
+        from systems.music import MusicPlayer
+        service.music = MusicPlayer()
+        service.music.start()
+    except Exception:
+        LOG.exception("Could not start the music player")
+
 
     try:
         # Sky alerts go off awake or asleep too, once the owner has turned them on (2026-11-03).

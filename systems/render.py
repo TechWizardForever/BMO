@@ -1,4 +1,5 @@
 import math
+import re
 from pathlib import Path
 import random as rand
 import time
@@ -8,6 +9,7 @@ import pygame
 import config
 from systems.chat import State
 from systems import runner_game as runner
+from systems import runner_world
 
 
 def ui_font(size, bold=False):
@@ -38,6 +40,7 @@ class FaceRenderer:
         self.blinking = False
         self.fpsclock = pygame.time.Clock()
         self.FPS = config.FPS
+        self.GAME_FPS = 60
 
         self.LEVER_FLIP = pygame.mixer.Sound("./lever_flip.mp3")
         self.LEVER_FLIP_BACK = pygame.mixer.Sound("./lever_flip_back.mp3")
@@ -193,6 +196,29 @@ class FaceRenderer:
     # ----------------------------------------------------------------------
     # Original audio / face animation helpers.
     # ----------------------------------------------------------------------
+    def _advance_mouth(self):
+        """One frame of the talking mouth. Its clock moves with real time, so it keeps pace even when frames are slow,
+        and never runs ahead of the sound that's arrived (2026-11-10: a slow brain left gaps in a long answer, the clock
+        ran on through them, and the mouth stopped for the rest of it). With nothing new to say yet, it rests closed.
+        A whole sentence arrives at once, before it plays: jumping to the newest sound left the mouth shut almost all
+        the time (2026-11-15 to 11-17), so it never jumps."""
+        chat = self._app.chat
+        now = time.monotonic()
+        dt = min(0.1, max(0.0, now - getattr(self, "_mouth_time", now)))
+        self._mouth_time = now
+        count = min(chat.count + config.VALUES_PER_SECOND * dt, float(len(chat.xf_list)))
+        chat.count = count
+        output = self.visualizer(count, chat.xf_list, chat.yf_list)
+        if output is None:
+            self.current_mouth_frame = 1
+            return
+        if self.mouth_frame_change_timer - time.time() < 0:
+            self.mouth_frame_change_timer = time.time() + config.TALK_DELAY
+            index = min(int(count), max(0, len(chat.rms_list) - 1))
+            rms = chat.rms_list[index] if chat.rms_list else 0.0
+            xf, yf = output
+            self.current_mouth_frame = self._choose_mouth_frame(xf, yf, rms)
+
     def visualizer(self, count, xf_list, yf_list):
         index = int(count)
         if index < 0 or index >= len(xf_list) or index >= len(yf_list):
@@ -639,71 +665,106 @@ class FaceRenderer:
         game.update(now - self._game_last_update)
         self._game_last_update = now
 
-        pygame.draw.rect(screen, (24, 92, 44), play, width=2, border_radius=10)
         clip = screen.get_clip()
-        screen.set_clip(play.inflate(-4, -4))
-        # Far-off specks drift slower than the ground (a bit of depth), then the ground itself.
-        for i in range(18):
-            x = play.left + (i * 0.53 * unit - game.distance * unit * 0.3) % play.width
-            y = play.top + play.height * (0.18 + 0.4 * ((i * 37) % 11) / 11)
-            pygame.draw.rect(screen, (34, 104, 56), pygame.Rect(int(x), int(y), 3, 3))
-        pygame.draw.line(screen, (70, 190, 165), (play.left, ground_y), (play.right, ground_y), 2)
-        dash = max(6, int(unit * 0.05))
-        offset = int(game.distance * unit) % (dash * 3)
-        for x in range(play.left - offset, play.right, dash * 3):
-            pygame.draw.line(screen, (38, 116, 103), (x, ground_y + 6), (x + dash, ground_y + 6), 1)
+        screen.set_clip(play)
+        self._runner_scenery(play, ground_y, unit, game.distance, now)
 
         def box(gx, gy, gw, gh):
             return pygame.Rect(int(play.left + gx * unit), int(ground_y - (gy + gh) * unit),
                                max(2, int(gw * unit)), max(2, int(gh * unit)))
 
-        flap = int(now * 8) % 2
+        sprites = self.__dict__.setdefault("_runner_sprites", {})
         for o in game.obstacles:
-            if o.kind.endswith("bug"):
-                body = box(o.x, o.y, o.w, o.h)
-                pygame.draw.ellipse(screen, (226, 86, 140), body)
-                wing = body.height * (0.9 if flap else -0.5)
-                for side in (0.3, 0.7):
-                    x = body.left + body.width * side
-                    pygame.draw.line(screen, (250, 170, 205), (x, body.top + 2),
-                                     (x - body.width * 0.15, body.top - wing), 2)
-                pygame.draw.rect(screen, (30, 10, 20), pygame.Rect(body.left + 3, body.centery - 2, 4, 4))
-                continue
             parts = [(o.x, o.w * 0.42), (o.x + o.w * 0.58, o.w * 0.42)] if o.kind == "pair" else [(o.x, o.w)]
+            rows = runner_world.obstacle_frame(o.kind, now)
             for gx, gw in parts:
                 block = box(gx, o.y, gw, o.h)
-                pygame.draw.rect(screen, (232, 158, 64), block)
-                pygame.draw.rect(screen, (120, 70, 20), block, width=2)
-                for row in range(block.top + 4, block.bottom - 2, 6):  # glitchy scan lines
-                    pygame.draw.line(screen, (250, 200, 120), (block.left + 3, row), (block.right - 4, row), 1)
+                screen.blit(runner_world.sprite(sprites, rows, block.size), block.topleft)
 
         ducking = game.ducking and game.on_ground
         bw, bh = (runner.DUCK_W, runner.DUCK_H) if ducking else (runner.RUNNER_W, runner.RUNNER_H)
-        self._draw_little_bmo(box(runner.RUNNER_X, game.y, bw, bh), game, ducking)
+        bmo = box(runner.RUNNER_X, game.y, bw, bh)
+        lift = min(1.0, game.y / 0.35)
+        shadow = pygame.Surface((max(4, int(bmo.width * (1.1 - 0.5 * lift))), max(3, int(unit * 0.03))), pygame.SRCALPHA)
+        pygame.draw.ellipse(shadow, (10, 20, 18, int(130 * (1 - 0.6 * lift))), shadow.get_rect())
+        screen.blit(shadow, shadow.get_rect(center=(bmo.centerx, ground_y + 2)))
+        if game.on_ground and game.state == runner.RUNNING:
+            pixel = max(2, int(unit * 0.012))
+            for k in range(3):  # dust kicked up behind him
+                age = (game.distance * 6 + k / 3) % 1.0
+                x = bmo.left - int(age * unit * 0.12) - k * pixel * 2
+                y = ground_y - int(age * unit * 0.05) - pixel
+                screen.fill((200, 180, 150), pygame.Rect(x, y, pixel, pixel))
+        self._draw_little_bmo(bmo, game, ducking)
         screen.set_clip(clip)
+        frame = (24, 92, 44)
+        pygame.draw.rect(screen, (8, 30, 16), play.inflate(10, 10), width=4, border_radius=14)
+        pygame.draw.rect(screen, frame, play.inflate(4, 4), width=3, border_radius=12)
+        pygame.draw.rect(screen, (90, 200, 160), play.inflate(4, 4), width=1, border_radius=12)
 
         font, big = self.SMALL_FONT, self.MEDIUM_FONT
         hud = font.render(f"LEVEL {game.level}    SCORE {int(game.score):05d}    BEST {game.best:05d}", True,
-                          (150, 235, 214))
-        screen.blit(hud, hud.get_rect(midtop=(w // 2, play.top + 8)))
+                          (230, 255, 245))
+        panel = hud.get_rect(midtop=(w // 2, play.top + 10)).inflate(24, 10)
+        self._runner_panel(panel)
+        screen.blit(hud, hud.get_rect(center=panel.center))
         if game.state == runner.READY:
             lines = [(big, "PRESS SPACE TO RUN", (230, 255, 245)),
                      (font, "SPACE or UP: jump (hold for higher)    DOWN: duck", (120, 200, 185))]
+            if game.level > 1:
+                lines[1:1] = [(font, f"Starting at level {game.level}", (255, 214, 120))]
+                lines.append((font, "DOWN now: back to level 1", (120, 200, 185)))
         elif game.state == runner.OVER:
             lines = [(big, "NEW BEST!" if game.new_best else "OUCH!", (255, 214, 120)),
                      (font, f"Level {game.level}, {int(game.score)} points. Press SPACE to go again.",
                       (190, 235, 222))]
+            if game.level > 1:
+                lines.append((font, "DOWN: back to level 1", (120, 200, 185)))
         elif game.level_shown_at is not None and game.distance - game.level_shown_at < 1.6 * game.speed:
             lines = [(big, f"LEVEL {game.level}!", (255, 214, 120))]
         else:
             lines = []
-        y = play.top + play.height * 0.30
-        for face, text, color in lines:
-            surface = face.render(text, True, color)
+        y = play.top + play.height * 0.28
+        surfaces = [face.render(text, True, color) for face, text, color in lines]
+        if surfaces:
+            tall = sum(s.get_height() + 6 for s in surfaces) - 6
+            panel = pygame.Rect(0, 0, max(s.get_width() for s in surfaces) + 40, tall + 24)
+            panel.midtop = (w // 2, int(y) - 12)
+            self._runner_panel(panel)
+        for surface in surfaces:
             screen.blit(surface, surface.get_rect(midtop=(w // 2, int(y))))
             y += surface.get_height() + 6
         controls = font.render("jump: SPACE / UP / pad A      duck: DOWN / pad B", True, (55, 135, 124))
         screen.blit(controls, controls.get_rect(center=(w // 2 + drift, int(h * 0.94))))
+
+    # The runner's world (2026-11-17, systems/runner_world.py): green plains, nearer things moving faster.
+    def _runner_scenery(self, play, ground_y, unit, distance, now):
+        screen = self._app._screen
+        key = (play.size, ground_y - play.top)
+        cached = getattr(self, "_runner_plains", None)
+        if cached is None or cached[0] != key:
+            cached = self._runner_plains = (key, runner_world.layers(*key))
+        world = cached[1]
+        pixel = world["pixel"]
+        screen.blit(world["sky"], play.topleft)
+        for name, shift in (("clouds", now * 7), ("far", distance * unit * 0.08)):
+            layer = world[name]
+            x = int(shift) % layer.get_width()
+            screen.blit(layer, (play.left - x, play.top))
+            screen.blit(layer, (play.left - x + layer.get_width(), play.top))
+        runner_world.birds(screen, play, pixel, now)
+        near = world["near"]
+        x = int(distance * unit * 0.25) % near.get_width()
+        screen.blit(near, (play.left - x, play.top))
+        screen.blit(near, (play.left - x + near.get_width(), play.top))
+        runner_world.ground(screen, play, ground_y, pixel, int(distance * unit))
+
+    def _runner_panel(self, rect):
+        """A dark panel with a light edge, for the score and messages over the scenery."""
+        panel = pygame.Surface(rect.size, pygame.SRCALPHA)
+        pygame.draw.rect(panel, (6, 20, 18, 210), panel.get_rect(), border_radius=8)
+        pygame.draw.rect(panel, (108, 245, 206, 255), panel.get_rect(), width=2, border_radius=8)
+        self._app._screen.blit(panel, rect.topleft)
 
     # The runner's BMO as pixel art (2026-10-27), so he stays crisp on the CRT next to the pixel lettering:
     # T body, S screen, K face, Y the yellow D-pad, R the red button. Squashed into a smaller box when he ducks.
@@ -1019,16 +1080,241 @@ class FaceRenderer:
                 cache[key] = None
         return cache[key]
 
+    # The game carousel (2026-11-15), after ES-DE's: the chosen game large and still in the middle, the others
+    # smaller and dimmer towards the sides, sliding across when it moves. A game without a cover gets a case drawn.
+    _CASE_COLORS = ((84, 74, 170), (40, 40, 48), (226, 120, 40), (150, 156, 170), (52, 140, 120), (176, 60, 80))
+    _SMALL_WORDS = {"the", "of", "and", "a", "an", "&", "to", "in", "on"}
+
+    @classmethod
+    def _game_initials(cls, title):
+        """'WW' for The Legend of Zelda - The Wind Waker: the part after a dash names the game in a series."""
+        name = str(title).split(" - ")[-1]
+        words = [w for w in re.findall(r"[A-Za-z0-9']+", name) if w.lower() not in cls._SMALL_WORDS]
+        return "".join(w[0].upper() for w in words[:3]) or "?"
+
+    def _carousel_font(self, size):
+        cache = getattr(self, "_carousel_fonts", None)
+        if cache is None:
+            cache = self._carousel_fonts = {}
+        size = max(8, int(size) // 4 * 4)  # a few sizes, not one per frame
+        if size not in cache:
+            cache[size] = ui_font(size, bold=True)
+        return cache[size]
+
+    def _fitted_case_font(self, text, width, height, most_lines):
+        """The biggest lettering that fits the whole name in, in at most `most_lines` lines (2026-11-17: the full name,
+        not initials). None if even the smallest doesn't."""
+        for size in range(max(8, height // max(1, most_lines)), 7, -2):
+            font = self._carousel_font(size)
+            lines = self._wrap_text(font, text, width)
+            if (len(lines) <= most_lines and len(lines) * font.get_linesize() <= height
+                    and all(font.size(line)[0] <= width for line in lines)):
+                return font, lines
+        return None
+
+    def _game_case(self, tile, rect, *, chosen, dim, now):
+        """One game: its cover if it has one, else a drawn case with its full name."""
+        screen = self._app._screen
+        picture = self._library_picture(tile["picture"], (rect.w, rect.h)) if tile.get("picture") else None
+        if picture is not None:
+            screen.blit(picture, picture.get_rect(center=rect.center))
+            frame = picture.get_rect(center=rect.center)
+        else:
+            frame = rect
+            color = self._CASE_COLORS[sum(map(ord, str(tile.get("title", "")))) % len(self._CASE_COLORS)]
+            radius = max(4, rect.w // 14)
+            pygame.draw.rect(screen, tuple(int(c * 0.55) for c in color), rect.move(0, max(2, rect.w // 40)), border_radius=radius)
+            pygame.draw.rect(screen, color, rect, border_radius=radius)
+            band = pygame.Rect(rect.x, rect.y, rect.w, max(6, rect.h // 7))
+            pygame.draw.rect(screen, tuple(int(c * 0.7) for c in color), band, border_top_left_radius=radius,
+                             border_top_right_radius=radius)
+            for k in (range(1, 4) if " - " not in str(tile.get("title", "")) else ()):  # ridges, unless a series name goes there
+                x = rect.x + rect.w * k // 4
+                pygame.draw.line(screen, tuple(min(255, int(c * 1.15)) for c in color), (x, band.y + 3), (x, band.bottom - 4),
+                                 max(1, rect.w // 90))
+            disc = pygame.Rect(0, 0, int(rect.w * 0.5), int(rect.w * 0.5))
+            disc.center = (rect.centerx, rect.y + band.h + max(4, rect.h // 30) + disc.h // 2)
+            pygame.draw.ellipse(screen, (232, 236, 240), disc)
+            pygame.draw.ellipse(screen, tuple(int(c * 0.8) for c in color), disc.inflate(-disc.w * 2 // 3, -disc.h * 2 // 3))
+            pygame.draw.ellipse(screen, (196, 202, 214), disc, max(1, rect.w // 60))
+            shine = pygame.Rect(0, 0, max(2, disc.w // 6), max(2, disc.h // 6))
+            shine.center = (disc.x + disc.w // 3, disc.y + disc.h // 3)
+            pygame.draw.ellipse(screen, (255, 255, 255), shine)
+            title = str(tile.get("title", ""))
+            series, _, name = title.rpartition(" - ")  # "The Legend of Zelda - The Wind Waker": the series small, on the band
+            if series:
+                small = self._fitted_case_font(series, band.w - band.w // 8, band.h - 4, 1)
+                if small:
+                    font, lines = small
+                    text = font.render(lines[0], True, (250, 250, 250))
+                    screen.blit(text, text.get_rect(center=band.center))
+            room = pygame.Rect(rect.x + rect.w // 14, disc.bottom + max(4, rect.h // 40), rect.w - rect.w // 7,
+                               rect.bottom - disc.bottom - max(8, rect.h // 20))
+            fitted = self._fitted_case_font(name or title, room.w, room.h, 4)
+            if fitted:
+                font, lines = fitted
+                y = room.y + (room.h - len(lines) * font.get_linesize()) // 2
+                for line in lines:
+                    text = font.render(line, True, (250, 250, 250))
+                    screen.blit(text, text.get_rect(midtop=(room.centerx, y)))
+                    y += font.get_linesize()
+        if dim > 0:
+            shade = pygame.Surface(frame.size, pygame.SRCALPHA)
+            shade.fill((8, 16, 18, int(200 * min(1.0, dim))))
+            screen.blit(shade, frame.topleft)
+        if chosen:
+            glow = 0.6 + 0.4 * math.sin(now * 3.0)
+            color = tuple(int(c * glow) for c in (108, 245, 206))
+            pygame.draw.rect(screen, color, frame.inflate(10, 10), width=max(3, frame.w // 60), border_radius=max(6, frame.w // 12))
+
+    def _album_case(self, tile, rect, *, chosen, dim, now):
+        """One song (2026-11-17): a square sleeve, its cover if it has one, else drawn with the song's name and the
+        artist's, and a record half out of the side."""
+        screen = self._app._screen
+        artist, dash, song = str(tile.get("title", "")).partition(" - ")
+        song, artist = (song, artist) if dash else (artist, "")
+        color = self._CASE_COLORS[sum(map(ord, artist or song)) % len(self._CASE_COLORS)]  # one colour per artist
+        record = rect.inflate(-rect.w // 12, -rect.h // 12)
+        record.centerx = rect.centerx + rect.w * (0.24 if chosen else 0.14)
+        pygame.draw.ellipse(screen, (16, 16, 20), record)
+        for k in range(1, 5):  # the grooves
+            ring = record.inflate(-record.w * k // 6, -record.h * k // 6)
+            pygame.draw.ellipse(screen, (44, 44, 52), ring, max(1, record.w // 120))
+        label = record.inflate(-record.w * 2 // 3, -record.h * 2 // 3)
+        pygame.draw.ellipse(screen, color, label)
+        pygame.draw.ellipse(screen, (16, 16, 20), label.inflate(-label.w * 4 // 5, -label.h * 4 // 5))
+        picture = self._library_picture(tile["picture"], (rect.w, rect.h)) if tile.get("picture") else None
+        if picture is not None:
+            frame = picture.get_rect(center=rect.center)
+            pygame.draw.rect(screen, (8, 12, 14), frame.move(0, max(2, rect.w // 40)))
+            screen.blit(picture, frame)
+        else:
+            frame = rect
+            radius = max(2, rect.w // 40)
+            pygame.draw.rect(screen, tuple(int(c * 0.5) for c in color), rect.move(0, max(2, rect.w // 40)), border_radius=radius)
+            pygame.draw.rect(screen, color, rect, border_radius=radius)
+            light = tuple(min(255, int(c * 1.25) + 18) for c in color)
+            for k in range(4):  # stripes across the corner, like an old record sleeve
+                band = max(2, rect.w // 22)
+                y = rect.bottom - rect.h // 6 - k * band * 2
+                pygame.draw.line(screen, light, (rect.x + radius, y), (rect.x + rect.w // 3 + k * band, rect.bottom - radius - 1),
+                                 max(1, band // 2))
+            pad = rect.w // 12
+            top = rect.y + pad
+            if artist:
+                fitted = self._fitted_case_font(artist.upper(), rect.w - 2 * pad, rect.h // 7, 1)
+                if fitted:
+                    font, lines = fitted
+                    text = font.render(lines[0], True, (255, 236, 170))
+                    screen.blit(text, text.get_rect(midtop=(rect.centerx, top)))
+                    top += font.get_linesize() + pad // 2
+            room = pygame.Rect(rect.x + pad, top, rect.w - 2 * pad, rect.bottom - top - rect.h // 4)
+            fitted = self._fitted_case_font(song, room.w, room.h, 4)
+            if fitted:
+                font, lines = fitted
+                y = room.y + (room.h - len(lines) * font.get_linesize()) // 2
+                for line in lines:
+                    text = font.render(line, True, (250, 250, 250))
+                    screen.blit(text, text.get_rect(midtop=(room.centerx, y)))
+                    y += font.get_linesize()
+            note = rect.w // 9
+            base = (rect.right - pad - note, rect.bottom - pad)
+            pygame.draw.ellipse(screen, (250, 250, 250), (base[0] - note // 2, base[1] - note // 3, note, note * 2 // 3))
+            pygame.draw.line(screen, (250, 250, 250), (base[0] + note // 2 - 1, base[1]), (base[0] + note // 2 - 1, base[1] - note * 2),
+                             max(1, note // 5))
+            pygame.draw.line(screen, (250, 250, 250), (base[0] + note // 2 - 1, base[1] - note * 2), (base[0] + note, base[1] - note * 3 // 2),
+                             max(1, note // 5))
+        if dim > 0:
+            shade = pygame.Surface((frame.w + rect.w // 2, frame.h), pygame.SRCALPHA)
+            shade.fill((8, 16, 18, int(200 * min(1.0, dim))))
+            screen.blit(shade, frame.topleft)
+        if chosen:
+            glow = 0.6 + 0.4 * math.sin(now * 3.0)
+            color = tuple(int(c * glow) for c in (108, 245, 206))
+            pygame.draw.rect(screen, color, frame.inflate(10, 10), width=max(3, frame.w // 60), border_radius=max(4, frame.w // 30))
+
+    def _render_carousel(self, lib, now):
+        screen = self._app._screen
+        w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
+        title_font, row_font, small_font = self._setup_fonts(h)
+        self._green_grid(now, speed=0.25)
+        left, right, top = int(w * 0.05), int(w * 0.95), int(h * 0.04)
+        music = lib.get("kind") == "music"
+        heading = title_font.render("MUSIC" if music else "GAMES", True, (108, 245, 206))
+        screen.blit(heading, (left, top))
+        total, first = int(lib.get("total") or 0), int(lib.get("first") or 1)
+        count = small_font.render(f"{first} of {total}", True, (90, 160, 148))
+        screen.blit(count, count.get_rect(bottomright=(right, top + heading.get_height())))
+        body_top, body_bottom = top + heading.get_height() + int(h * 0.03), int(h * 0.80)
+        # Slide towards the chosen one rather than jump.
+        target = float(first - 1)
+        dt = max(0.0, min(0.1, now - getattr(self, "_carousel_time", now)))
+        self._carousel_time = now
+        pos = getattr(self, "_carousel_pos", None)
+        if pos is None or abs(pos - target) > 4:
+            pos = target
+        pos += (target - pos) * min(1.0, dt * 9.0)
+        self._carousel_pos = pos = target if abs(target - pos) < 0.01 else pos
+        shape = 1.0 if music else 0.72  # a record sleeve is square
+        case_h = int((body_bottom - body_top) * (0.86 if music else 0.92))
+        case_w = int(min(case_h * shape, (right - left) * (0.27 if music else 0.36)))
+        case_h = int(case_w / shape)
+        centre = ((left + right) // 2, (body_top + body_bottom) // 2)
+        nearby = sorted(lib.get("nearby") or [], key=lambda t: -abs(t["number"] - 1 - pos))
+        for tile in nearby:
+            offset = tile["number"] - 1 - pos
+            if abs(offset) > 3.2:
+                continue
+            slot = min(3, int(round(abs(offset))))
+            scale = (1.0, 0.68, 0.5, 0.38)[slot]  # one size per place, so covers aren't rescaled every frame
+            size = (int(case_w * scale), int(case_h * scale))
+            spread = case_w * 0.62 + case_w * (0.62 if music else 0.38) * min(1.0, abs(offset))  # clear of the record
+            x = centre[0] + offset * spread * (0.86 if abs(offset) > 1 else 1.0)
+            rect = pygame.Rect(0, 0, *size)
+            rect.center = (int(x), centre[1] + int(case_h * 0.06 * min(abs(offset), 2)))
+            if rect.right < left or rect.left > right:
+                continue
+            (self._album_case if music else self._game_case)(tile, rect, chosen=abs(offset) < 0.5,
+                                                             dim=min(0.7, abs(offset) * 0.32), now=now)
+        chosen = next((t for t in nearby if t["number"] == first), None)
+        name_w = 0
+        if chosen:
+            name = self._wrap_text(row_font, f"{first}. {chosen['title']}", right - left)[:2]
+            if music and " - " in chosen["title"]:  # "Song, by Artist" under the record
+                artist, _, song = chosen["title"].partition(" - ")
+                name = self._wrap_text(row_font, f"{first}. {song}, by {artist}", right - left)[:2]
+            y = body_bottom + int(h * 0.01)
+            for line in name:
+                text = row_font.render(line, True, (230, 239, 192))
+                screen.blit(text, text.get_rect(midtop=(centre[0], y)))
+                name_w = max(name_w, text.get_width())
+                y += row_font.get_linesize()
+        arrow = max(8, int(h * 0.025))
+        # Between the cases for games; for music, either side of the name (the record fills the gap).
+        across = min(max(name_w // 2, case_w // 2) + arrow * 2, (right - left) // 2 - arrow) if music else case_w // 2 + int(w * 0.03)
+        level = body_bottom + int(h * 0.01) + row_font.get_linesize() // 2 if music else centre[1]
+        for side, shown in ((-1, first > 1), (1, first < total)):
+            if shown:
+                x = centre[0] + side * across
+                tip = (x + side * arrow, level)
+                pygame.draw.polygon(screen, (108, 245, 206), [tip, (x, level - arrow), (x, level + arrow)])
+        hint = small_font.render("Say next, back, play this one or shuffle, or use a controller" if music
+                                 else "Say next, back or play this one, or use a controller", True, (255, 226, 140))
+        screen.blit(hint, hint.get_rect(center=(w // 2, int(h * 0.94))))
+
     def _render_library(self, lib, now):
         """Numbered tiles, a picture with the name under it (every tile has its name: 2026-10-28), or a plain
         numbered list when nothing has a picture."""
+        if lib.get("carousel"):
+            self._render_carousel(lib, now)
+            return
         screen = self._app._screen
         w, h = self._app.SCREEN_WIDTH, self._app.SCREEN_HEIGHT
         title_font, row_font, small_font = self._setup_fonts(h)
         self._green_grid(now, speed=0.25)
         dx, dy = int(math.sin(now / 37.0) * 3), int(math.cos(now / 53.0) * 2)  # drifts against burn-in
         left, right, top = int(w * 0.05) + dx, int(w * 0.95) + dx, int(h * 0.04) + dy
-        heading = {"movies": "MOVIES & SHOWS", "projects": "PROJECTS"}.get(lib.get("kind"), "GAMES")
+        heading = {"movies": "MOVIES & SHOWS", "projects": "PROJECTS", "music": "MUSIC"}.get(lib.get("kind"), "GAMES")
         title = title_font.render(heading, True, (108, 245, 206))
         screen.blit(title, (left, top))
         tiles, total, first = lib.get("tiles") or [], int(lib.get("total") or 0), int(lib.get("first") or 1)
@@ -1039,7 +1325,8 @@ class FaceRenderer:
         text, dim, number_color = (205, 236, 228), (78, 128, 120), (255, 226, 140)
         if not total:
             empty = {"movies": "No movies yet. They go in the Videos folder.",
-                     "projects": "No projects yet."}.get(lib.get("kind"), "No games yet.")
+                     "projects": "No projects yet.",
+                     "music": "No music yet. It goes in the Music folder."}.get(lib.get("kind"), "No games yet.")
             surface = row_font.render(empty, True, text)
             screen.blit(surface, surface.get_rect(center=(w // 2 + dx, (body_top + body_bottom) // 2)))
         elif lib.get("grid"):
@@ -1242,22 +1529,7 @@ class FaceRenderer:
             )
 
         if self._app.chat.state is State.TALKING:
-            self._app.chat.count += config.VALUES_PER_SECOND / config.FPS
-            output = self.visualizer(
-                self._app.chat.count,
-                self._app.chat.xf_list,
-                self._app.chat.yf_list,
-            )
-
-            if output is not None and self.mouth_frame_change_timer - time.time() < 0:
-                self.mouth_frame_change_timer = time.time() + config.TALK_DELAY
-                index = min(
-                    int(self._app.chat.count),
-                    max(0, len(self._app.chat.rms_list) - 1),
-                )
-                rms = self._app.chat.rms_list[index] if self._app.chat.rms_list else 0.0
-                xf, yf = output
-                self.current_mouth_frame = self._choose_mouth_frame(xf, yf, rms)
+            self._advance_mouth()
         else:
             self.current_mouth_frame = 1
 
@@ -1351,8 +1623,20 @@ class FaceRenderer:
             managed_display_active = bool(self._app.chat.managed_display_active())
         except Exception:
             managed_display_active = False
+        # Music on and BMO not listening, thinking or talking: notes bounce around instead of the face (2026-11-17).
+        music_notes = (
+            bool(status.get("music"))
+            and status.get("indicator") == "ready"
+            and str(status.get("display_mode") or "face") == "face"
+            and not managed_display_active
+            and not status.get("parts_menu")
+            and not status.get("library")
+            and not status.get("setup")
+            and not status.get("calibrating")
+        )
         idle_due = (
             config.ENABLE_CRT_SCREENSAVER
+            and not music_notes
             and idle_allowed
             and not managed_display_active
             and float(status.get("idle_seconds") or 0.0)
@@ -1409,6 +1693,7 @@ class FaceRenderer:
             and not status.get("parts_menu")
             and not status.get("library")
             and not idle_due
+            and not music_notes
             and not managed_display_active
             and self._app.chat.state in (State.READY, State.LISTENING)
         )
@@ -1447,6 +1732,16 @@ class FaceRenderer:
             self._stop_external_saver()
             self._saver_started = None
             self._render_parts_menu(status, now)
+        elif music_notes and not switch_visible:
+            self._reset_crt_static_refresh(now)
+            self._stop_external_saver()
+            self._saver_started = None
+            if getattr(self, "_music_notes", None) is None:
+                from systems.music_screen import Notes
+                self._music_notes = Notes()
+            screen = self._app._screen
+            self._music_notes.update(dt, screen.get_width(), screen.get_height())
+            self._music_notes.draw(screen)
         elif idle_due:
             self._reset_crt_static_refresh(now)
             self._render_idle_backend(dt, now)
@@ -1465,7 +1760,8 @@ class FaceRenderer:
         else:
             pygame.display.flip()
         self.frame_timer = now
-        self.fpsclock.tick(self.FPS)
+        # The game twice as smooth (2026-11-17: obstacles moving fast at 30 frames a second looked jerky on the CRT).
+        self.fpsclock.tick(self.GAME_FPS if switch_visible and config.ENABLE_MODEL_SWITCH_MINIGAME else self.FPS)
 
 
 def np_max(values):

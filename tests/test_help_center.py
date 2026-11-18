@@ -36,6 +36,7 @@ SUBJECT_PHRASES = {
                          "list the movie commands", "show commands for movies"),
     "Timers and reminders": ("timer commands", "reminder commands", "help with timers", "alarm commands"),
     "Games": ("game commands", "help with games"),
+    "Music": ("music commands", "help with music", "song commands", "what can I say about my music"),
     "Projects": ("project commands", "what can i say about my projects", "help with my projects", "commands for my projects"),
     "3D parts": ("3D commands", "3d parts commands", "help with 3D printing", "part commands"),
     "Sound": ("sound commands", "volume commands"),
@@ -231,7 +232,8 @@ class UsingIt(unittest.TestCase):
         chat.managed_display_active.return_value = False
         chat.said = []
         chat._say_local.side_effect = lambda command, line: chat.said.append(line) or True
-        for name in ("_open_help", "_help_screen_command", "_handle_help", "_library_action"):
+        for name in ("_open_help", "_help_screen_command", "_handle_help", "_library_action", "_closes_carousel",
+                     "_music", "_music_playing"):
             setattr(chat, name, getattr(Chat, name).__get__(chat))
         chat._screen_takes = Chat._screen_takes
         chat.supervisor = None

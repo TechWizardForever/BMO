@@ -3,8 +3,9 @@
 One button jumps (hold it for a higher jump, tap it for a hop), a second one ducks, like Chrome's dinosaur.
 A brain swap takes about the same minute every time, so the game is about how far you get in it: every
 level is faster, and new obstacles come in (bugs to duck under from level 2, bugs to stay under from level
-3). The best score and level are kept in config.RUNNER_SCORES_PATH. Plain Python, so the tests need no
-screen; systems/render.py draws it.
+3). The best score and level are kept in config.RUNNER_SCORES_PATH, with the level you got to: the next run, and
+the next brain swap, carry on from there (2026-11-17), and DOWN on the start or crash screen goes back to level 1.
+Plain Python, so the tests need no screen; systems/render.py draws it.
 
 Sizes are in play heights (the height of the game's box), so it plays the same on the CRT and a wide screen.
 """
@@ -30,11 +31,12 @@ POINTS_PER_HEIGHT = 10.0
 
 RUNNER_X, RUNNER_W, RUNNER_H, DUCK_W, DUCK_H = 0.30, 0.09, 0.15, 0.12, 0.08
 FORGIVE = 0.15       # hit boxes are this much smaller than they look
+START_OVER_AFTER = 1.0  # seconds after a crash before DOWN counts: a duck still being pressed doesn't lose the level
 
 # kind: width, height, height above the ground, first level it appears in
 OBSTACLES = {
     "block": (0.06, 0.09, 0.0, 1),
-    "tall": (0.055, 0.15, 0.0, 1),
+    "tall": (0.09, 0.15, 0.0, 1),
     "wide": (0.15, 0.075, 0.0, 2),
     "low_bug": (0.08, 0.06, 0.105, 2),    # duck under it (or jump it)
     "pair": (0.13, 0.10, 0.0, 3),
@@ -62,17 +64,18 @@ class RunnerGame:
         self.scores_path = Path(scores_path) if scores_path else None
         self.rng = rng or random.Random()
         self.width = float(width)          # the box's width in play heights
-        self.best, self.best_level = self._load()
+        self.best, self.best_level, self.saved_level = self._load()
         self.new_best = False
         self.reset()
 
     # --- saved best ---------------------------------------------------------------------------------
-    def _load(self) -> tuple[int, int]:
+    def _load(self) -> tuple[int, int, int]:
         try:
             data = json.loads(self.scores_path.read_text(encoding="utf-8")) if self.scores_path else {}
-            return max(0, int(data.get("best", 0))), max(1, int(data.get("best_level", 1)))
+            best_level = max(1, int(data.get("best_level", 1)))
+            return max(0, int(data.get("best", 0))), best_level, max(1, int(data.get("level", best_level)))
         except (OSError, ValueError, TypeError, AttributeError):
-            return 0, 1
+            return 0, 1, 1
 
     def _save(self) -> None:
         if not self.scores_path:
@@ -80,7 +83,8 @@ class RunnerGame:
         try:
             self.scores_path.parent.mkdir(parents=True, exist_ok=True)
             tmp = self.scores_path.with_suffix(".tmp")
-            tmp.write_text(json.dumps({"best": self.best, "best_level": self.best_level}) + "\n", encoding="utf-8")
+            tmp.write_text(json.dumps({"best": self.best, "best_level": self.best_level, "level": self.saved_level}) + "\n",
+                           encoding="utf-8")
             os.replace(tmp, self.scores_path)
         except OSError:
             pass
@@ -90,8 +94,9 @@ class RunnerGame:
         self.state = READY
         self.y = self.vy = 0.0
         self.jump_held = self.ducking = False
-        self.distance = self.score = 0.0
-        self.level = 1
+        self.distance = 0.0
+        self.level = self.saved_level
+        self.score = float((self.level - 1) * LEVEL_POINTS)  # the points that level starts at
         self.level_shown_at = None   # distance when the level banner went up
         self.obstacles: list[Obstacle] = []
         self.next_gap = 0.9
@@ -112,6 +117,8 @@ class RunnerGame:
             self.reset()
             self.state = RUNNING
             self.new_best = False
+            if self.level > 1:
+                self.level_shown_at = 0.0  # say where the run picks up
             return
         self.jump_held = True
         if self.on_ground and not self.ducking:
@@ -123,7 +130,16 @@ class RunnerGame:
             self.vy *= CUT_JUMP
 
     def set_duck(self, down: bool) -> None:
+        if down and (self.state == READY or (self.state == OVER and self.over_for >= START_OVER_AFTER)):
+            self.start_over()
         self.ducking = bool(down) and self.state == RUNNING
+
+    def start_over(self) -> None:
+        """Back to level 1 for the next run."""
+        if self.saved_level != 1:
+            self.saved_level = 1
+            self._save()
+        self.reset()
 
     def hitbox(self) -> tuple[float, float, float, float]:
         w, h = (DUCK_W, DUCK_H) if self.ducking and self.on_ground else (RUNNER_W, RUNNER_H)
@@ -149,6 +165,8 @@ class RunnerGame:
         level = 1 + int(self.score // LEVEL_POINTS)
         if level != self.level:
             self.level, self.level_shown_at = level, self.distance
+            self.saved_level = level
+            self._save()  # kept at once: BMO can be closed in the middle of a run
         for obstacle in self.obstacles:
             obstacle.x -= step
         self.obstacles = [o for o in self.obstacles if o.x + o.w > -0.2]
@@ -179,12 +197,12 @@ class RunnerGame:
         self.finish()
 
     def finish(self) -> None:
-        """A run ended (a crash, or the brain is ready): keep it if it's the best."""
+        """A run ended (a crash, or the brain is ready): keep the level it got to, and the score if it's the best."""
         score = int(self.score)
+        changed = self.level != self.saved_level or self.level > self.best_level or score > self.best
+        self.saved_level = self.level
+        self.best_level = max(self.best_level, self.level)
         if score > self.best:
             self.best, self.new_best = score, True
-            self.best_level = max(self.best_level, self.level)
-            self._save()
-        elif self.level > self.best_level:
-            self.best_level = self.level
+        if changed:
             self._save()

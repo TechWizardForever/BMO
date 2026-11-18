@@ -586,8 +586,24 @@ class Chat:
         library_view = getattr(self, "library_view", None)
         status["library"] = library_view.snapshot() if library_view is not None else None
         status["indicator"] = self._indicator()
+        status["music"] = self._music_on_screen()
         status["idle_seconds"] = self.desktop_idle_monitor.idle_seconds(internal_idle)
         return status
+
+    def _music_on_screen(self):
+        """Whether music is playing, for the screen (systems/music_screen.py): asked of the Supervisor at most every
+        two seconds and never in the frame; a music command's own answer says sooner."""
+        now = time.monotonic()
+        if now >= float(getattr(self, "_music_status_due", 0.0)) and not getattr(self, "_music_status_busy", False):
+            self._music_status_due, self._music_status_busy = now + 2.0, True
+
+            def ask():
+                try:
+                    self._music_now = self._music_playing()
+                finally:
+                    self._music_status_busy = False
+            threading.Thread(target=ask, name="bemo-music-status", daemon=True).start()
+        return bool(getattr(self, "_music_now", False))
 
     def _armed(self):
         """Woken and waiting: after a bare "Hey BMO", in the follow-up window after an answer, or for a yes/no."""
@@ -610,6 +626,7 @@ class Chat:
 
     def _heard_wake(self):
         self._woken = True  # "Hey BMO" heard live, mid-phrase
+        self._music_quiet("hold")  # quiet so he hears the rest
 
     def _warm_listening(self):
         """Load what the first listen needs before he says he's ready (2026-11-01: green, but the first "Hey BMO"
@@ -936,7 +953,7 @@ class Chat:
 
     def _personal_notes(self):
         from systems.personal_memory import PersonalNotes
-        return PersonalNotes(config.PERSONAL_NOTES_PATH)
+        return PersonalNotes(config.PERSONAL_NOTES_PATH, creator=getattr(config, "BMO_CREATOR", ""))
 
     def _handle_personal_memory(self, command):
         """General memory (2026-10-24): BMO saves, reads back and forgets the owner's own words himself."""
@@ -947,6 +964,22 @@ class Chat:
         notes = self._personal_notes()
         action = asked["action"]
         logger.info("MEMORY {} ({} notes before)", action, len(notes.notes()))
+        if action == "creator":
+            return self._say_local(command, f"{notes.creator or 'Tech Wizard'} made me, right here on this computer.")
+        if action == "name":
+            known = notes.name()
+            notes.set_name(asked["name"])
+            if known.lower() == asked["name"].lower():
+                return self._say_local(command, f"I know, {asked['name']}! I won't forget.")
+            return self._say_local(command, f"Nice to meet you, {asked['name']}! I'll remember that.")
+        if action == "ask_name":
+            known = notes.name()
+            return self._say_local(command, f"You're {known}!" if known else
+                                   "I don't know your name yet. Say, Hey BMO, my name is, and then your name.")
+        if action == "forget_name":
+            known = notes.name()
+            notes.set_name(None)
+            return self._say_local(command, "Okay, I forgot your name." if known else "I didn't know your name anyway.")
         if action == "add":
             note = notes.add(asked["note"])
             return self._say_local(command, f"Got it. I'll remember that {personal_memory.second_person(note['text'])}.")
@@ -1130,6 +1163,72 @@ class Chat:
             return f"yesterday at {clock}"
         return f"on {moment.strftime('%B')} {moment.day} at {clock}"
 
+    _MUSIC_DOWN = "My music player isn't running yet. It will be after I restart."
+
+    def _music(self, op, **payload):
+        """The Supervisor's music player (systems/music.py); {} when it can't be reached."""
+        supervisor = getattr(self, "supervisor", None)
+        if supervisor is None:
+            return {}
+        try:
+            reply = supervisor.request("music", op=op, **payload)
+        except SupervisorError:
+            return {}
+        if isinstance(reply, dict) and "playing" in reply:
+            self._music_now = bool(reply["playing"])  # the screen knows straight away
+        return reply if isinstance(reply, dict) else {}
+
+    def _music_playing(self):
+        """Music is on and not paused by the user (held for "Hey BMO" still counts). False if no one can say."""
+        try:
+            return self._music("status").get("playing") is True
+        except Exception:
+            return False
+
+    def _music_quiet(self, op, seconds=None):
+        """Hold the music while he listens and answers, and let it go after. Never in the way of hearing."""
+        def send():
+            self._music(op, **({"seconds": seconds} if seconds else {}))
+        threading.Thread(target=send, name="bemo-music-hold", daemon=True).start()
+
+    def _handle_music_command(self, command):
+        """'Play music', 'shuffle my music', 'next song', 'pause the music', 'what song is this?' (2026-11-15). With
+        music on and no video, a plain "pause", "stop" or "next" is the music's."""
+        from systems import library, music
+        asked = music.request(command)
+        if asked is None and music.request(command, playing=True):
+            state = self._music("status")
+            if state.get("playing") or state.get("paused"):
+                asked = music.request(command, playing=True)
+        if asked is None:
+            return False
+        if asked in ("play all", "shuffle"):
+            paths = [str(p) for p in music.songs(getattr(config, "MUSIC_DIRS", []))]
+            if not paths:
+                return self._say_local(command, "I don't have any music yet. It goes in the Music folder.")
+            reply = self._music("play", paths=paths, shuffle=asked == "shuffle")
+            if not reply.get("ok"):
+                return self._say_local(command, self._MUSIC_DOWN)
+            return self._say_local(command, f"Shuffling your music. First up, {reply.get('song')}." if asked == "shuffle"
+                                   else f"Playing your music, starting with {reply.get('song')}.")
+        if asked == "what":
+            state = self._music("status")
+            if not state.get("ok"):
+                return self._say_local(command, self._MUSIC_DOWN)
+            return self._say_local(command, f"This is {state['song']}." if state.get("song") else "No music is playing.")
+        reply = self._music(asked)
+        if not reply:
+            return self._say_local(command, self._MUSIC_DOWN)
+        if asked in ("next", "previous"):
+            return self._say_local(command, f"{reply.get('song')}." if reply.get("ok") else "No music is playing.")
+        if asked == "stop":
+            view = getattr(self, "library_view", None)
+            if view is not None and view.active and view.kind == "music":
+                view.close()  # "close the music" with the songs on the screen
+            return self._say_local(command, "Music off.")
+        self.state = State.READY  # the music pausing or carrying on is the answer
+        return True
+
     def _handle_media_command(self, command):
         """'play Spirited Away', 'play Jimmy Neutron season 2 episode 3', and while a video plays: 'pause',
         'resume', 'next episode', 'skip ahead 30 seconds', 'stop the movie' (systems/media.py)."""
@@ -1183,6 +1282,10 @@ class Chat:
             return self._delete_from_list(command, asked)
         if asked:  # deleted from the list, by number or name. Never "number 1" with a stray word in front: that plays it.
             return self._open_project_list(command, to_delete=True) if asked["says_project"] else False
+        if self._closes_carousel(command):
+            view.close()
+            self.state = State.READY
+            return True
         if view is None or not view.active:
             if library.command(command) and library.command(command)[0] == "play":
                 return self._say_local(command, "Say, show my movies, or show my games, and then the number.")
@@ -1192,7 +1295,12 @@ class Chat:
 
     @staticmethod
     def _screen_takes(view, action):
-        """The weather screens have no numbers to pick, and the radar only closes (a heard "three" isn't for them)."""
+        """The weather screens have no numbers to pick, and the radar only closes (a heard "three" isn't for them).
+        "Play this one" only means the game in the middle of the carousel."""
+        if action[0] == "here":
+            return bool(getattr(view, "carousel", False))
+        if action[0] == "shuffle":
+            return view.kind == "music"
         if view.kind == "radar":
             return action[0] == "close"
         if view.kind == "help":  # numbers pick a subject; a subject's own commands have none
@@ -1209,14 +1317,18 @@ class Chat:
             return False
         downloads = sorter.downloads_folder()
         plan = sorter.plan(downloads, Path(config.MEDIA_DIRS[0]), Path(config.GAME_GAMECUBE_ROM_DIR),
-                           skip=[config.APP_ROOT, config.DATA_ROOT])
+                           skip=[config.APP_ROOT, config.DATA_ROOT], music_dir=Path(config.MUSIC_DIRS[0]) if config.MUSIC_DIRS else None)
         waiting = sum(1 for _, why in plan.skipped if why == "downloading")
         note = "" if not waiting else (" One is still downloading, so I'll leave it." if waiting == 1 else
                                        f" {waiting} are still downloading, so I'll leave them.")
         logger.info("SORT {}: {} to move, skipped {}", downloads, len(plan.moves),
                     [why for _, why in plan.skipped])
+        if not plan.moves and waiting:
+            return self._say_local(command, ("The only thing I found is still downloading" if waiting == 1 else
+                                             f"The {waiting} things I found are still downloading")
+                                   + ". Ask me again once it's finished.")
         if not plan.moves:
-            return self._say_local(command, "I didn't find any games or movies to sort in Downloads." + note)
+            return self._say_local(command, "I didn't find any games, movies or music to sort in Downloads.")
         one = sum(len(m.members) or 1 for m in plan.moves) == 1
         them, they, go, are = ("it", "it", "goes", "is") if one else ("them", "they", "go", "are")
         question = (f"I found {plan.summary()} in Downloads.{note} Should I move {them} where {they} {go}? "
@@ -1235,6 +1347,8 @@ class Chat:
                 self.supervisor.refresh_games()
             except SupervisorError:
                 logger.warning("SORT: the Supervisor didn't refresh the game list")
+        if moved.get("song"):
+            places.append("the music is in your Music folder")
         said = " and ".join(places)
         line = f"Done. {said[:1].upper()}{said[1:]}." if places else "I couldn't move them."
         if failed:
@@ -1355,14 +1469,14 @@ class Chat:
         plan = sorter.Plan()
         for root in roots:
             found = sorter.plan(root, Path(config.MEDIA_DIRS[0]), Path(config.GAME_GAMECUBE_ROM_DIR),
-                                skip=[config.APP_ROOT, config.DATA_ROOT], settle=0)
+                                skip=[config.APP_ROOT, config.DATA_ROOT], settle=0, music_dir=Path(config.MUSIC_DIRS[0]) if config.MUSIC_DIRS else None)
             plan.moves += found.moves
             plan.skipped += found.skipped
         logger.info("SORT USB {}: {} to copy, skipped {}", [str(r) for r in roots], len(plan.moves),
                     [why for _, why in plan.skipped])
         if not plan.moves:
             there = " Everything on it is already here." if plan.skipped else ""
-            return self._say_local(command, "I didn't find any games or movies to copy on the USB stick." + there)
+            return self._say_local(command, "I didn't find any games, movies or music to copy on the USB stick." + there)
         one = sum(len(m.members) or 1 for m in plan.moves) == 1
         them, they, go = ("it", "it", "goes") if one else ("them", "they", "go")
         question = (f"I found {plan.summary()} on the USB stick. Should I copy {them} where {they} {go}? "
@@ -1381,6 +1495,8 @@ class Chat:
                 self.supervisor.refresh_games()
             except SupervisorError:
                 logger.warning("SORT USB: the Supervisor didn't refresh the game list")
+        if moved.get("song"):
+            places.append("the music is in your Music folder")
         said = " and ".join(places)
         line = f"Done. {said[:1].upper()}{said[1:]}." if places else "I couldn't copy them."
         if failed:
@@ -1389,17 +1505,59 @@ class Chat:
         logger.info("SORT USB copied {}", moved)
         return self._say_local(command, line)
 
+    def _closes_carousel(self, said):
+        """'Close my games' with the games carousel up: Whisper's tidying makes it "close the game", which otherwise
+        quits a running game. With the carousel up and nothing running, it closes the carousel (2026-11-17)."""
+        from systems import media_phrases
+        view = getattr(self, "library_view", None)
+        if view is None or not view.active or not getattr(view, "carousel", False):
+            return False
+        if not media_phrases.close_game(said):
+            return False
+        try:
+            return not self._game_running()
+        except Exception:
+            return True
+
+    def library_pad(self, action):
+        """A controller on a list or a carousel (systems/pad_input.py): move, A plays the one in the middle, B closes,
+        Y shuffles the music. From the window's own thread, so starting a game goes to a thread of its own."""
+        view = getattr(self, "library_view", None)
+        if view is None or not view.active:
+            return False
+        self.note_user_activity()
+        if action in ("next", "previous"):
+            view.scroll(1 if action == "next" else -1)
+            return True
+        if action == "back":
+            view.close()
+            return True
+        if action == "shuffle" and view.kind == "music":
+            threading.Thread(target=self._library_action, args=("controller", "shuffle"), name="bemo-pad-shuffle",
+                             daemon=True).start()
+            return True
+        if action == "select" and getattr(view, "carousel", False):
+            threading.Thread(target=self._library_action, args=("controller", "here"), name="bemo-pad-pick",
+                             daemon=True).start()
+            return True
+        return False
+
     def _bare_library_command(self, heard):
         """Scroll, 'play number 3' and close without Hey BMO while a library is on the screen."""
         view = getattr(self, "library_view", None)
         if view is None or not view.active or len(str(heard).split()) > 5:
             return False
+        if self._music_playing():
+            return False  # a song's words could scroll, play or close it: "Hey BMO" first, as with a movie
         from systems import library
         if view.kind == "help" and self._help_screen_command(heard):
             return True
         asked = library.delete_request(heard)
         if asked:
             return self._delete_from_list(heard, asked) if view.kind == "projects" else False  # it still takes "Hey BMO, yes"
+        if self._closes_carousel(heard):
+            view.close()
+            return True
         action = library.command(heard)
         if action is None or not self._screen_takes(view, action):
             return False
@@ -1415,16 +1573,26 @@ class Chat:
         stills = getattr(config, "LIBRARY_STILLS_DIR", config.DATA_ROOT / "library-stills")
         if kind == "movies":
             items = library.with_stills(library.movie_items(config.MEDIA_DIRS), stills)
+        elif kind == "music":
+            items = library.music_items(getattr(config, "MUSIC_DIRS", []), covers=config.DATA_ROOT / "music-covers")
         else:
             from systems.games import GameLibrary
             items = library.game_items(GameLibrary(config.GAME_ROOT, config.APP_ROOT))
         view = self.library_view
-        view.open(kind, items)
+        # Games and music scroll side to side, one in the middle (2026-11-15; music 2026-11-17).
+        view.open(kind, items, carousel=kind in ("games", "music"))
         self.note_user_activity()
-        name = "movies and shows" if kind == "movies" else "games"
-        if not items:
+        name = {"movies": "movies and shows", "music": "music"}.get(kind, "games")
+        if not items and kind == "music":
+            line = "I don't have any music yet. It goes in the Music folder."
+        elif kind == "music":
+            line = (f"Here's your music, {len(items)} song{'s' if len(items) != 1 else ''}, A to Z. Say next or back to "
+                    "look, play this one, or shuffle.")
+        elif not items:
             where = ("They go in the Videos folder" if kind == "movies" else "They go in my games folder")
             line = f"I don't have any {name} yet. {where}, or say, Hey BMO, sort my downloads."
+        elif kind == "games":
+            line = f"Here are your games, {len(items)} in all. Say next or back to look, and play this one to start it."
         else:
             line = f"Here are your {name}, {len(items)} in all. Say play and a number"
             line += ", or scroll down." if len(items) > view.per_page else "."
@@ -1518,12 +1686,27 @@ class Chat:
             view.close()
             self.state = State.READY
             return True
+        if action == "shuffle":  # all of them, in any order (2026-11-17)
+            paths = [row.key for row in view.items if row.kind == "song"]
+            if not paths:
+                return self._say_local(command, "I don't have any music yet. It goes in the Music folder.")
+            view.close()
+            reply = self._music("play", paths=paths, shuffle=True)
+            return self._say_local(command, f"Shuffling your music. First up, {reply.get('song')}." if reply.get("ok")
+                                   else self._MUSIC_DOWN)
+        if action == "here":
+            number = view.top + 1
         item = view.item(number)
         if item is None:
             return self._say_local(command, f"There's no number {number}. The list goes up to "
                                             f"{len(view.items)}.")
         if item.kind == "project":
             return self._handle_project_command(f"open project {item.key}")
+        if item.kind == "song":  # that song, then the ones after it (2026-11-15)
+            paths = [row.key for row in view.items if row.kind == "song"]
+            view.close()
+            reply = self._music("play", paths=paths, start=paths.index(item.key))
+            return self._say_local(command, f"Playing {item.title}." if reply.get("ok") else self._MUSIC_DOWN)
         if item.kind == "help":
             return self._open_help(command, item.key)
         if item.kind == "game":
@@ -1940,10 +2123,14 @@ class Chat:
                     self._tracer().begin(kind="local", requests=len(requests), words=len(gated_prompt.split()))
                     if len(requests) > 1:
                         logger.info("VOICE {} requests in one breath: {}", len(requests), requests)
-                    for request in requests:
-                        if self._turn_cancelled():
-                            break
-                        self._handle_request_safely(request)
+                    self._music_quiet("hold", 120.0)  # the music waits while he works it out and answers
+                    try:
+                        for request in requests:
+                            if self._turn_cancelled():
+                                break
+                            self._handle_request_safely(request)
+                    finally:
+                        self._music_quiet("release", 1.5)
                     self.note_user_activity()
                     self._open_answer_followup()
                     self.state = State.DONE
@@ -2047,6 +2234,8 @@ class Chat:
             return
         if self._game_or_video_open():
             return  # the game's or movie's own sound would count as the follow-up (live 2026-10-20)
+        if self._music_playing():
+            return  # so would a song's words (2026-11-17)
         self.voice_gate.wake()
         # Never shorter than a window an offer already opened ("say detailed scan": 20 s).
         self.voice_gate.followup_armed_until = max(self.voice_gate.followup_armed_until, time.monotonic() + seconds)
@@ -3759,7 +3948,7 @@ class Chat:
             removed = compact_history(
                 self.chat_history,
                 max_messages=config.MAX_RECENT_MESSAGES,
-                char_budget=config.HISTORY_CONTEXT_CHAR_BUDGET,
+                char_budget=self.history_char_budget(getattr(self, "active_profile", None)),
                 batch=config.HISTORY_COMPACTION_BATCH,
             )
             if removed:
@@ -6447,6 +6636,9 @@ class Chat:
             return True
 
         # Movies and shows (2026-10-20): before the games, which also answer "play <name>".
+        if self._handle_music_command(command):
+            return True
+
         if self._handle_media_command(command):
             return True
 
@@ -6701,7 +6893,7 @@ class Chat:
         # APPEND-ONLY CONVERSATION PREFIX: newest history wins within a bounded
         # budget. Dynamic retrieval no longer sits in front of this whole block.
         history_budget = min(
-            int(config.HISTORY_CONTEXT_CHAR_BUDGET),
+            self.history_char_budget(getattr(self, "active_profile", None)),
             max(1600, int(budget * 0.50)),
             max(0, budget - used - current_used - 400),  # a long request squeezes the history, not itself
         )
@@ -6857,6 +7049,11 @@ class Chat:
         self._last_turn_project = wanted
         return wanted
 
+    @staticmethod
+    def history_char_budget(profile) -> int:
+        """How much of the conversation a brain sees: more for one with a bigger context, like Engineering."""
+        return int((profile or {}).get("history_char_budget") or config.HISTORY_CONTEXT_CHAR_BUDGET)
+
     def _effective_context(self):
         profile_ctx = self.active_profile.get("num_ctx")
         return int(profile_ctx or config.OLLAMA_NUM_CTX)
@@ -6911,7 +7108,7 @@ class Chat:
             runtime_cap = getattr(self, "_runtime_num_predict_cap", None)
             if runtime_cap:
                 num_predict = min(num_predict, int(runtime_cap))
-        elif not summary and getattr(self, "_specialist_chat_turn", False):
+        elif not summary and getattr(self, "_specialist_chat_turn", False) and profile.get("chat_cap", True):
             # Conversational question to a specialist: short spoken answer.
             # Real work turns keep the profile's full budget.
             num_predict = min(num_predict, int(config.SPECIALIST_CHAT_NUM_PREDICT))
@@ -8118,6 +8315,17 @@ class Chat:
                 message["images"] = list(self._selected_image_paths)
                 return
 
+    def _say_still_thinking(self, waited):
+        """A long quiet think gets a word now and then, so he doesn't look frozen. Back to thinking after."""
+        said = getattr(self, "_thinking_notices_said", 0)
+        due = config.THINKING_NOTICE_SECONDS + said * config.THINKING_NOTICE_REPEAT_SECONDS
+        if waited < due or self.stop_event.is_set() or not self.interface_settings.tts_enabled:
+            return
+        self._thinking_notices_said = said + 1
+        notices = config.THINKING_NOTICES
+        self.speak(notices[min(said, len(notices) - 1)])
+        self.state = State.THINKING
+
     def _stream_chat_round(self, messages, tools, *, allow_speech=True):
         """Stream one Ollama chat round and optionally pipe final text into TTS.
 
@@ -8224,6 +8432,8 @@ class Chat:
                     break
 
                 thinking_piece = self._chunk_thinking(chunk)
+                if thinking_piece and not content_parts:
+                    self._say_still_thinking(time.monotonic() - llm_started)
                 if thinking_piece:
                     if not first_thinking_logged:
                         first_thinking_logged = True
@@ -8529,6 +8739,7 @@ class Chat:
     def _run_model_agent(self, user_input, *, suppress_handoffs=False):
         """Run one role, with a no-handoff recovery path for rejected routes."""
         self._last_done_reason = None
+        self._thinking_notices_said = 0
         self._project_tool_wrote = False
         self._agent_request = str(user_input or "")
         self._code_path_redirects = {}

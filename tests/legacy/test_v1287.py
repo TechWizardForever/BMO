@@ -121,7 +121,7 @@ class TestTurns(unittest.TestCase):
         return obj
 
     def test_version_and_main_prompt(self):
-        self.assertRegex(config.APP_VERSION, r'v1\.(?:28|29|30|31|32|33|34)\.\d')
+        self.assertRegex(config.APP_VERSION, r'v1\.(?:28|29|30|31|32|33|34|35)\.\d')
         prompt=config.MODEL_PROFILES['normal']['system_prompt']
         # v1.28.8 adds the shared grounding rule (no camera/GPS/weather/sensors).
         self.assertLess(len(prompt),2200)  # v1.28.42: + detected capability line (~200 chars)
@@ -130,7 +130,7 @@ class TestTurns(unittest.TestCase):
         self.assertNotIn('copilot',prompt.lower())
     def test_existing_specialist_limits(self):
         self.assertEqual(config.MODEL_PROFILES['coding']['num_predict'],4096)
-        self.assertEqual(config.MODEL_PROFILES['engineering']['num_predict'],4096)
+        self.assertEqual(config.MODEL_PROFILES['engineering']['num_predict'],12288)  # no limits on Engineering (2026-11-15)
         self.assertEqual(config.MODEL_PROFILES['deep-vision']['num_predict'],4096)
         self.assertEqual(config.EXECUTION_REQUEST_NUM_PREDICT,192)
     def test_long_input_not_cut(self):

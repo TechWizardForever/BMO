@@ -211,6 +211,7 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("Talking to BMO", "Hey Bemo, weather commands / help with the weather", "Goes straight to one subject's commands. Any subject works: \"movie commands\", \"timer commands\", \"commands for the sky\", \"what can I say about my projects?\""),
     VoiceCommand("Talking to BMO", "Hey Bemo, what time is it? / what's the date?", "From this computer's clock."),
     VoiceCommand("Talking to BMO", "Hey Bemo, what hardware am I on?", "What this computer has: processor, memory, graphics, free disk space, sound and screen."),
+    VoiceCommand("Talking to BMO", "Hey Bemo, who made you?", "Tech Wizard made him, and every brain knows it. \"Who created you?\" and \"who's your creator?\" work too."),
     VoiceCommand("Talking to BMO", "Hey Bemo, what can you do on this computer?", "What works on this computer, what doesn't, and why."),
 
     VoiceCommand("Movies and shows", "Hey Bemo, show my movies", "Your movies and shows on BMO's screen, each with a picture and its name. A show has one tile."),
@@ -226,7 +227,7 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("Movies and shows", "Hey Bemo, skip / rewind / skip ahead 30 seconds / go back 2 minutes", "Skip goes 30 seconds ahead and rewind 10 seconds back, or say how far. \"What did he say?\" goes back 10 seconds."),
     VoiceCommand("Movies and shows", "Hey Bemo, stop / stop the show / close <title> / turn it off", "Closes the player and brings BMO's face back; \"that's enough\" and \"I'm done watching\" work too. He remembers where you stopped."),
 
-    VoiceCommand("Games", "Hey Bemo, show my games", "Your games on BMO's screen, with their covers if there are any, otherwise as a list. Scroll and pick by number like the movies."),
+    VoiceCommand("Games", "Hey Bemo, show my games", "A carousel, one game large in the middle. \"Next\" or \"back\" moves, \"play this one\" starts it and \"close my games\" closes it, without Hey BMO. A controller works too: A plays, B closes. \"My games\", \"game library\" and \"let's play a game\" open it too."),
     VoiceCommand("Games", "Hey Bemo, play <game>", "Starts the game; \"let's play\", \"fire up\" and \"start\" work too. Controllers that are plugged in are players 1 to 4; with none, the keyboard is player 1."),
     VoiceCommand("Games", "Hey Bemo, close the game", "Closes the game. While a game is on, a plain \"close\" or \"quit\" does too."),
     VoiceCommand("Games", "Hey Bemo, boot games", "Opens the full game menu (ES-DE), which works with a controller."),
@@ -234,9 +235,15 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("Games", "Hey Bemo, import games from USB", "Copies the GameCube games from a USB stick into BMO's games. The stick stays as it was."),
     VoiceCommand("Games", "Hey Bemo, rescan games", "Looks for new games in BMO's games folder."),
 
-    VoiceCommand("Downloads and USB sticks", "Hey Bemo, sort my downloads", "Finds the games, movies and shows in your Downloads folder and says what he found. Say Hey BMO, yes, and he moves them where they go. Anything still downloading is left alone."),
+    VoiceCommand("Music", "Hey Bemo, show my music", "A carousel of your songs, A to Z by artist (or by the song's name when it has none), with the album cover when there is one. \"Next\" or \"back\" moves, \"play this one\" plays it and the songs after it, and \"shuffle\" plays them all mixed up, without Hey BMO. A controller works too: A plays, Y shuffles, B closes. \"My music\", \"my songs\" and \"what can I listen to?\" work too."),
+    VoiceCommand("Music", "Hey Bemo, play music / shuffle my music", "All your songs, A to Z or shuffled. \"Mix it up\", \"put it on shuffle\", \"play something random\" and \"surprise me\" shuffle too. Music notes bounce on the screen while it plays. It goes quiet while you talk to him, and stops when he goes to sleep."),
+    VoiceCommand("Music", "Hey Bemo, next song / previous song", "Skips forward or back one song. \"Skip this song\" works too."),
+    VoiceCommand("Music", "Hey Bemo, pause the music / resume the music / stop the music", "\"Turn the music off\", \"music off\", \"close the music\" and \"that's enough music\" stop it too. With music on and no video, a plain \"pause\", \"stop\", \"turn it off\" or \"next\" works too."),
+    VoiceCommand("Music", "Hey Bemo, what song is this?", "The name of the song that's playing."),
+    VoiceCommand("Music", "Hey Bemo, turn the music up / down", "The computer's volume, as for a movie. \"Louder\", \"crank it up\", \"the music's too loud\" and \"turn it down a notch\" work too. While a song plays, say Hey BMO first every time, so the song's own words can't set anything off."),
+    VoiceCommand("Downloads and USB sticks", "Hey Bemo, sort my downloads", "Finds the games, movies, shows and music in your Downloads folder and says what he found. Say Hey BMO, yes, and he moves them where they go: songs to your Music folder, in their album folders. Anything still downloading is left alone."),
     VoiceCommand("Downloads and USB sticks", "Hey Bemo, eject the USB", "Makes the USB stick safe to pull out. He only says so once it really has let go."),
-    VoiceCommand("Downloads and USB sticks", "Hey Bemo, sort my USB", "The same for a USB stick: games, movies and shows on it are copied where they go after you say yes. The stick stays as it is. \"Import the movies from the USB\" works too."),
+    VoiceCommand("Downloads and USB sticks", "Hey Bemo, sort my USB", "The same for a USB stick: games, movies, shows and music on it are copied where they go after you say yes. The stick stays as it is. \"Import the movies from the USB\" and \"import my music from the USB\" work too."),
 
     VoiceCommand("Timers and reminders", "Hey Bemo, set a timer for <time>", "Like \"set a pasta timer for 8 minutes\". It rings with a chime and BMO's voice, even while he's asleep."),
     VoiceCommand("Timers and reminders", "Hey Bemo, remind me <when> to <something>", "Like \"remind me in 20 minutes to check the oven\" or \"remind me tomorrow at 9 to call Sam\". He says it back so you know he got it."),
@@ -244,6 +251,7 @@ VOICE_COMMANDS: tuple[VoiceCommand, ...] = (
     VoiceCommand("Timers and reminders", "Hey Bemo, cancel the timer", "Or \"cancel the pasta timer\", \"cancel all timers\", \"cancel the reminder to water the basil\"."),
 
     VoiceCommand("Remembering things", "Hey Bemo, remember that <something>", "Saved word for word, like \"remember that my sister's birthday is May 3rd\". Every brain knows it from then on."),
+    VoiceCommand("Remembering things", "Hey Bemo, my name is <name>", "He remembers your name and uses it now and then. \"Call me\", \"you can call me\" and \"I go by\" work too. \"What's my name?\" checks it, and \"forget my name\" removes it."),
     VoiceCommand("Remembering things", "Hey Bemo, what do you remember about me?", "BMO reads back what you asked him to remember."),
     VoiceCommand("Remembering things", "Hey Bemo, forget that <something>", "Removes that note. \"Forget everything about me\" asks first."),
 

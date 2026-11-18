@@ -55,9 +55,10 @@ MEMORY_DB_PATH = DATA_ROOT / "memory" / "conversation.sqlite3"
 MEMORY_BACKUP_DIR = DATA_ROOT / "memory" / "backups"
 # "Remember that ..." outside projects (systems/personal_memory.py): the owner's own words, private, in backups.
 PERSONAL_NOTES_PATH = DATA_ROOT / "memory" / "notes.json"
+BMO_CREATOR = "Tech Wizard"  # who made him: every brain is told, and he says it himself when asked
 PROJECTS_ROOT = DATA_ROOT / "projects"
 TASKS_ROOT = DATA_ROOT / "tasks"
-APP_VERSION = "supervisor-v1.34.0-weather-sky-and-help"
+APP_VERSION = "supervisor-v1.35.0-music-and-a-new-game-look"
 
 # Raw messages stay indefinitely on disk. New sessions start with an empty
 # live prompt. Historical summary and archive hits are retrieved on recall.
@@ -209,6 +210,11 @@ PROJECT_TOOL_CHECK_TIMEOUT_SECONDS = 90
 CODING_SPOKEN_MAX_WORDS = 24  # whole sentences only; never cut mid-sentence
 # Conversational questions to a specialist (no tools needed) are answered
 # briefly and streamed like Main. Real work turns keep their full budgets.
+# A brain thinking quietly this long says so, and again every THINKING_NOTICE_REPEAT_SECONDS (2026-11-10: up to 8 minutes
+# of silence on Engineering looked like he'd frozen).
+THINKING_NOTICE_SECONDS = 20.0
+THINKING_NOTICE_REPEAT_SECONDS = 150.0
+THINKING_NOTICES = ("Let me think about that one. It might take a few minutes.", "Still thinking.")
 SPECIALIST_CHAT_NUM_PREDICT = int(os.environ.get("BEMO_SPECIALIST_CHAT_TOKENS", "320"))
 SPECIALIST_CHAT_MAX_WORDS = 35  # ~10 s of speech, ended at a sentence/line boundary
 SPECIALIST_CHAT_INSTRUCTION = (
@@ -354,6 +360,7 @@ CODE_OUTPUT_DIR = Path(os.environ.get("BEMO_CODE_DIR", str(Path.home() / "BMO-co
 ENABLE_SOUND_COMMANDS = True
 # Movies and shows by voice (systems/media.py, 2026-10-20): the library and the player's settings.
 ENABLE_MEDIA_COMMANDS = True
+MUSIC_DIRS = [Path(p).expanduser() for p in os.environ.get("BEMO_MUSIC_DIRS", str(Path.home() / "Music")).split(os.pathsep) if p]
 MEDIA_DIRS = [Path(p).expanduser() for p in os.environ.get("BEMO_MEDIA_DIRS", str(Path.home() / "Videos")).split(":")]
 LOG_TOOL_ARGUMENTS = False  # True logs what tools are given in full (typed text, file contents): debugging only
 MEDIA_STATE_PATH = DATA_ROOT / "media.json"
@@ -840,8 +847,13 @@ MODEL_PROFILES = {
             "deep reasoning",
             "reasoning model",
         ),
-        "num_ctx": None,
-        "num_predict": 4096,
+        # No limits on talking to Engineering (2026-11-15). 2026-11-10: it reasoned through its whole 4,096 and said
+        # nothing after 8 minutes, and an 8,192 context with a 4,800-character history dropped the details it was given
+        # a few turns before. 16,384 is about 1.6 GB more memory on a 28 GB PC; the answer can use all that's left.
+        "num_ctx": 16384,
+        "num_predict": 12288,
+        "history_char_budget": 36000,
+        "chat_cap": False,
         "temperature": 0.20,
         "keep_alive": "10m",
         "recommended_ram_gb": 28,

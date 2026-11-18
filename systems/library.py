@@ -111,6 +111,13 @@ def game_items(game_library) -> list[Item]:
     return sorted(items, key=lambda item: _sort_key(item.title))
 
 
+def music_items(folders, covers: Path | None = None) -> list[Item]:
+    """Every song in the music folders (systems/music.py), A to Z by artist, with the cover inside the song (saved in
+    `covers`) or its album folder's."""
+    from systems import music
+    return [Item(music.title(path), "song", str(path), music.cover_file(path, covers)) for path in music.songs(folders)]
+
+
 def project_items(projects) -> list[Item]:
     """Every saved project by name (from ProjectManager.list_projects), the open one marked."""
     items = [Item(str(project.get("name") or project["slug"]) + (" (open)" if project.get("active") else ""),
@@ -201,6 +208,7 @@ class LibraryView:
         self.per_page = GRID_PAGE
         self.grid = True
         self.extra: dict = {}  # what a weather screen shows besides its days
+        self.carousel = False  # one at a time, with its neighbours beside it (the games, 2026-11-15)
         self._idle_close = IDLE_CLOSE_SECONDS
         self._touched = 0.0
         self.generation = 0
@@ -213,9 +221,12 @@ class LibraryView:
             return self.kind is not None
 
     def open(self, kind: str, items: list[Item], grid: bool | None = None, *, per_page: int | None = None,
-             extra: dict | None = None, idle_close: float = IDLE_CLOSE_SECONDS) -> None:
+             extra: dict | None = None, idle_close: float = IDLE_CLOSE_SECONDS, carousel: bool = False) -> None:
         with self._lock:
             self.kind, self.items, self.top = kind, list(items), 0
+            self.carousel = bool(carousel)
+            if carousel:
+                grid, per_page = False, 1
             self.grid = any(i.picture or i.still_from for i in items) if grid is None else grid
             self.per_page = per_page or (GRID_PAGE if self.grid else LIST_PAGE)
             self.extra, self._idle_close = dict(extra or {}), float(idle_close)
@@ -273,8 +284,11 @@ class LibraryView:
             return None
         with self._lock:
             page = self.items[self.top:self.top + self.per_page]
+            nearby = range(max(0, self.top - 3), min(len(self.items), self.top + 4)) if self.carousel else ()
             return {"kind": self.kind, "grid": self.grid, "total": len(self.items), "first": self.top + 1,
-                    "extra": dict(self.extra),
+                    "extra": dict(self.extra), "carousel": self.carousel,
+                    "nearby": [{"number": n + 1, "title": self.items[n].title,
+                                "picture": str(self.items[n].picture) if self.items[n].picture else None} for n in nearby],
                     "tiles": [{"number": self.top + i + 1, "title": item.title, "kind": item.kind,
                                "picture": str(item.picture) if item.picture else None, "data": item.data}
                               for i, item in enumerate(page)]}
@@ -287,7 +301,8 @@ class LibraryView:
 # "open games" / "open the game library" stay the ES-DE game frontend (its app names), and "list games" stays the
 # spoken count, so those two verbs need "my" / "the movies".
 _WHAT = (r"(?P<what>movies?|films?|shows?|tv shows?|videos?|movie library|movies and shows|shows and movies|cartoons|"
-         r"movie list|games?|game library|gamecube games|video games|game list|projects|project list|project folders?)")
+         r"movie list|games?|game library|gamecube games|video games|game list|projects|project list|project folders?|"
+         r"music|music library|songs|song list|my songs|tunes|playlist)")
 _OPEN = re.compile(
     r"^(?:(?:show|bring up|pull up|see|browse|go to|let me see|give me|display|check out|look at)(?: me)?"
     r"(?: (?:my|the|our|all the|all my|all of my|all our|all of the))?\s*" + _WHAT +
@@ -297,9 +312,14 @@ _OPEN = re.compile(
     r"projects|project list)|"
     r"what (?P<asked>movies|games|shows|films|cartoons|videos|projects) (?:do (?:i|we) have|are there|have (?:i|we) got|"
     r"can (?:i|we) (?:watch|play)|are on here|have you got|do you have)|"
+    r"what (?:can|could|should) (?:i|we) (?P<listen>listen to)|"
     r"what (?:can|could|should) (?:i|we) (?P<verb>watch|play)|whats there to (?P<verb2>watch|play)|"
     r"what is there to (?P<verb3>watch|play)|(?:my|our) (?P<mine>movies|games|shows|movie list|game list|projects|"
-    r"project list|project folders?)|(?:the )?(?P<bare>projects|project list|project folders?)|"
+    r"project list|project folders?|music|songs|music library|playlist)|(?:the )?(?P<bare>projects|project list|project folders?)|"
+    # More ways in to the games (2026-11-17). Not "open the game library": that's the games app's own name.
+    r"(?P<games>(?:the |my )?(?:games|game library|game list|game menu|gamecube games|video games)|"
+    r"(?:play|pick|choose|start|find|lets play) (?:a|some|me a) (?:game|video game)s?|(?:its )?game time|"
+    r"(?:show me |tell me )?what games (?:we have|i have|you have|there are|weve got|ive got))|"
     # One "project" only after "my": "show me the project" is the open one.
     r"(?:show|bring up|pull up|see|let me see|display)(?: me)? (?:my|all my|all of my) (?P<one>project))$")
 _NUMBER_WORDS = ("zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen "
@@ -317,12 +337,16 @@ def _plain(text: str) -> str:
 
 
 def open_request(text: str) -> str | None:
-    """'movies', 'games' or 'projects' for "show my movies" / "what can I watch" / "let me see my games" / "my projects"."""
+    """'movies', 'games', 'projects' or 'music' for "show my movies" / "what can I watch" / "let me see my games" / "my projects"."""
     from systems.media_phrases import first
     from systems.sound_alikes import put_right
     found = first(put_right(text), _OPEN.match)
     if not found:
         return None
+    if found.group("listen"):
+        return "music"
+    if found.group("games"):
+        return "games"
     if found.group("verb") or found.group("verb2") or found.group("verb3"):
         return "games" if "play" in (found.group("verb"), found.group("verb2"), found.group("verb3")) else "movies"
     if found.group("one"):
@@ -331,6 +355,8 @@ def open_request(text: str) -> str | None:
             or found.group("mine") or found.group("bare"))
     if what.startswith("project"):
         return "projects"
+    if what.startswith(("music", "song", "my song", "tune", "playlist")):
+        return "music"
     return "games" if what.startswith(("game", "video game")) else "movies"
 
 
@@ -361,6 +387,18 @@ _SCROLL_DOWN = re.compile(
     r"(?: (?:movies|games|shows|of them))?$|^keep (?:going|scrolling)$|^scroll$|^next$|^more please$|"
     r"^what else(?: is there| do (?:i|we) have| have (?:i|we) got)?$|^anything else$|^(?:turn|flip) the page$|"
     r"^scroll (?:town|dawn)$")
+# Side to side, for the games carousel (2026-11-15); in a list they turn the page the same way.
+_RIGHT = re.compile(r"^(?:(?:scroll|go|move|swipe|slide|turn)(?: it)? )?(?:to the )?right(?: one| a bit| once)?$|"
+                    r"^(?:the )?next (?:one|game)$|^(?:show me )?(?:the )?one (?:after|on the right)$")
+_LEFT = re.compile(r"^(?:(?:scroll|go|move|swipe|slide|turn)(?: it)? )?(?:to the )?left(?: one| a bit| once)?$|"
+                   r"^(?:the )?(?:previous|last|other) (?:one|game)$|^(?:show me )?(?:the )?one (?:before|on the left)$")
+# The one in the middle of the carousel.
+_THIS_ONE = re.compile(r"^(?:(?:play|start|launch|load|open|pick|choose|select|boot|fire up|i(?:ll| will) (?:play|take))"
+                       r" )?(?:this|that|it|this one|that one|this game|that game|this song|that song|this track|that track|the one in the middle|"
+                       r"the middle one)$")
+# Shuffle, while the music is on the screen (2026-11-17).
+_SHUFFLE_HERE = re.compile(r"^(?:shuffle|shovel|shuffled|mix (?:it|them) up|shuffle (?:it|them|all|everything|these|the list)"
+                           r"(?: up)?|play (?:it|them|these|everything|all of them) (?:on shuffle|shuffled|randomly)|random)$")
 _SCROLL_UP = re.compile(
     r"^scroll (?:app|op)$|"
     r"^(?:(?:scroll|page|go|move|swipe|flip)(?: it)? )?(?:up|back|backward|backwards)(?: (?:a|one) page| up| a bit)?$|"
@@ -374,7 +412,7 @@ _ON_SCREEN = (r"weather|forecast|weather station|weather radar|rain radar|radar 
               r"night sky|sky|moon phase|moon|space station|station|events|planets|stars")
 _CLOSE = re.compile(
     r"^(?:close|hide|exit|quit|leave|dismiss|put away)(?: (?:it|this|that|the|my))?"
-    r"(?: (?:list|library|movies|games|shows|movie library|game library|movie list|game list|projects|project list|"
+    r"(?: (?:list|library|movies|games|carousel|game carousel|shows|movie library|game library|movie list|game list|projects|project list|"
     r"project folders|screen|menu|thing|window|weather alerts?|weather warnings?|alerts?|warnings?|help|help center|help menu|"
     r"commands|command list|subjects|" + _ON_SCREEN + r"))?(?: away)?$|"
     # "Turn off the weather alerts" means stop them, so turning off isn't a way to close their screen.
@@ -382,6 +420,10 @@ _CLOSE = re.compile(
     # These also mean other things ("turn off the screen", "turn off the sound"), so they name what's showing.
     r"^(?:get rid of|take away|shut off|turn off)(?: (?:it|this|that)| (?:the |my )?(?:" + _ON_SCREEN + r"))$|"
     r"^(?:take|turn|shut) (?:it|this|that) (?:away|off)$|^(?:thats )?enough$|"
+    # The games carousel (2026-11-17). "Close my games" reaches here as "close the game", which chat._closes_carousel
+    # takes only with the carousel up and no game running.
+    r"^(?:put|take) (?:the |my )?(?:games|game library|game list|carousel) away$|"
+    r"^(?:get rid of|take away) (?:the |my )?(?:games|game library|game list|carousel)$|^(?:im |i am |were )?done (?:with the games|playing)$|"
     r"^(?:im |i am |were |we are |all )?done$|^never ?mind$|^forget it$|^(?:thats|that is) (?:all|it)$|"
     r"^no thanks?(?: you)?$|^nothing$|^none(?: of (?:them|these|those))?$|^not (?:now|right now)$|^go away$|"
     r"^put it away$|^(?:go )?back to (?:your|the|bmos?|my) face$|^show (?:your|me your) face$")
@@ -426,13 +468,22 @@ def delete_request(text: str) -> dict | None:
 
 
 def command(text: str) -> tuple[str, int] | None:
-    """For an open library: ('down', 0), ('up', 0), ('top', 0), ('bottom', 0), ('close', 0) or ('play', n)."""
+    """For an open library: ('down', 0), ('up', 0), ('top', 0), ('bottom', 0), ('close', 0), ('play', n), ('here', 0)
+    for the one in the middle of the carousel, or ('shuffle', 0) for the music."""
     from systems.media_phrases import first
     from systems.sound_alikes import put_right
     return first(put_right(text), _command)
 
 
 def _command(said: str) -> tuple[str, int] | None:
+    if _RIGHT.match(said):
+        return "down", 0
+    if _LEFT.match(said):
+        return "up", 0
+    if _THIS_ONE.match(said) and said not in ("this", "that", "it"):
+        return "here", 0
+    if _SHUFFLE_HERE.match(said):
+        return "shuffle", 0
     if _SCROLL_DOWN.match(said):
         return "down", 0
     if _SCROLL_UP.match(said):

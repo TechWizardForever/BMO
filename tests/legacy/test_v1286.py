@@ -26,7 +26,7 @@ MiniChat = ns['MiniChat']
 
 class V1286Tests(unittest.TestCase):
     def test_version(self):
-        self.assertRegex(config.APP_VERSION, r'v1\.(?:28|29|30|31|32|33|34)\.\d')
+        self.assertRegex(config.APP_VERSION, r'v1\.(?:28|29|30|31|32|33|34|35)\.\d')
 
     def test_main_identity_and_model_awareness_are_compact(self):
         prompt = config.MODEL_PROFILES['normal']['system_prompt']
@@ -57,7 +57,7 @@ class V1286Tests(unittest.TestCase):
 
     def test_specialist_profiles_keep_their_existing_large_budgets(self):
         self.assertEqual(config.MODEL_PROFILES['coding']['num_predict'], 4096)
-        self.assertEqual(config.MODEL_PROFILES['engineering']['num_predict'], 4096)
+        self.assertEqual(config.MODEL_PROFILES['engineering']['num_predict'], 12288)  # no limits on Engineering (2026-11-15)
         self.assertEqual(config.MODEL_PROFILES['deep-vision']['num_predict'], 4096)
         self.assertNotIn('fast-vision', config.MODEL_PROFILES)
         # Runtime cap application is explicitly restricted to Main.

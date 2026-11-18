@@ -33,7 +33,7 @@ tree=ast.parse(source)
 original_chat=next(c for c in tree.body if isinstance(c,ast.ClassDef) and c.name=='Chat')
 # Extract the actual production functions to test without GPU/ALSA/Whisper.
 method_names={'_project_context_wanted','_shared_tool_schemas','_tool_schemas_for_active_profile','_ollama_messages','_execute_shared_tool','_recent_routing_context','_ground_execution_response','_main_response_token_budget','respond','_turn_cancelled','_save_code_blocks'}
-method_names|={'_offer_just_accepted'}  # v1.28.58: _save_code_blocks asks it (review 2026-10-19)
+method_names|={'_offer_just_accepted', 'history_char_budget'}  # v1.28.58: _save_code_blocks asks it (review 2026-10-19)
 methods=[m for m in original_chat.body if isinstance(m,ast.FunctionDef) and m.name in method_names
          or isinstance(m,ast.Assign) and getattr(m.targets[0],'id','') in {'_AGREEMENT','_OFFER_TO_WRITE'}]
 classnode=ast.ClassDef(name='ChatUnderTest',bases=[],keywords=[],body=methods,decorator_list=[])

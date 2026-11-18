@@ -16,6 +16,7 @@ import config
 
 SOURCE = (ROOT / "systems" / "chat.py").read_text()
 METHODS = {"_handle_one_request", "_game_or_video_open", "_open_answer_followup", "managed_display_active", "_player", "_watching_command",
+           "_music", "_music_playing",
            "_plain_words", "_WATCHING_COMMAND", "_PART_WORDS", "_3D_REQUEST", "_show_parts_menu"}
 
 
@@ -48,8 +49,9 @@ def mini():
     return m
 
 
-def _on(self, apps=(), video=False):
-    self.supervisor = type("Sup", (), {"status": lambda s: {"apps": {name: {} for name in apps}}})()
+def _on(self, apps=(), video=False, music=False):
+    self.supervisor = type("Sup", (), {"status": lambda s: {"apps": {name: {} for name in apps}},
+                                       "request": lambda s, action, **k: {"ok": True, "playing": music}})()
     self._media_player = type("Player", (), {"bmo_player_open": lambda s: video})()
 
 
@@ -119,6 +121,15 @@ class WatchingTests(unittest.TestCase):
         self.m._open_answer_followup()
         self.assertFalse(getattr(self.m, "_answer_followup_open", False))
         self.m.on()
+        self.m._open_answer_followup()
+        self.assertTrue(self.m._answer_followup_open)
+
+    def test_no_follow_up_without_hey_bmo_while_music_plays(self):
+        # A song's words would count as the follow-up, as a movie's would (2026-11-17).
+        self.m.on(music=True)
+        self.m._open_answer_followup()
+        self.assertFalse(getattr(self.m, "_answer_followup_open", False))
+        self.m.on(music=False)
         self.m._open_answer_followup()
         self.assertTrue(self.m._answer_followup_open)
 

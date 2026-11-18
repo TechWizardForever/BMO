@@ -17,6 +17,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | **weather commands / help with the weather** | Goes straight to one subject's commands. Any subject works: "movie commands", "timer commands", "commands for the sky", "what can I say about my projects?" |
 | **what time is it? / what's the date?** | From this computer's clock. |
 | **what hardware am I on?** | What this computer has: processor, memory, graphics, free disk space, sound and screen. |
+| **who made you?** | Tech Wizard made him, and every brain knows it. "Who created you?" and "who's your creator?" work too. |
 | **what can you do on this computer?** | What works on this computer, what doesn't, and why. |
 
 ## Movies and shows
@@ -40,7 +41,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 
 | Say | What it does |
 |---|---|
-| **show my games** | Your games on BMO's screen, with their covers if there are any, otherwise as a list. Scroll and pick by number like the movies. |
+| **show my games** | A carousel, one game large in the middle. "Next" or "back" moves, "play this one" starts it and "close my games" closes it, without Hey BMO. A controller works too: A plays, B closes. "My games", "game library" and "let's play a game" open it too. |
 | **play [game]** | Starts the game; "let's play", "fire up" and "start" work too. Controllers that are plugged in are players 1 to 4; with none, the keyboard is player 1. |
 | **close the game** | Closes the game. While a game is on, a plain "close" or "quit" does too. |
 | **boot games** | Opens the full game menu (ES-DE), which works with a controller. |
@@ -48,13 +49,24 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | **import games from USB** | Copies the GameCube games from a USB stick into BMO's games. The stick stays as it was. |
 | **rescan games** | Looks for new games in BMO's games folder. |
 
+## Music
+
+| Say | What it does |
+|---|---|
+| **show my music** | A carousel of your songs, A to Z by artist (or by the song's name when it has none), with the album cover when there is one. "Next" or "back" moves, "play this one" plays it and the songs after it, and "shuffle" plays them all mixed up, without Hey BMO. A controller works too: A plays, Y shuffles, B closes. "My music", "my songs" and "what can I listen to?" work too. |
+| **play music / shuffle my music** | All your songs, A to Z or shuffled. "Mix it up", "put it on shuffle", "play something random" and "surprise me" shuffle too. Music notes bounce on the screen while it plays. It goes quiet while you talk to him, and stops when he goes to sleep. |
+| **next song / previous song** | Skips forward or back one song. "Skip this song" works too. |
+| **pause the music / resume the music / stop the music** | "Turn the music off", "music off", "close the music" and "that's enough music" stop it too. With music on and no video, a plain "pause", "stop", "turn it off" or "next" works too. |
+| **what song is this?** | The name of the song that's playing. |
+| **turn the music up / down** | The computer's volume, as for a movie. "Louder", "crank it up", "the music's too loud" and "turn it down a notch" work too. While a song plays, say Hey BMO first every time, so the song's own words can't set anything off. |
+
 ## Downloads and USB sticks
 
 | Say | What it does |
 |---|---|
-| **sort my downloads** | Finds the games, movies and shows in your Downloads folder and says what he found. Say Hey BMO, yes, and he moves them where they go. Anything still downloading is left alone. |
+| **sort my downloads** | Finds the games, movies, shows and music in your Downloads folder and says what he found. Say Hey BMO, yes, and he moves them where they go: songs to your Music folder, in their album folders. Anything still downloading is left alone. |
 | **eject the USB** | Makes the USB stick safe to pull out. He only says so once it really has let go. |
-| **sort my USB** | The same for a USB stick: games, movies and shows on it are copied where they go after you say yes. The stick stays as it is. "Import the movies from the USB" works too. |
+| **sort my USB** | The same for a USB stick: games, movies, shows and music on it are copied where they go after you say yes. The stick stays as it is. "Import the movies from the USB" and "import my music from the USB" work too. |
 
 ## Timers and reminders
 
@@ -70,6 +82,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | Say | What it does |
 |---|---|
 | **remember that [something]** | Saved word for word, like "remember that my sister's birthday is May 3rd". Every brain knows it from then on. |
+| **my name is [name]** | He remembers your name and uses it now and then. "Call me", "you can call me" and "I go by" work too. "What's my name?" checks it, and "forget my name" removes it. |
 | **what do you remember about me?** | BMO reads back what you asked him to remember. |
 | **forget that [something]** | Removes that note. "Forget everything about me" asks first. |
 

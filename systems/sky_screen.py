@@ -21,17 +21,20 @@ PANEL, TRUSS, GOLD, EARTH, EARTH_EDGE = (60, 110, 200), (216, 220, 228), (222, 1
 PLANET_COLORS = {"Mercury": (190, 180, 170), "Venus": (250, 240, 200), "Mars": (235, 110, 80), "Jupiter": (235, 205, 165),
                  "Saturn": (225, 200, 130)}
 # The station: solar arrays either side of the long truss, the modules in the middle. A pixel is one letter.
-ISS_ART = ("BBB.BBB.......W.......BBB.BBB",
-           "BBB.BBB.......W.......BBB.BBB",
-           "BBB.BBB.......W.......BBB.BBB",
-           "BBB.BBB......WWW......BBB.BBB",
-           "WWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
-           "BBB.BBB......WWW......BBB.BBB",
-           "BBB.BBB.....GWWWG.....BBB.BBB",
-           "BBB.BBB.....GWWWG.....BBB.BBB",
-           "BBB.BBB......WWW......BBB.BBB",
-           ".............W.W.............")
-_ISS_COLORS = {"B": PANEL, "W": TRUSS, "G": GOLD}
+ISS_ART = ("AaAaA.AaAaA.......w.......AaAaA.AaAaA",
+           "aAaAa.aAaAa......RRR......aAaAa.aAaAa",
+           "AaAaA.AaAaA.......w.......AaAaA.AaAaA",
+           "aAaAa.aAaAa.......w.......aAaAa.aAaAa",
+           "AaAaA.AaAaA.....GWWWG.....AaAaA.AaAaA",
+           "WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW",
+           "sssssssssssssssssssssssssssssssssssss",
+           "AaAaA.AaAaA.....GWWWs.....AaAaA.AaAaA",
+           "aAaAa.aAaAa.....WWWWs.....aAaAa.aAaAa",
+           "AaAaA.AaAaA......WWs......AaAaA.AaAaA",
+           "aAaAa.aAaAa.......w.......aAaAa.aAaAa",
+           "AaAaA.AaAaA......RRR......AaAaA.AaAaA",
+           "..................w..................")
+_ISS_COLORS = {"A": PANEL, "a": (38, 76, 150), "W": TRUSS, "w": (176, 182, 194), "s": (110, 116, 130), "G": GOLD, "R": (236, 240, 246)}
 
 
 # --- The pixel art ----------------------------------------------------------------------------------------
@@ -45,29 +48,89 @@ def stars(screen, w, h, now):
         screen.fill((level, level, min(255, level + 20)), (x, y, 2 if n % 7 == 0 else 1, 2 if n % 7 == 0 else 1))
 
 
+# The near side's seas and best-known craters, in the moon's own coordinates (x right, y down, the disc radius 1), so
+# it looks like our moon and not a random one (2026-11-15).
+_MARIA = ((-0.38, -0.40, 0.30, 0.22), (-0.62, 0.05, 0.26, 0.42), (0.02, -0.30, 0.18, 0.15), (0.20, 0.02, 0.22, 0.18),
+          (0.60, -0.18, 0.13, 0.12), (0.30, 0.38, 0.16, 0.12), (-0.18, 0.18, 0.12, 0.10), (-0.42, 0.44, 0.16, 0.10))
+_CRATERS = ((-0.12, 0.72, 0.08), (-0.30, -0.06, 0.06), (0.40, 0.62, 0.05), (-0.70, -0.42, 0.05), (0.62, 0.30, 0.05),
+            (0.10, -0.70, 0.05))
+
+
+def _shade(color, k):
+    return tuple(max(0, min(255, int(c * k))) for c in color)
+
+
 def draw_moon(screen, center, radius, cycle, *, lit=MOON_LIT, dark=MOON_DARK):
-    """In chunky rows, lit on the right as it grows and on the left as it shrinks. cycle: 0 new, 0.5 full, 1 new."""
+    """A pixel moon lit by the sun from the right as it grows and the left as it shrinks (cycle: 0 new, 0.5 full, 1 new):
+    a soft edge where day meets night, the real seas and craters, a little earthshine on the dark part, and a dimmer rim."""
     cx, cy, radius = int(center[0]), int(center[1]), max(3, int(radius))
-    pixel = max(1, radius // 16)
-    edge = math.cos(2 * math.pi * cycle)
-    for row in range(-radius, radius + 1, pixel):
-        half = math.sqrt(max(0, radius * radius - (row + pixel / 2) ** 2))
-        pygame.draw.rect(screen, dark, (cx - int(half), cy + row, int(2 * half), pixel))
-        if cycle < 0.5:
-            start, stop = edge * half, half
-        else:
-            start, stop = -half, -edge * half
-        if stop > start:
-            pygame.draw.rect(screen, lit, (cx + int(start), cy + row, max(1, int(stop - start)), pixel))
-    spot = random.Random(4)
-    for _ in range(7):  # the dark seas, only where it's lit
-        angle, reach, size = spot.uniform(0, 6.28), spot.uniform(0.1, 0.72) * radius, spot.uniform(0.06, 0.15) * radius
-        x, y = cx + int(math.cos(angle) * reach), cy + int(math.sin(angle) * reach)
-        try:
-            if tuple(screen.get_at((x, y)))[:3] == tuple(lit):
-                pygame.draw.circle(screen, MOON_SPOT, (x, y), max(1, int(size)))
-        except IndexError:
-            pass
+    key = (radius, round(cycle * 96) / 96, tuple(lit), tuple(dark))
+    cache = _MOON_CACHE
+    if key not in cache:
+        if len(cache) > 48:
+            cache.clear()
+        cache[key] = _moon_surface(radius, key[1], lit, dark)
+    picture = cache[key]
+    screen.blit(picture, picture.get_rect(center=(cx, cy)))
+
+
+_MOON_CACHE: dict = {}
+
+
+def _moon_surface(radius, cycle, lit, dark):
+    cells = max(12, min(36, radius // 2))  # chunky enough to read as pixel art at any size
+    grid = pygame.Surface((cells, cells), pygame.SRCALPHA)
+    angle = 2 * math.pi * cycle
+    sun = (math.sin(angle), 0.0, -math.cos(angle))
+    earthshine = tuple(min(255, d + 10) for d in dark)
+    for j in range(cells):
+        for i in range(cells):
+            u, v = (i + 0.5) / cells * 2 - 1, (j + 0.5) / cells * 2 - 1
+            r2 = u * u + v * v
+            if r2 > 1:
+                continue
+            z = math.sqrt(1 - r2)
+            light = u * sun[0] + z * sun[2]
+            sea = any(((u - x) / a) ** 2 + ((v - y) / b) ** 2 <= 1 for x, y, a, b in _MARIA)
+            tone = 0.70 if sea else 1.0
+            for x, y, size in _CRATERS:
+                d = math.hypot(u - x, v - y)
+                if d <= size:
+                    tone = 0.82 if (u - x) * sun[0] > 0 else 1.08  # the rim facing the sun bright, the far side dark
+                elif d <= size * 1.5 and not sea:
+                    tone = min(tone, 0.94)
+            rim = 0.80 + 0.20 * z  # dimmer towards the edge
+            if light > 0.10:
+                color = _shade(lit, tone * rim)
+            elif light > -0.02:  # the soft line between day and night, dithered
+                color = _shade(lit, tone * rim * 0.62) if (i + j) % 2 else _shade(earthshine, 1.15)
+            else:
+                color = _shade(earthshine if sea is False else dark, 0.9 + 0.2 * z)
+            grid.set_at((i, j), (*color, 255))
+    return pygame.transform.scale(grid, (radius * 2, radius * 2))
+
+
+def draw_planet(screen, name, center, radius):
+    """Each planet as itself: Saturn's rings, Jupiter's bands, Mars's ice cap, Venus's glow."""
+    color = PLANET_COLORS.get(name, TEXT)
+    x, y, r = int(center[0]), int(center[1]), max(3, int(radius))
+    if name == "Venus":
+        glow = pygame.Surface((r * 6, r * 6), pygame.SRCALPHA)
+        pygame.draw.circle(glow, (*color, 22), (r * 3, r * 3), int(r * 2.4))
+        pygame.draw.circle(glow, (*color, 45), (r * 3, r * 3), int(r * 1.6))
+        screen.blit(glow, (x - r * 3, y - r * 3))
+    if name == "Saturn":
+        pygame.draw.ellipse(screen, _shade(color, 0.75), (x - r * 2, y - r // 2, r * 4, r), max(1, r // 3))
+    pygame.draw.circle(screen, color, (x, y), r)
+    pygame.draw.circle(screen, _shade(color, 0.72), (x + r // 3, y + r // 3), max(1, r * 2 // 3), max(1, r // 3))
+    if name == "Jupiter":
+        for k in (-1, 1):
+            pygame.draw.line(screen, _shade(color, 0.7), (x - r + 1, y + k * r // 3), (x + r - 1, y + k * r // 3), max(1, r // 4))
+    elif name == "Mars":
+        pygame.draw.circle(screen, (245, 240, 235), (x, y - r + max(1, r // 4)), max(1, r // 3))
+    elif name == "Saturn":
+        pygame.draw.line(screen, _shade(color, 0.75), (x - r * 2, y), (x + r * 2, y), max(1, r // 3))
+    pygame.draw.circle(screen, _shade(color, 1.2), (x - r // 3, y - r // 3), max(1, r // 4))  # where the sun catches it
 
 
 def draw_iss(screen, center, pixel):
@@ -81,16 +144,28 @@ def draw_iss(screen, center, pixel):
 
 
 def _flight(screen, rect, now):
-    """The station crossing over the curve of the Earth, again and again."""
+    """The station crossing over the Earth, again and again, while the Earth slowly turns (systems/earth.py)."""
+    from systems import earth
     clip = screen.get_clip()
     screen.set_clip(rect)
-    wide = rect.width * 2.2
-    pygame.draw.circle(screen, EARTH, (rect.centerx, int(rect.bottom + wide * 0.47)), int(wide * 0.56))
-    pygame.draw.circle(screen, EARTH_EDGE, (rect.centerx, int(rect.bottom + wide * 0.47)), int(wide * 0.56), max(1, rect.height // 90))
+    radius = int(min(rect.height * 0.80, rect.width * 0.40))
+    middle = (rect.centerx, rect.bottom + int(radius * 0.12))
+    for k, alpha in ((16, 36), (9, 70), (4, 130)):  # the atmosphere's glow
+        halo = pygame.Surface(rect.size, pygame.SRCALPHA)
+        pygame.draw.circle(halo, (*EARTH_EDGE, alpha), (middle[0] - rect.left, middle[1] - rect.top),
+                           radius + max(2, rect.height // 90) * k // 4)
+        screen.blit(halo, rect.topleft)
+    pixel = max(2, radius // 46)
+    cells = max(24, 2 * radius // pixel)
+    picture = pygame.transform.scale(earth.globe(cells, int(now * earth.DEGREES_PER_SECOND) % 360),
+                                     (cells * pixel, cells * pixel))
+    screen.blit(picture, picture.get_rect(center=middle))
+    pygame.draw.circle(screen, EARTH_EDGE, middle, cells * pixel // 2, max(1, pixel // 2))
     share = (now / 14.0) % 1.0
+    top = middle[1] - radius
     x = rect.left - rect.width * 0.2 + share * rect.width * 1.4
-    y = rect.centery - rect.height * 0.1 - math.sin(share * math.pi) * rect.height * 0.14
-    draw_iss(screen, (x, y), max(1, rect.width // 110))
+    y = top - (top - rect.top) * (0.45 + 0.25 * math.sin(share * math.pi))  # a gentle arc above the curve
+    draw_iss(screen, (x, y), max(1, rect.width // 170))
     screen.set_clip(clip)
 
 
@@ -102,33 +177,44 @@ def draw_event(screen, kind, rect, now, seed=0):
     x, y, now = rect.centerx, rect.centery, now + seed * 1.3
     radius = int(size * 0.32)
     if kind == "meteors":
+        dot = max(1, size // 34)
         for n in range(4):
             share = (now * 0.55 + n * 0.31) % 1.0
-            head = (rect.left + (0.15 + 0.2 * n + share * 0.5) * rect.width, rect.top + share * rect.height * 0.9)
-            tail = (head[0] - size * 0.28, head[1] - size * 0.2)
-            pygame.draw.line(screen, (140, 170, 220), tail, head, 1)
-            pygame.draw.circle(screen, (255, 255, 255), (int(head[0]), int(head[1])), max(1, size // 30))
+            hx, hy = rect.left + (0.15 + 0.2 * n + share * 0.5) * rect.width, rect.top + share * rect.height * 0.9
+            for k in range(14):  # the trail, unbroken and fading pixel by pixel
+                fade = 1 - k / 14
+                screen.fill((int(70 + 170 * fade), int(100 + 140 * fade), int(180 + 75 * fade)),
+                            (int(hx - k * dot * 1.4), int(hy - k * dot), dot + 1, dot + 1))
+            screen.fill((255, 255, 255), (int(hx) - dot, int(hy) - dot, dot * 2, dot * 2))
     elif kind == "lunar eclipse":
         share = (now / 7.0) % 1.0
         depth = 1.0 - abs(share * 2 - 1)
         draw_moon(screen, (x, y), radius, 0.5, lit=tuple(int(a + (b - a) * depth) for a, b in zip(MOON_LIT, MOON_RED)))
     elif kind == "solar eclipse":
         share = (now / 8.0) % 1.0
-        pygame.draw.circle(screen, SUN, (x, y), radius)
         offset = int((share * 2 - 1) * radius * 2.2)
-        if abs(offset) < radius * 0.2:
-            pygame.draw.circle(screen, (255, 255, 235), (x, y), int(radius * 1.2), max(1, radius // 7))
+        cover = max(0.0, 1 - abs(offset) / (radius * 2.0))
+        for n in range(16):  # the corona shows as the moon covers the sun
+            angle = n * math.pi / 8 + now * 0.1
+            reach = radius * (1.25 + 0.25 * (n % 2)) * (0.6 + 0.6 * cover)
+            pygame.draw.line(screen, (255, 250, 220), (x + math.cos(angle) * radius, y + math.sin(angle) * radius),
+                             (x + math.cos(angle) * reach, y + math.sin(angle) * reach), max(1, radius // 10))
+        pygame.draw.circle(screen, SUN, (x, y), radius)
+        pygame.draw.circle(screen, (255, 238, 150), (x - radius // 4, y - radius // 4), radius // 2)
         pygame.draw.circle(screen, (4, 6, 12), (x + offset, y), radius)
     elif kind == "conjunction":
         gap = (0.2 + 0.25 * (1 + math.sin(now * 0.8))) * size * 0.5
-        pygame.draw.circle(screen, (250, 240, 200), (int(x - gap), y), max(2, size // 11))
-        pygame.draw.circle(screen, (235, 205, 165), (int(x + gap), y), max(2, size // 13))
+        draw_planet(screen, "Venus", (int(x - gap), y), max(2, size // 11))
+        draw_planet(screen, "Jupiter", (int(x + gap), y), max(2, size // 13))
     elif kind == "aurora":
-        for n in range(4):
-            shade = (40, 200 - n * 30, 110 + n * 20)
-            points = [(rect.left + i * rect.width / 14, y - size * 0.2 + n * size * 0.13
-                       + math.sin(now * 1.2 + i * 0.6 + n) * size * 0.08) for i in range(15)]
-            pygame.draw.lines(screen, shade, False, points, max(1, size // 24))
+        band = max(2, size // 20)
+        for n in range(3):
+            for i in range(0, rect.width, band):
+                top = y - size * 0.3 + n * size * 0.12 + math.sin(now * 1.1 + i * 0.05 + n) * size * 0.08
+                height = size * (0.22 + 0.08 * math.sin(i * 0.3 + now * 2 + n))
+                for k in range(4):  # brightest at the bottom of each curtain, fading up
+                    shade = (30 + 20 * n, int((210 - n * 35) * (1 - k * 0.22)), int((120 + n * 30) * (1 - k * 0.18)))
+                    screen.fill(shade, (rect.left + i, int(top + height * (1 - (k + 1) / 4)), band, int(height / 4) + 1))
     elif kind == "iss":
         draw_iss(screen, (x + math.sin(now * 0.5) * size * 0.1, y), max(1, size // 40))
     else:
@@ -228,7 +314,7 @@ def _tonight(renderer, extra, now, fonts):
     for planet in planets:
         if y + line > box.bottom:
             break
-        pygame.draw.circle(screen, PLANET_COLORS.get(planet["name"], TEXT), (box.left + 12, y + line // 2), max(3, line // 4))
+        draw_planet(screen, planet["name"], (box.left + 12, y + line // 2), max(3, line // 4))
         words = f"{planet['name'].upper()}  {planet['direction']}  BEST {planet['time_text']}, {planet['height']} UP"
         _text(screen, row_font, _fitted(row_font, words, box.width - 30), TEXT, topleft=(box.left + 24, y))
         y += line

@@ -24,19 +24,25 @@ He can also:
 - play your movies and shows from the Videos folder and handle them by voice: "play Adventure Time season 2
   episode 3", "pause", "skip ahead 30 seconds", "next episode", "stop". A movie picks up where you stopped it,
   and a show carries on from the last episode you watched. Like the games, no videos come with him
-- show your movies or games on his screen ("show my movies", "show my games"), so you can scroll through them
-  and say "play number 3"
-- sort the games and movies in your Downloads folder or on a USB stick into the right places ("sort my downloads",
-  "sort my USB"), after you say yes, and eject the stick when you're done ("eject the USB")
+- play your music from the Music folder ("shuffle my music", "next song", "turn down the music", "stop the music").
+  "Show my music" puts your songs in a carousel, A to Z by artist, and music notes bounce around the screen while
+  one plays. No music comes with him either
+- show your movies on his screen ("show my movies"), so you can scroll through them and say "play number 3", or
+  your games as a carousel ("show my games") that you can flip through by voice or with a controller
+- sort the games, movies and music in your Downloads folder or on a USB stick into the right places ("sort my
+  downloads", "sort my USB"), after you say yes, and eject the stick when you're done ("eject the USB")
 - find the fastest settings for your computer ("run the speed test")
 - set timers and reminders, which still go off when he's asleep
-- remember things you tell him ("remember that my sister's birthday is May 3rd")
+- remember things you tell him ("remember that my sister's birthday is May 3rd"), and your name ("my name is Sam")
 - tell you the weather for any day in the next two weeks ("what's the weather on November 8th?"), show the rain
   radar, and warn you about severe weather if you turn that on (radar and warnings are for the United States)
 - tell you what's in the sky: the moon, the planets, space station passes, eclipses and meteor showers
 - show you every command on his screen ("what can you do?")
 - keep projects, back himself up to a USB stick, and a bunch more. Everything he understands
   is in [VOICE_COMMANDS.md](VOICE_COMMANDS.md), a list you can print and keep next to him
+
+While he swaps brains you can play BMO Jump, a little running game where you jump boulders and duck birds. It
+remembers the level you got to.
 
 He was built with an old CRT in mind, so he has a moving face, a bit of static now and then, and the old Windows
 screensavers when nobody's using him. He also updates himself from this repo, but only from releases I've signed.

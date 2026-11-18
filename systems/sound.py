@@ -127,23 +127,52 @@ class PactlSound:
 
 _NUM = r"(?P<num>\d{1,3})"
 _WORD_LEVELS = {"max": 100, "maximum": 100, "full": 100, "half": 50, "zero": 0, "minimum": 0}
-_SOUND = r"(?:the\s+)?(?:volume|sound|audio)"
+_SOUND = r"(?:the\s+)?(?:(?:music|song)\s+)?(?:volume|sound|audio)"
+# The music is as loud as the computer, the same as a movie (2026-11-17): "turn down the music", "crank the tunes".
+_MUSIC = r"(?:(?:the|my|this|that|our)\s+)?(?:music|songs?|tunes)"
+_LOUDNESS = rf"(?:it|this|that|{_SOUND}|{_MUSIC})"
+# Not "bring it up" or "put it up" (the screen's), nor "keep it up" (praise).
+_UP_VERBS = r"(?:turn|turned|crank|pump|jack|kick|bump|dial)"
+_DOWN_VERBS = r"(?:turn|turned|bring|take|knock|dial|keep)"
+_MORE = r"(?:make (?:it|" + _MUSIC + r")\s+|a little\s+|a lot\s+|much\s+|way\s+|bit\s+|a bit\s+|a tad\s+|even\s+)*"
+_TOO = r"(?:{m}|it|this|that|the sound)(?:s|\s+is)?\s+(?:too|way too|so|really|kind of|kinda|a little|a bit)\s+"
+# What Whisper may write for these words, next to the loudness words only (how they sound; not heard live yet).
+_SOUND_ALIKES = (
+    (re.compile(r"\b(?:muse ?sick|mu sick|mew sick|musik)\b"), "music"),
+    (re.compile(r"\b(it|music|songs?|sound|volume|bit|little|lot|tad|way|much|even) (?:lauder|loader|lowder|louter)\b"),
+     r"\1 louder"),
+    (re.compile(r"\b(it|music|songs?|sound|volume|bit|little|lot|tad|way|much|even) (?:quiet her|quite her|quitter|quiter)\b"),
+     r"\1 quieter"),
+    (re.compile(r"^(?:lauder|loader|lowder|louter)$"), "louder"),
+    (re.compile(r"^(?:quiet her|quite her|quitter|quiter)$"), "quieter"),
+)
 
 
 def parse_sound_command(text: str) -> dict | None:
     """'volume up' -> {'kind': 'change', 'delta': 10}; 'set the volume to 40' -> {'kind': 'set', 'level': 40}."""
     t = re.sub(r"[?!.,]+", " ", str(text or "").lower())
     t = re.sub(r"^(?:(?:can|could|would|will) you |please )+", "", re.sub(r"\s+", " ", t).strip()).strip()
-    t = re.sub(r"\s+(?:please|for me|a bit|now)$", "", t)
-    size = BIG_STEP if re.search(r"\b(?:a lot|much|way)\b", t) else SMALL_STEP if re.search(r"\b(?:a little|a bit|slightly|a tad)\b", t) else STEP
+    small = re.search(r"\b(?:a notch|a touch|a smidge)$", t)
+    t = re.sub(r"\s+(?:please|for me|a bit|now|a notch|a touch|a smidge)$", "", t)
+    t = re.sub(r"'", "", t) if re.search(r"\b(?:music|songs?|tunes|it|this|that|sound)'s\b", t) else t
+    for heard, meant in _SOUND_ALIKES:
+        t = heard.sub(meant, t)
+    size = BIG_STEP if re.search(r"\b(?:a lot|much|way)\b", t) else SMALL_STEP if small or re.search(r"\b(?:a little|a bit|slightly|a tad)\b", t) else STEP
     by = re.search(r"\bby\s+" + _NUM + r"\b", t)
     if by:
         size = int(by.group("num"))
+    too = _TOO.format(m=_MUSIC)
     up = (rf"^(?:turn\s+(?:it|{_SOUND})\s+up|turn\s+up\s+{_SOUND}|{_SOUND}\s+up|raise\s+{_SOUND}|increase\s+{_SOUND}|"
-          r"(?:make it\s+|a little\s+|a lot\s+|much\s+|way\s+|bit\s+)*louder)\b")
+          rf"{_UP_VERBS}\s+(?:up\s+{_LOUDNESS}|{_LOUDNESS}\s+(?:way\s+|all the way\s+|back\s+)?up)|"
+          rf"(?:raise|increase|boost|crank|blast)\s+{_MUSIC}|{_MUSIC}\s+(?:volume\s+)?up|louder\s+music|"
+          rf"{_MORE}louder|{_MUSIC}\s+louder|{too}(?:quiet|soft|low)|"
+          rf"i (?:cant|can't|can not|cannot) hear (?:{_MUSIC}|it)(?: very well| well)?|i want to hear {_MUSIC} better)\b")
     down = (rf"^(?:turn\s+(?:it|{_SOUND})\s+down|turn\s+down\s+{_SOUND}|{_SOUND}\s+down|lower\s+{_SOUND}|"
-            rf"decrease\s+{_SOUND}|reduce\s+{_SOUND}|(?:make it\s+|a little\s+|a lot\s+|much\s+|way\s+|bit\s+)*"
-            r"(?:quieter|softer))\b")
+            rf"decrease\s+{_SOUND}|reduce\s+{_SOUND}|"
+            rf"{_DOWN_VERBS}\s+(?:down\s+{_LOUDNESS}|{_LOUDNESS}\s+(?:way\s+|all the way\s+)?down)|"
+            rf"(?:lower|reduce|decrease|soften|quiet|quiet down)\s+{_MUSIC}(?:\s+down)?|"
+            rf"{_MUSIC}\s+(?:volume\s+)?down|{_MUSIC}\s+(?:quieter|softer|lower)|quieter\s+music|"
+            rf"{too}loud|(?:way\s+)?too loud|{_MORE}(?:quieter|softer))\b")
     if re.match(up, t):
         return {"kind": "change", "delta": size}
     if re.match(down, t):

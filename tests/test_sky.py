@@ -334,10 +334,15 @@ class ScreenTests(unittest.TestCase):
         app._screen = pygame.Surface(size)
         return app, FaceRenderer(app)
 
+    @staticmethod
+    def is_lit(color):
+        # Shaded since 2026-11-15 (seas, craters, a dimmer rim): lit means far brighter than the night side.
+        return sum(color[:3]) > sum(sky_screen.MOON_LIT) * 0.5
+
     def lit_share(self, app, center, radius):
         count = 0
         for x in range(center[0] - radius, center[0] + radius):
-            if tuple(app._screen.get_at((x, center[1])))[:3] == sky_screen.MOON_LIT:
+            if self.is_lit(tuple(app._screen.get_at((x, center[1])))):
                 count += 1
         return count / (2 * radius)
 
@@ -356,14 +361,16 @@ class ScreenTests(unittest.TestCase):
         # waxing lights the right, waning the left
         app._screen.fill((0, 0, 0))
         sky_screen.draw_moon(app._screen, center, radius, 0.25)
-        self.assertEqual(tuple(app._screen.get_at((center[0] + 60, center[1] + 40)))[:3], sky_screen.MOON_LIT)
+        self.assertTrue(self.is_lit(tuple(app._screen.get_at((center[0] + 60, center[1] + 40)))))
+        self.assertFalse(self.is_lit(tuple(app._screen.get_at((center[0] - 60, center[1] + 40)))))
         app._screen.fill((0, 0, 0))
         sky_screen.draw_moon(app._screen, center, radius, 0.75)
-        self.assertEqual(tuple(app._screen.get_at((center[0] - 60, center[1] + 40)))[:3], sky_screen.MOON_LIT)
+        self.assertTrue(self.is_lit(tuple(app._screen.get_at((center[0] - 60, center[1] + 40)))))
+        self.assertFalse(self.is_lit(tuple(app._screen.get_at((center[0] + 60, center[1] + 40)))))
 
     def test_the_station_art_is_square(self):
         self.assertEqual(len({len(row) for row in sky_screen.ISS_ART}), 1)
-        self.assertLessEqual(set("".join(sky_screen.ISS_ART)), set("BWG."))
+        self.assertLessEqual(set("".join(sky_screen.ISS_ART)), set(sky_screen._ISS_COLORS) | {"."})
 
     def test_every_event_moves(self):
         app, _ = self.renderer()

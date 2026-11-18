@@ -200,7 +200,7 @@ class AnswerFollowupTests(unittest.TestCase):
 
     def test_the_main_loop_opens_it_after_answering_and_limits_words(self):
         src = (ROOT / "systems" / "chat.py").read_text()
-        loop = src[src.index("requests = split_requests(gated_prompt)"):][:700]
+        loop = src[src.index("requests = split_requests(gated_prompt)"):][:1100]  # the music hold sits in it too (2026-11-15)
         self.assertIn("self._open_answer_followup()", loop)
         self.assertIn("len(gated_prompt.split()) > int(config.VOICE_FOLLOWUP_MAX_WORDS)", src)
         self.assertEqual(config.VOICE_FOLLOWUP_MAX_WORDS, 20)

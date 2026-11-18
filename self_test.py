@@ -236,7 +236,7 @@ def main():
     assert config.MODEL_PROFILES["engineering"].get("engineering_tools") is True
     assert config.MODEL_PROFILES["normal"]["num_predict"] == 1024
     assert config.MODEL_PROFILES["coding"]["num_predict"] == 4096
-    assert config.MODEL_PROFILES["engineering"]["num_predict"] == 4096
+    assert config.MODEL_PROFILES["engineering"]["num_predict"] == 12288  # no limits on Engineering (2026-11-15)
     assert config.MODEL_PROFILES["deep-vision"]["num_predict"] == 4096
     assert "Route by the action required, not just the topic" in config.MODEL_PROFILES["normal"]["system_prompt"]
     assert "smart friend in the workshop" in config.MODEL_PROFILES["normal"]["system_prompt"]

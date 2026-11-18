@@ -143,6 +143,15 @@ class App:
             elif event.type == pygame.JOYHATMOTION and event.value[1]:
                 setup.press("up" if event.value[1] > 0 else "down")
 
+        view = getattr(self.chat, "library_view", None)
+        if view is not None and view.active and not (setup is not None and setup.active):
+            if getattr(self, "_pad_navigator", None) is None:
+                from systems.pad_input import PadNavigator
+                self._pad_navigator = PadNavigator()
+            moved = self._pad_navigator.action(event)
+            if moved:
+                self.chat.library_pad(moved)
+
         if event.type == pygame.QUIT:
             # A window close, or a stop signal SDL turned into one (logged: live 2026-10-20 BMO quit on his own).
             print("BMO window: quit requested (window closed or stop signal)", flush=True)

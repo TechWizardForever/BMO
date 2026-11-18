@@ -1,10 +1,12 @@
-"""Games and movies from the Downloads folder to where BMO keeps them (2026-10-28): "Hey BMO, sort my downloads".
+"""Games, movies and music from the Downloads folder to where BMO keeps them (2026-10-28): "Hey BMO, sort my downloads".
 
 BMO looks first and says what he found; nothing moves until "Hey BMO, yes" (it moves them, it doesn't copy).
   - GameCube games (.iso .rvz ...) go to BMO's games folder, the same one "import games from USB" fills; a .zip or
     .7z holding them is unpacked there and the archive goes to the Trash.
   - Episodes ("Show - S02E03 ...") go to Videos/TV Shows/<show>/Season 2, into the show's folder if there is one.
   - Other videos go to Videos/Movies, with their subtitles and a poster if the download had one.
+  - Songs (.mp3 .flac .m4a .ogg .opus .aac) go to the Music folder, in the folders they came in, with the album's cover
+    (2026-11-17). Not .wav: in a Downloads folder those are rarely music.
 Left alone: anything still downloading (a .part / .crdownload / .!qB file next to it, or changed in the last two
 minutes), "sample" clips, something already there, hidden folders, and any folder with code in it (.git) such as
 BMO's own.
@@ -32,14 +34,19 @@ SUBTITLE_TYPES = {".srt", ".ass", ".ssa", ".sub", ".idx", ".vtt"}
 PICTURE_TYPES = {".jpg", ".jpeg", ".png", ".webp"}
 PARTIAL_TYPES = {".part", ".crdownload", ".download", ".partial", ".!qb", ".aria2", ".opdownload", ".tmp"}
 ARCHIVE_TYPES = {".zip", ".7z"}
-SETTLE_SECONDS = 120.0       # a file changed this recently may still be downloading
+MUSIC_TYPES = {".mp3", ".flac", ".m4a", ".ogg", ".opus", ".aac"}
+COVER_NAMES = {"cover", "folder", "front", "album", "albumart"}
+# A file changed this recently may still be downloading. Browsers and torrents download to a .part, .crdownload or
+# similar file beside it (PARTIAL_TYPES) and give it its name when it's done, so a finished file has stopped changing.
+# It was two minutes, and a finished MP3 was left as "still downloading" 98 seconds on (live 2026-11-17).
+SETTLE_SECONDS = 10.0
 SAMPLE_BYTES = 300 * 1024 ** 2
 MAX_DEPTH = 4
 
 
 @dataclass
 class Move:
-    kind: str                    # "game", "movie" or "episode"
+    kind: str                    # "game", "movie", "episode" or "song"
     source: Path
     target: Path
     extras: list = field(default_factory=list)    # (from, to): subtitles, a poster
@@ -58,11 +65,13 @@ class Plan:
     def summary(self) -> str:
         """'2 games, a movie and 3 episodes of Jimmy Neutron'."""
         parts = []
-        games, movies = self.count("game"), self.count("movie")
+        games, movies, songs = self.count("game"), self.count("movie"), self.count("song")
         if games:
             parts.append("a game" if games == 1 else f"{games} games")
         if movies:
             parts.append("a movie" if movies == 1 else f"{movies} movies")
+        if songs:
+            parts.append("a song" if songs == 1 else f"{songs} songs")
         shows: dict[str, int] = {}
         for move in self.moves:
             if move.kind == "episode":
@@ -149,8 +158,10 @@ def _taken(target: Path, size: int) -> bool:
 
 
 def plan(downloads: Path, videos_root: Path, games_dir: Path, *, skip=(), now=time.time,
-         settle: float = SETTLE_SECONDS) -> Plan:
-    """What would go where. settle: a file changed this recently may still be downloading (0 for a USB stick)."""
+         settle: float = SETTLE_SECONDS, music_dir: Path | None = None) -> Plan:
+    """What would go where. settle: a file changed this recently may still be downloading (0 for a USB stick).
+    music_dir: where songs go; without it they're left alone."""
+    music = MUSIC_TYPES if music_dir is not None else set()
     out = Plan()
     downloads, skip = Path(downloads), [Path(s).resolve() for s in skip]
     if not downloads.is_dir():
@@ -167,7 +178,7 @@ def plan(downloads: Path, videos_root: Path, games_dir: Path, *, skip=(), now=ti
         for name in sorted(files):
             path = here / name
             suffix = path.suffix.lower()
-            if name.startswith(".") or suffix not in GAMECUBE_EXTENSIONS | media.VIDEO_TYPES | ARCHIVE_TYPES:
+            if name.startswith(".") or suffix not in GAMECUBE_EXTENSIONS | media.VIDEO_TYPES | ARCHIVE_TYPES | music:
                 continue
             try:
                 stat = path.stat()
@@ -175,6 +186,19 @@ def plan(downloads: Path, videos_root: Path, games_dir: Path, *, skip=(), now=ti
                 continue
             if busy or now() - stat.st_mtime < settle:
                 out.skipped.append((path, "downloading"))
+                continue
+            if suffix in music:
+                kept = [p for p in here.relative_to(downloads).parts if p.lower() not in ("music", "my music")]
+                target = Path(music_dir).joinpath(*kept, name)
+                if _taken(target, stat.st_size):
+                    out.skipped.append((path, "already there"))
+                    continue
+                move = Move("song", path, target)
+                for extra in sorted(here.iterdir()):  # the album's cover, once per folder
+                    if (extra.is_file() and extra.suffix.lower() in PICTURE_TYPES and extra.stem.lower() in COVER_NAMES
+                            and not any(e[0] == extra for m in out.moves for e in m.extras)):
+                        move.extras.append((extra, target.parent / extra.name))
+                out.moves.append(move)
                 continue
             if suffix in GAMECUBE_EXTENSIONS:
                 target = games_dir / name
@@ -265,7 +289,7 @@ def run(plan: Plan, *, trash=_trash, unpack=_unpack, copy: bool = False) -> dict
     """Do the moves (copies with copy=True, for a USB stick).
     {"moved": {"game": n, "movie": n, "episode": n}, "failed": [(path, reason)]}."""
     carry = shutil.copy2 if copy else shutil.move
-    moved = {"game": 0, "movie": 0, "episode": 0}
+    moved = {"game": 0, "movie": 0, "episode": 0, "song": 0}
     failed = []
     for move in plan.moves:
         try:
@@ -292,17 +316,23 @@ def run(plan: Plan, *, trash=_trash, unpack=_unpack, copy: bool = False) -> dict
     return {"moved": moved, "failed": failed}
 
 
-_ASK = re.compile(r"^(?:can you |could you |please )?(?:sort|organi[sz]e|tidy(?: up)?|put away|file away|sort out)"
-                  r"(?: (?:my|the|all my|all the))?(?: (?:games and movies|movies and games|games|movies|roms))?"
-                  r"(?: (?:in|from) (?:my|the))? ?(?:downloads?|downloads folder|download folder)$")
+# 2026-11-17: Whisper's "organized my downloads" went to the brain, which made up an answer; past tenses and
+# sound-alikes count too.
+_SORT = (r"(?:sort(?:ed)?(?: out| through)?|sword|sore|short|sorts|organi[sz]ed?|organi[sz]es|tidy(?: up)?|tidied(?: up)?|"
+         r"clean(?:ed)? up|clean out|cleaned out|put away|file away|go through|straighten(?: out| up)?|arrange)")
+_ASK = re.compile(r"^(?:can you |could you |please )?" + _SORT +
+                  r"(?: (?:my|the|all my|all the))?(?: (?:games and movies|movies and games|games|movies|roms|music|songs|mp3s|"
+                  r"games movies and music|movies and music|music and movies))?"
+                  r"(?: (?:in|from) (?:my|the))? ?(?:downloads?|down loads?|downloads folder|download folder)$")
 
 
 _USB = r"(?:usb|usb stick|usb drive|stick|thumb drive|flash drive|drive|memory stick)"
 # "import games from USB" / "copy the games off this drive" stay the games-only import (supervisor, checksummed).
 _USB_ASK = re.compile(
-    r"^(?:(?:sort|organi[sz]e|tidy|sort out|go through)(?: up)?(?: (?:my|the|this|that))? " + _USB + r"|"
+    r"^(?:" + _SORT + r"(?: up)?(?: (?:my|the|this|that))? " + _USB + r"|"
     r"(?:import|copy|take|get|grab|bring in|add|put away)(?: (?:all|everything))?(?: (?:the|my|all the|all my))? "
-    r"(?:movies|shows|tv shows|videos|films|movies and games|games and movies|movies and shows|everything|stuff)"
+    r"(?:movies|shows|tv shows|videos|films|movies and games|games and movies|movies and shows|everything|stuff|"
+    r"music|songs|mp3s|tunes|movies and music|music and movies)"
     r"(?: (?:from|off|off of|on) (?:the |my |this |that )?" + _USB + r"))$")
 
 

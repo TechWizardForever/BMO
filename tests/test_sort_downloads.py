@@ -54,6 +54,13 @@ class PlanTests(unittest.TestCase):
                          ["Ponyo.2008.1080p.2_English.srt", "Ponyo.2008.1080p.eng.srt", "Ponyo.2008.1080p.jpg"])
         self.assertEqual(plan.summary(), "a game, a movie and 2 episodes of Jimmy Neutron")
 
+    def test_a_finished_download_doesnt_wait_two_minutes(self):
+        # Live 2026-11-17: an MP3 saved 98 seconds before was left as "still downloading".
+        touch(self.downloads / "Big.Movie.2020.mkv", when=time.time() - 30)
+        self.assertEqual([m.kind for m in self.plan().moves], ["movie"])
+        touch(self.downloads / "Big.Movie.2020.mkv", when=time.time() - 2)
+        self.assertEqual([why for _, why in self.plan().skipped], ["downloading"])
+
     def test_what_is_left_alone(self):
         touch(self.downloads / "Torrent" / "Big.Movie.2020.mkv")
         touch(self.downloads / "Torrent" / "Big.Movie.2020.mkv.part")          # still downloading
@@ -91,7 +98,7 @@ class PlanTests(unittest.TestCase):
         touch(self.downloads / "Ponyo.2008" / "Ponyo.2008.srt")
         touch(self.videos / "Movies" / "Ponyo.2008.mkv", b"a different, older file")
         result = sd.run(self.plan())
-        self.assertEqual(result, {"moved": {"game": 0, "movie": 1, "episode": 0}, "failed": []})
+        self.assertEqual(result, {"moved": {"game": 0, "movie": 1, "episode": 0, "song": 0}, "failed": []})
         self.assertEqual((self.videos / "Movies" / "Ponyo.2008 (2).mkv").read_bytes(), b"new movie")
         self.assertEqual((self.videos / "Movies" / "Ponyo.2008.mkv").read_bytes(), b"a different, older file")
         self.assertTrue((self.videos / "Movies" / "Ponyo.2008.srt").exists())
@@ -107,7 +114,10 @@ class PlanTests(unittest.TestCase):
 
     def test_phrases(self):
         for said in ("sort my downloads", "Hey BMO, organize the downloads folder", "put away my downloads",
-                     "sort the games and movies in my downloads", "tidy up my downloads"):
+                     "sort the games and movies in my downloads", "tidy up my downloads",
+                     # Live 2026-11-17: Whisper's "organized my downloads." went to the brain.
+                     "organized my downloads.", "Organize my downloads!", "sorted my downloads", "clean up my downloads",
+                     "sort out my downloads", "sword my downloads", "organise the down loads", "go through my downloads"):
             self.assertTrue(sd.is_request(said), said)
         for said in ("how are the downloads", "sort my files", "download a movie"):
             self.assertFalse(sd.is_request(said), said)
@@ -126,7 +136,7 @@ class UsbTests(unittest.TestCase):
         plan = sd.plan(self.usb, self.videos, self.games, settle=0)
         self.assertEqual(sorted(m.kind for m in plan.moves), ["game", "movie"])
         result = sd.run(plan, copy=True, trash=lambda path: self.fail("nothing on a stick goes to the Trash"))
-        self.assertEqual(result["moved"], {"game": 1, "movie": 1, "episode": 0})
+        self.assertEqual(result["moved"], {"game": 1, "movie": 1, "episode": 0, "song": 0})
         self.assertTrue(game.exists() and movie.exists())  # still on the stick
         self.assertEqual((self.videos / "Movies" / "Ponyo.2008.mkv").read_bytes(), b"movie")
         self.assertTrue((self.videos / "Movies" / "Ponyo.2008.srt").exists())
@@ -190,8 +200,7 @@ class ChatTests(unittest.TestCase):
     def test_nothing_to_sort_and_downloads_in_progress(self):
         touch(self.downloads / "Big.Movie.2020.mkv", when=time.time())
         self.assertTrue(self.chat._handle_sort_downloads("sort my downloads"))
-        self.assertEqual(self.said[-1], "I didn't find any games or movies to sort in Downloads. One is still "
-                                        "downloading, so I'll leave it.")
+        self.assertEqual(self.said[-1], "The only thing I found is still downloading. Ask me again once it's finished.")
         self.assertEqual(self.asked, [])
         self.assertFalse(self.chat._handle_sort_downloads("what's the weather"))
 

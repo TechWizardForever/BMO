@@ -170,7 +170,7 @@ class LibraryTests(unittest.TestCase):
                            ("let me see my games", "games"), ("my movies", "movies"), ("browse my movies", "movies"),
                            ("list my games", "games"), ("show me all my movies", "movies"),
                            ("what's there to watch", "movies"), ("bring up the movie list", "movies"),
-                           ("Remonk Show Me My Movies", "movies"), ("show me what games we have", None)):
+                           ("Remonk Show Me My Movies", "movies"), ("show me what games we have", "games")):  # 2026-11-17: a way in
             self.assertEqual(lib.open_request(said), kind, said)
         for said in ("list games", "open games", "open the game library"):  # the spoken count and ES-DE keep theirs
             self.assertIsNone(lib.open_request(said), said)

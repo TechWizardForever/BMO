@@ -117,7 +117,7 @@ class RunnerTests(unittest.TestCase):
         game.score, game.level = 420.0, 3
         game.finish()  # the brain was ready mid-run
         self.assertTrue(game.new_best)
-        self.assertEqual(json.loads(self.path.read_text()), {"best": 420, "best_level": 3})
+        self.assertEqual(json.loads(self.path.read_text()), {"best": 420, "best_level": 3, "level": 3})
         again = rg.RunnerGame(self.path)
         self.assertEqual((again.best, again.best_level), (420, 3))
         again.press_jump()
@@ -125,6 +125,54 @@ class RunnerTests(unittest.TestCase):
         again.finish()
         self.assertFalse(again.new_best)
         self.assertEqual(rg.RunnerGame(self.path).best, 420)
+
+    def crashed_at(self, level):
+        game = self.game()
+        game.press_jump()
+        game.score, game.next_gap = (level - 1) * rg.LEVEL_POINTS + 1.0, 99
+        game.obstacles = [rg.Obstacle("tall", rg.RUNNER_X, 0.0, 0.1, 0.15)]
+        game.update(1 / 60)
+        self.assertEqual((game.state, game.level), (rg.OVER, level))
+        return game
+
+    def test_the_next_run_carries_on_from_the_level_reached(self):
+        game = self.crashed_at(4)
+        game.over_for = 1.0
+        game.press_jump()  # again, straight after the crash
+        self.assertEqual((game.state, game.level, game.score), (rg.RUNNING, 4, 3 * rg.LEVEL_POINTS))
+        self.assertAlmostEqual(game.speed, rg.BASE_SPEED * (1 + 3 * rg.LEVEL_SPEEDUP))
+        self.assertEqual(game.level_shown_at, 0.0)  # the banner says where
+        later = self.game()  # the next brain swap, or after a restart
+        self.assertEqual((later.state, later.level), (rg.READY, 4))
+
+    def test_a_level_is_kept_the_moment_it_is_reached(self):
+        game = self.game()
+        game.press_jump()
+        game.score, game.next_gap = rg.LEVEL_POINTS + 1.0, 99
+        game.update(1 / 60)
+        self.assertEqual(json.loads(self.path.read_text())["level"], 2)  # no crash or finish needed
+
+    def test_a_score_file_from_before_starts_at_its_best_level(self):
+        self.path.write_text('{"best": 403, "best_level": 3}')
+        self.assertEqual(self.game().level, 3)
+
+    def test_down_goes_back_to_level_1(self):
+        game = self.crashed_at(3)
+        game.set_duck(True)  # right after the crash: still ducking, not asking
+        self.assertEqual((game.state, game.saved_level), (rg.OVER, 3))
+        game.over_for = rg.START_OVER_AFTER
+        game.set_duck(True)
+        self.assertEqual((game.state, game.level, game.score), (rg.READY, 1, 0.0))
+        self.assertEqual(json.loads(self.path.read_text())["level"], 1)
+        self.assertEqual(json.loads(self.path.read_text())["best_level"], 3)  # the record stays
+        self.assertEqual(self.game().level, 1)
+
+    def test_ducking_in_a_run_keeps_the_level(self):
+        self.path.write_text('{"best": 0, "best_level": 2, "level": 2}')
+        game = self.game()
+        game.press_jump()
+        game.set_duck(True)
+        self.assertEqual((game.level, game.ducking), (2, True))
 
     def test_a_broken_score_file_starts_fresh(self):
         self.path.write_text("{oops")

@@ -27,25 +27,40 @@ def dash(value, unit="") -> str:
 
 # --- The little animations ------------------------------------------------------------------------------
 
+def _tone(color, k):
+    return tuple(max(0, min(255, int(c * k))) for c in color)
+
+
 def _sun(screen, x, y, r, now):
-    for n in range(8):
+    for n in range(8):  # long and short rays in turn, slowly turning
         angle = now * 0.5 + n * math.pi / 4
-        inner, outer = r * 1.3, r * (1.65 + 0.12 * math.sin(now * 2 + n))
+        inner, outer = r * 1.25, r * ((1.75 if n % 2 else 1.5) + 0.1 * math.sin(now * 2 + n))
         pygame.draw.line(screen, SUN, (x + math.cos(angle) * inner, y + math.sin(angle) * inner),
-                         (x + math.cos(angle) * outer, y + math.sin(angle) * outer), max(1, int(r / 6)))
-    pygame.draw.circle(screen, SUN, (int(x), int(y)), int(r))
+                         (x + math.cos(angle) * outer, y + math.sin(angle) * outer), max(1, int(r / 4)))
+    pygame.draw.circle(screen, _tone(SUN, 0.86), (int(x), int(y)), int(r))
+    pygame.draw.circle(screen, SUN, (int(x - r * 0.1), int(y - r * 0.1)), int(r * 0.82))
+    pygame.draw.circle(screen, (255, 244, 190), (int(x - r * 0.35), int(y - r * 0.35)), max(1, int(r * 0.3)))
 
 
 def _moon(screen, x, y, r, back):
-    pygame.draw.circle(screen, MOON, (int(x), int(y)), int(r))
-    pygame.draw.circle(screen, back, (int(x + r * 0.45), int(y - r * 0.2)), int(r * 0.85))
+    from systems.sky_screen import draw_moon  # the sky screens' moon, as a crescent
+    draw_moon(screen, (x, y), r, 0.18, lit=MOON, dark=back[:3] if len(back) > 3 else back)
 
 
 def _cloud(screen, x, y, size, color):
+    """Three puffs and a flat base, lit from above: a highlight on top, a shadow underneath."""
     r = max(2, int(size * 0.26))
-    for dx, dy, radius in ((-0.28, 0.04, r), (0.0, -0.1, int(r * 1.3)), (0.3, 0.05, r)):
+    puffs = ((-0.28, 0.04, r), (0.0, -0.1, int(r * 1.3)), (0.3, 0.05, r))
+    shadow, light = _tone(color, 0.72), _tone(color, 1.12)
+    for dx, dy, radius in puffs:
+        pygame.draw.circle(screen, shadow, (int(x + dx * size), int(y + dy * size + r * 0.25)), radius)
+    pygame.draw.rect(screen, shadow, (int(x - size * 0.42), int(y + r * 0.25), int(size * 0.84), r))
+    for dx, dy, radius in puffs:
         pygame.draw.circle(screen, color, (int(x + dx * size), int(y + dy * size)), radius)
-    pygame.draw.rect(screen, color, (int(x - size * 0.42), int(y), int(size * 0.84), r))
+    pygame.draw.rect(screen, color, (int(x - size * 0.42), int(y), int(size * 0.84), int(r * 0.85)))
+    for dx, dy, radius in puffs:
+        pygame.draw.circle(screen, light, (int(x + dx * size - radius * 0.3), int(y + dy * size - radius * 0.35)),
+                           max(1, int(radius * 0.45)))
 
 
 def _falling(screen, rect, count, speed, now, seed, draw):
@@ -56,22 +71,35 @@ def _falling(screen, rect, count, speed, now, seed, draw):
 
 
 def draw_icon(screen, kind, rect, now, seed=0, *, night=False, back=BOX):
-    """A sky about the size of rect: the sun turns, clouds drift, rain and snow fall, lightning flashes."""
+    """A sky about the size of rect: the sun turns, clouds drift, rain and snow fall, lightning flashes. Drawn on a small
+    grid and scaled up without smoothing, so it's real pixel art that stays crisp on a CRT (2026-11-15)."""
+    size = min(rect.width, rect.height)
+    if size < 8:
+        return
+    cells = max(16, min(40, size // 4))
+    grid = pygame.Surface((cells, cells), pygame.SRCALPHA)
+    _draw_sky(grid, kind, grid.get_rect(), now, seed, night=night, back=back)
+    picture = pygame.transform.scale(grid, (size, size))
+    screen.blit(picture, picture.get_rect(center=rect.center))
+
+
+def _draw_sky(screen, kind, rect, now, seed=0, *, night=False, back=BOX):
     now += seed * 1.7
     size = min(rect.width, rect.height)
     x, y = rect.centerx, rect.centery
     drift = math.sin(now * 0.6) * size * 0.05
-    clip = screen.get_clip()
-    screen.set_clip(rect.inflate(4, 4).clip(clip) if clip else rect.inflate(4, 4))
     weight = max(1, size // 34)
     below = pygame.Rect(rect.left + size // 10, y + size // 8, rect.width - size // 5, max(4, rect.bottom - y - size // 8))
 
     def drop(s, px, py, n):
-        pygame.draw.line(s, DROP, (px, py), (px - weight, py + max(3, size // 11)), weight)
+        pygame.draw.line(s, _tone(DROP, 0.75), (px, py), (px - weight, py + max(2, size // 11)), weight)
+        s.fill(DROP, (int(px - weight), int(py + max(2, size // 11)), weight, weight))
 
     def flake(s, px, py, n):
         px += math.sin(now * 1.5 + n) * size * 0.04
-        pygame.draw.rect(s, SNOW, (int(px), int(py), max(2, weight + 1), max(2, weight + 1)))
+        arm = max(1, size // 40)
+        s.fill(SNOW, (int(px) - arm, int(py), arm * 3, arm))
+        s.fill(SNOW, (int(px), int(py) - arm, arm, arm * 3))
 
     if kind == "clear":
         (_moon(screen, x, y, size * 0.26, back) if night else _sun(screen, x, y, size * 0.24, now))
@@ -86,8 +114,11 @@ def draw_icon(screen, kind, rect, now, seed=0, *, night=False, back=BOX):
         for n in range(4):
             slide = math.sin(now * 0.7 + n * 1.4) * size * 0.1
             line_y = y - size * 0.22 + n * size * 0.15
-            pygame.draw.line(screen, FOG, (x - size * 0.34 + slide, line_y), (x + size * 0.34 + slide, line_y),
-                             max(2, size // 16))
+            for k in range(-4, 5):  # broken bands, thinning at their ends
+                if (k + n) % 3 or abs(k) < 3:
+                    seg = size * 0.08
+                    pygame.draw.line(screen, FOG if abs(k) < 3 else _tone(FOG, 0.7), (x + k * seg + slide, line_y),
+                                     (x + (k + 0.8) * seg + slide, line_y), max(1, size // 14))
     else:
         if kind in ("rain", "light rain", "storm", "ice"):
             count = {"light rain": 5, "rain": 10, "storm": 12, "ice": 6}[kind]
@@ -96,11 +127,11 @@ def draw_icon(screen, kind, rect, now, seed=0, *, night=False, back=BOX):
             _falling(screen, below, 9 if kind == "snow" else 5, 0.3, now, seed + 3, flake)
         if kind == "storm" and (now % 4.0) < 0.25:
             top_x, top_y = x, y + size * 0.05
-            pygame.draw.lines(screen, BOLT, False, [(top_x, top_y), (top_x - size * 0.1, top_y + size * 0.2),
-                                                    (top_x + size * 0.03, top_y + size * 0.2),
-                                                    (top_x - size * 0.08, top_y + size * 0.42)], max(2, size // 22))
+            bolt = [(top_x, top_y), (top_x - size * 0.1, top_y + size * 0.2), (top_x + size * 0.03, top_y + size * 0.2),
+                    (top_x - size * 0.08, top_y + size * 0.42)]
+            pygame.draw.lines(screen, BOLT, False, bolt, max(2, size // 14))
+            pygame.draw.lines(screen, (255, 255, 240), False, bolt, max(1, size // 30))
         _cloud(screen, x + drift, y - size * 0.1, size * 0.8, DARK_CLOUD if kind in ("rain", "storm") else CLOUD)
-    screen.set_clip(clip)
 
 
 # --- Pieces ---------------------------------------------------------------------------------------------
