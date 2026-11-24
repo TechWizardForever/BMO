@@ -234,13 +234,18 @@ class SupervisorService:
             clean["seen_signature"] = "[screen thumbnail omitted]"
         return clean
 
-    @staticmethod
-    def _safe_result_for_log(result: dict) -> dict:
+    # What a command printed, a file's lines, folder listings and process lists say only how much there was:
+    # the log is for what BMO did, never what a file or program contained (review 2026-11-24).
+    RESULT_TEXT_KEYS = ("stdout", "stderr", "lines", "entries", "processes", "text", "content")
+
+    @classmethod
+    def _safe_result_for_log(cls, result: dict) -> dict:
         clean = dict(result or {})
-        for key in ("stdout", "stderr", "lines", "entries", "processes"):
+        for key in cls.RESULT_TEXT_KEYS:
             if key in clean:
-                text = json.dumps(clean[key], default=str) if not isinstance(clean[key], str) else clean[key]
-                clean[key] = text[:2000] + ("..." if len(text) > 2000 else "")
+                value = clean[key]
+                clean[key] = (f"[{len(value)} items]" if isinstance(value, (list, tuple, dict))
+                              else f"[redacted {len(str(value))} chars]")
         return clean
 
     def computer_control_status(self) -> dict:

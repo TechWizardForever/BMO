@@ -166,7 +166,8 @@ def parse_sound_command(text: str) -> dict | None:
           rf"{_UP_VERBS}\s+(?:up\s+{_LOUDNESS}|{_LOUDNESS}\s+(?:way\s+|all the way\s+|back\s+)?up)|"
           rf"(?:raise|increase|boost|crank|blast)\s+{_MUSIC}|{_MUSIC}\s+(?:volume\s+)?up|louder\s+music|"
           rf"{_MORE}louder|{_MUSIC}\s+louder|{too}(?:quiet|soft|low)|"
-          rf"i (?:cant|can't|can not|cannot) hear (?:{_MUSIC}|it)(?: very well| well)?|i want to hear {_MUSIC} better)\b")
+          rf"i (?:cant|can't|can not|cannot) hear (?:{_MUSIC}|it|you|that|anything)(?: very well| well)?|"
+          rf"i want to hear {_MUSIC} better|speak up|talk louder|say it louder)\b")
     down = (rf"^(?:turn\s+(?:it|{_SOUND})\s+down|turn\s+down\s+{_SOUND}|{_SOUND}\s+down|lower\s+{_SOUND}|"
             rf"decrease\s+{_SOUND}|reduce\s+{_SOUND}|"
             rf"{_DOWN_VERBS}\s+(?:down\s+{_LOUDNESS}|{_LOUDNESS}\s+(?:way\s+|all the way\s+)?down)|"

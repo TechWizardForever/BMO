@@ -13,17 +13,72 @@ from systems import runner_world
 
 
 def ui_font(size, bold=False):
-    """The lettering on BMO's own screens (setup, brain swap, parts, calibration, text mode): config.UI_FONT,
-    a font file in BMO's assets or the first of a list of installed fonts' names, at config.UI_FONT_SCALE
-    (pixel fonts run larger or smaller than ordinary ones)."""
+    """The lettering on BMO's own screens (setup, brain swap, parts, calibration, text mode, weather, carousels):
+    config.UI_FONT, a font file in BMO's assets or the first of a list of installed fonts' names, at
+    config.UI_FONT_SCALE, in bold with a dark outline (config.UI_TEXT_OUTLINE) so it stays sharp on a CRT
+    (2026-11-24: thin pixel letters were hard to read on the weather screens). `bold` is kept for callers;
+    all lettering is bold now."""
     name = str(getattr(config, "UI_FONT", "DejaVu Sans"))
     size = max(6, int(round(size * float(getattr(config, "UI_FONT_SCALE", 1.0)))))
+    font = None
     if name.lower().endswith((".ttf", ".otf")):
         path = Path(name) if Path(name).is_absolute() else Path(__file__).resolve().parents[1] / name
         if path.is_file():
-            return pygame.font.Font(str(path), size)  # no made-up bold on a pixel font
-        name = "DejaVu Sans"
-    return pygame.font.SysFont(name, size, bold=bold)
+            font = pygame.font.Font(str(path), size)  # the font file is the bold one: no made-up bold
+    if font is None:
+        font = pygame.font.SysFont("DejaVu Sans" if name.lower().endswith((".ttf", ".otf")) else name, size, bold=True)
+    outline = getattr(config, "UI_TEXT_OUTLINE", None)
+    if not outline or size < 11:
+        return font  # tiny letters (small help text on a 640x480 screen): an edge would fill them in
+    return OutlinedFont(font, max(1, round(size * float(getattr(config, "UI_TEXT_OUTLINE_SHARE", 1 / 16)))), outline)
+
+
+class OutlinedFont:
+    """A pygame font whose letters get a dark edge `width` pixels wide. Sizes include the edge, so layouts that
+    measure first still fit. Rendered words are kept (most screens draw the same words every frame)."""
+
+    CACHE_LIMIT = 512
+
+    def __init__(self, font, width, color):
+        self._font, self.outline_width, self._outline = font, int(width), tuple(color)
+        self._rendered = {}
+
+    def __getattr__(self, name):
+        return getattr(self._font, name)
+
+    def render(self, text, antialias, color, background=None):
+        key = (str(text), bool(antialias), tuple(pygame.Color(color)),
+               None if background is None else tuple(pygame.Color(background)))
+        surface = self._rendered.get(key)
+        if surface is None:
+            if len(self._rendered) >= self.CACHE_LIMIT:
+                self._rendered.clear()
+            surface = self._rendered[key] = self._outlined(*key)
+        return surface
+
+    def _outlined(self, text, antialias, color, background):
+        inner = self._font.render(text, antialias, color)
+        edge = self._font.render(text, antialias, self._outline)
+        o = self.outline_width
+        surface = pygame.Surface((inner.get_width() + 2 * o, inner.get_height() + 2 * o), pygame.SRCALPHA)
+        if background is not None:
+            surface.fill(background)
+        for dx in range(-o, o + 1):
+            for dy in range(-o, o + 1):
+                if (dx or dy) and dx * dx + dy * dy <= o * o + o:  # a rounded edge, not a square one
+                    surface.blit(edge, (o + dx, o + dy))
+        surface.blit(inner, (o, o))
+        return surface
+
+    def size(self, text):
+        width, height = self._font.size(text)
+        return width + 2 * self.outline_width, height + 2 * self.outline_width
+
+    def get_height(self):
+        return self._font.get_height() + 2 * self.outline_width
+
+    def get_linesize(self):
+        return self._font.get_linesize() + 2 * self.outline_width
 
 
 INDICATOR_PULSE_SECONDS = 2.6  # the corner symbol's slow pulse (2026-10-31)
@@ -854,7 +909,7 @@ class FaceRenderer:
         if not cache or cache[0] != h:
             cache = (h, ui_font(max(16, h // 20), bold=True),
                      ui_font(max(11, h // 34)),
-                     ui_font(max(10, h // 42)))
+                     ui_font(max(10, h // 43)))  # h // 42 put the longest hint 1 px past 90% on a 1024x768 CRT
             self._setup_font_cache = cache
         return cache[1:]
 
@@ -1332,16 +1387,19 @@ class FaceRenderer:
         elif lib.get("grid"):
             cols, rows = (4, 2) if w >= h else (2, 4)
             tile_w, tile_h = (right - left) // cols, (body_bottom - body_top) // rows
-            line_h = small_font.get_linesize()
+            # Names in the larger letters, up to three lines (2026-11-24: the small ones were hard to read on the CRT,
+            # and two lines cut "Lupin III The Castle of Cagliostro" short without saying so).
+            name_font, name_lines = row_font, 3
+            line_h = name_font.get_linesize()
             for i, tile in enumerate(tiles):
                 x0, y0 = left + (i % cols) * tile_w, body_top + (i // cols) * tile_h
-                room = (tile_w - 12, tile_h - 2 * line_h - 12)
+                room = (tile_w - 12, tile_h - name_lines * line_h - 12)
                 picture = self._library_picture(tile["picture"], room) if tile.get("picture") else None
                 if picture is not None:
                     size = picture.get_size()
                 else:  # no picture (yet): a frame the shape of a movie still, with what it is
                     size = (room[0], min(room[1], room[0] * 9 // 16))
-                block = size[1] + 6 + 2 * line_h  # the picture with its name right under it, centered in the tile
+                block = size[1] + 6 + name_lines * line_h  # the picture with its name under it, centered in the tile
                 corner = pygame.Rect(0, 0, *size)
                 corner.midtop = (x0 + tile_w // 2, y0 + max(4, (tile_h - block) // 2))
                 if picture is not None:
@@ -1360,9 +1418,14 @@ class FaceRenderer:
                 if tile.get("kind") == "show" and picture is not None:
                     tag = small_font.render("SHOW", True, dim)
                     screen.blit(tag, tag.get_rect(topright=(corner.right - 4, corner.top + 4)))
-                lines = self._wrap_text(small_font, tile.get("title", ""), tile_w - 12)[:2]
+                lines = self._wrap_text(name_font, tile.get("title", ""), tile_w - 12)
+                if len(lines) > name_lines:
+                    lines = lines[:name_lines]
+                    while lines[-1] and name_font.size(lines[-1] + "...")[0] > tile_w - 12:
+                        lines[-1] = lines[-1][:-1]
+                    lines[-1] = lines[-1].rstrip() + "..."  # the pixel font has no "…"
                 for n, line in enumerate(lines):
-                    surface = small_font.render(line, True, text)
+                    surface = name_font.render(line, True, text)
                     screen.blit(surface, surface.get_rect(midtop=(x0 + tile_w // 2, box.bottom + 4 + n * line_h)))
         else:  # one column, so long names fit
             line_h = min(int(row_font.get_linesize() * 1.8), (body_bottom - body_top) // max(1, len(tiles)))
@@ -1488,6 +1551,155 @@ class FaceRenderer:
 
         footer = self.SMALL_FONT.render("VOICE CONTROLS ONLY", True, (58, 126, 110))
         screen.blit(footer, (pad, h - pad - footer.get_height()))
+
+    # ----------------------------------------------------------------------
+    # Captions: what BMO is saying, at the bottom of whatever is on screen (2026-11-24).
+    # ----------------------------------------------------------------------
+    CAPTION_MAX_LINES = 2  # three lines reached BMO's open mouth
+
+    def _caption_lines(self, text, width, size):
+        """The sentence in lines of whole words that fit `width` at `size`."""
+        cache = getattr(self, "_caption_fonts", None)
+        if cache is None:
+            cache = self._caption_fonts = {}
+        font = cache.get(size)
+        if font is None:
+            font = ui_font(size, bold=True)
+            if isinstance(font, OutlinedFont):  # black letters get a light edge, so they read on dark screens too
+                font = OutlinedFont(font._font, font.outline_width, config.CAPTION_EDGE)
+            cache[size] = font
+        lines, line = [], ""
+        for word in str(text).split():
+            trial = f"{line} {word}".strip()
+            if line and font.size(trial)[0] > width:
+                lines.append(line)
+                line = word
+            else:
+                line = trial
+        if line:
+            lines.append(line)
+        return font, lines
+
+    def _mouth_bottom(self):
+        """The lowest pixel any mouth shape reaches (the widest-open one), for keeping captions below it."""
+        cached = getattr(self, "_mouth_bottom_cache", None)
+        key = (tuple(self.MOUTH_POSE), self._app._screen.get_size())
+        if not cached or cached[0] != key:
+            place = self.MOUTH_FRAMES[0].get_rect(center=self.MOUTH_POSE).topleft
+            bottom = max(frame.get_bounding_rect().move(place).bottom for frame in self.MOUTH_FRAMES)
+            cached = self._mouth_bottom_cache = (key, bottom)
+        return cached[1]
+
+    def _draw_caption(self, text, started=None, now=None):
+        """Black letters with no background, below BMO's open mouth (2026-11-24). A long sentence shows two lines at
+        a time, turning the page at about his talking speed (config.CAPTION_WORDS_PER_SECOND), so nothing is cut."""
+        screen = self._app._screen
+        w, h = screen.get_width(), screen.get_height()
+        inset_x, inset_bottom = int(w * INDICATOR_INSET), int(h * 0.06)  # inside a tube's rounded corners
+        width = w - 2 * inset_x
+        try:
+            room = h - inset_bottom - (self._mouth_bottom() + max(4, h // 120))
+        except Exception:
+            room = h // 4
+        sized = getattr(self, "_caption_size", None)
+        if not sized or sized[0] != (w, h, room):
+            size = max(12, h // 30)
+            while size > max(10, h // 48) and ui_font(size, bold=True).get_linesize() * self.CAPTION_MAX_LINES > room:
+                size -= 1
+            sized = self._caption_size = ((w, h, room), size)
+        font, lines = self._caption_lines(text, width - 24, sized[1])
+        pages = [lines[i:i + self.CAPTION_MAX_LINES] for i in range(0, len(lines), self.CAPTION_MAX_LINES)] or [[]]
+        page = 0
+        if len(pages) > 1 and started is not None:
+            said = max(0.0, (time.monotonic() if now is None else now) - started) * float(config.CAPTION_WORDS_PER_SECOND)
+            shown = 0
+            for page, words in enumerate(len(" ".join(p).split()) for p in pages):
+                shown += words
+                if said < shown:
+                    break
+        lines = pages[page]
+        line_h = font.get_linesize()
+        top = h - inset_bottom - line_h * (self.CAPTION_MAX_LINES if len(pages) > 1 else len(lines))
+        for i, line in enumerate(lines):
+            surface = font.render(line, False, tuple(config.CAPTION_COLOR))
+            screen.blit(surface, surface.get_rect(midtop=(w // 2, top + i * line_h)))
+
+    # ----------------------------------------------------------------------
+    # Falling asleep (2026-11-24): "go to sleep" closes his eyes slowly and Zzz's float up before standby.
+    # ----------------------------------------------------------------------
+    # How shut his eyes are over time: they close slowly, open a little once (one last droopy try), then shut.
+    # The round eyes just get flatter: the half-open picture made him look cross-eyed (2026-11-24).
+    SLEEP_EYES = ((0.0, 0.0), (0.2, 0.0), (0.9, 0.8), (1.1, 0.55), (1.45, 1.0))  # the whole goodbye is 3 s
+    ZZZ_START, ZZZ_EVERY, ZZZ_LIFE = 1.45, 0.45, 1.4
+    ZZZ_COLOR = (2, 22, 26)  # the eyes' near-black
+
+    def _sleepiness(self, elapsed):
+        points = self.SLEEP_EYES
+        for (t0, a), (t1, b) in zip(points, points[1:]):
+            if elapsed < t1:
+                return a + (b - a) * max(0.0, elapsed - t0) / (t1 - t0)
+        return points[-1][1]
+
+    def _render_falling_asleep(self, elapsed):
+        screen = self._app._screen
+        screen.fill(self.BACKGROUND_COLOR)
+        shut = self._sleepiness(elapsed)
+        for opened, closed, pose in ((self.LEFT_EYE_OPEN, self.LEFT_EYE_CLOSED, self.LEFT_EYE_POSE),
+                                     (self.RIGHT_EYE_OPEN, self.RIGHT_EYE_CLOSED, self.RIGHT_EYE_POSE)):
+            if shut >= 1.0:
+                screen.blit(closed, opened.get_rect(center=pose))
+                continue
+            w, h = opened.get_size()
+            flat = pygame.transform.smoothscale(opened, (w, max(2, int(round(h * (1.0 - 0.9 * shut))))))
+            screen.blit(flat, flat.get_rect(center=pose))
+        self.current_mouth_frame = 1
+        screen.blit(self.MOUTH_FRAMES[1], self.MOUTH_FRAMES[0].get_rect(center=self.MOUTH_POSE))
+        self._draw_zzz(elapsed)
+
+    # A Z as pixel art, like the corner symbol: crisp at any size (the font's Z, outlined and enlarged, looked blobby).
+    _Z = ("XXXXXXX",
+          "XXXXXXX",
+          "....XX.",
+          "...XX..",
+          "..XX...",
+          ".XX....",
+          "XXXXXXX",
+          "XXXXXXX")
+
+    def _z_picture(self, pixel):
+        cache = getattr(self, "_z_pictures", None)
+        if cache is None:
+            cache = self._z_pictures = {}
+        if pixel not in cache:
+            art = pygame.Surface((len(self._Z[0]) * pixel, len(self._Z) * pixel), pygame.SRCALPHA)
+            for y, row in enumerate(self._Z):
+                for x, cell in enumerate(row):
+                    if cell == "X":
+                        art.fill(self.ZZZ_COLOR, (x * pixel, y * pixel, pixel, pixel))
+            cache[pixel] = art
+        return cache[pixel]
+
+    def _draw_zzz(self, elapsed):
+        """Z's rise from beside his right eye, growing and drifting up and to the right, fading near the top."""
+        if elapsed < self.ZZZ_START:
+            return
+        screen = self._app._screen
+        h = screen.get_height()
+        x0 = self.RIGHT_EYE_POSE[0] + self.RIGHT_EYE_OPEN.get_width() * 0.6
+        y0 = self.RIGHT_EYE_POSE[1] - self.RIGHT_EYE_OPEN.get_height() * 0.3
+        smallest, biggest = max(1, h // 200), max(2, h // 64)
+        n = 0
+        while self.ZZZ_START + n * self.ZZZ_EVERY <= elapsed:
+            age = elapsed - (self.ZZZ_START + n * self.ZZZ_EVERY)
+            if age < self.ZZZ_LIFE:
+                share = age / self.ZZZ_LIFE
+                pixel = int(round(smallest + (biggest - smallest) * share))  # small to big as it rises
+                letter = self._z_picture(pixel).copy()
+                letter.set_alpha(int(255 * min(1.0, 4 * (1 - share))))  # fades over its last quarter
+                x = x0 + share * h * 0.20
+                y = y0 - share * h * 0.28
+                screen.blit(letter, letter.get_rect(center=(int(x), int(y))))
+            n += 1
 
     # ----------------------------------------------------------------------
     # Normal Bemo face.
@@ -1712,6 +1924,11 @@ class FaceRenderer:
             self._stop_external_saver()
             self._saver_started = None
             self._render_model_switch(status, now)
+        elif status.get("falling_asleep") is not None:
+            self._reset_crt_static_refresh(now)
+            self._stop_external_saver()
+            self._saver_started = None
+            self._render_falling_asleep(now - float(status["falling_asleep"]))
         elif status.get("library"):
             self._reset_crt_static_refresh(now)
             self._stop_external_saver()
@@ -1736,12 +1953,16 @@ class FaceRenderer:
             self._reset_crt_static_refresh(now)
             self._stop_external_saver()
             self._saver_started = None
-            if getattr(self, "_music_notes", None) is None:
-                from systems.music_screen import Notes
-                self._music_notes = Notes()
-            screen = self._app._screen
-            self._music_notes.update(dt, screen.get_width(), screen.get_height())
-            self._music_notes.draw(screen)
+            if status.get("radio"):  # the radio (2026-11-24): its pixel radio, with the notes coming out of it
+                from systems import radio_screen
+                radio_screen.render(self, status["radio"], now, dt)
+            else:
+                if getattr(self, "_music_notes", None) is None:
+                    from systems.music_screen import Notes
+                    self._music_notes = Notes()
+                screen = self._app._screen
+                self._music_notes.update(dt, screen.get_width(), screen.get_height())
+                self._music_notes.draw(screen)
         elif idle_due:
             self._reset_crt_static_refresh(now)
             self._render_idle_backend(dt, now)
@@ -1754,6 +1975,9 @@ class FaceRenderer:
             self._saver_started = None
             self._render_face()
             self._draw_indicator(status.get("indicator"), now)
+
+        if status.get("caption") and display_mode != "text" and not switch_visible and not idle_due:
+            self._draw_caption(status["caption"], status.get("caption_started"), now)
 
         if hasattr(self._app, "present"):
             self._app.present()

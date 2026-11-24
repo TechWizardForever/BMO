@@ -2,7 +2,7 @@
 
 BMO from Adventure Time, living on your computer. You say "Hey BMO" and he talks back. Everything runs on your
 own machine: no cloud, no account, and nothing you say ever leaves the PC, except a town name when you ask for its
-weather.
+weather, or the kind of radio station you ask for.
 
 This is a fan project. It's free and non-commercial, and it has nothing to do with Cartoon Network or anyone
 behind Adventure Time. BMO's name and look belong to them.
@@ -27,6 +27,8 @@ He can also:
 - play your music from the Music folder ("shuffle my music", "next song", "turn down the music", "stop the music").
   "Show my music" puts your songs in a carousel, A to Z by artist, and music notes bounce around the screen while
   one plays. No music comes with him either
+- play internet radio ("play jazz radio", "put on NPR", "next station", "save this station"), with a little pixel
+  radio on his screen and music notes popping out of it
 - show your movies on his screen ("show my movies"), so you can scroll through them and say "play number 3", or
   your games as a carousel ("show my games") that you can flip through by voice or with a controller
 - sort the games, movies and music in your Downloads folder or on a USB stick into the right places ("sort my

@@ -37,6 +37,7 @@ SUBJECT_PHRASES = {
     "Timers and reminders": ("timer commands", "reminder commands", "help with timers", "alarm commands"),
     "Games": ("game commands", "help with games"),
     "Music": ("music commands", "help with music", "song commands", "what can I say about my music"),
+    "Radio": ("radio commands", "help with the radio", "station commands", "what can I say about the radio"),
     "Projects": ("project commands", "what can i say about my projects", "help with my projects", "commands for my projects"),
     "3D parts": ("3D commands", "3d parts commands", "help with 3D printing", "part commands"),
     "Sound": ("sound commands", "volume commands"),

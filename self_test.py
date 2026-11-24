@@ -133,19 +133,19 @@ def main():
     with tempfile.TemporaryDirectory(prefix="bemo-interface-test-") as tmp:
         settings_path = Path(tmp) / "interface.json"
         interface = InterfaceSettings(settings_path, default_display_mode="face", default_tts_enabled=True)
-        assert interface.status() == {"display_mode": "face", "tts_enabled": True}
+        assert interface.status() == {"display_mode": "face", "tts_enabled": True, "captions": False}
         assert interface.set_tts_enabled(False) is True  # rejected in Face mode
-        assert interface.status() == {"display_mode": "face", "tts_enabled": True}
+        assert interface.status() == {"display_mode": "face", "tts_enabled": True, "captions": False}
         assert interface.set_display_mode("text") == "text"
         assert interface.set_tts_enabled(False) is False
-        assert interface.status() == {"display_mode": "text", "tts_enabled": False}
+        assert interface.status() == {"display_mode": "text", "tts_enabled": False, "captions": False}
         assert interface.set_display_mode("face") == "face"
-        assert interface.status() == {"display_mode": "face", "tts_enabled": True}
+        assert interface.status() == {"display_mode": "face", "tts_enabled": True, "captions": False}
         # A new process/session ignores the previous runtime state and starts clean.
         interface.set_display_mode("text")
         interface.set_tts_enabled(False)
         reloaded = InterfaceSettings(settings_path, default_display_mode="face", default_tts_enabled=True)
-        assert reloaded.status() == {"display_mode": "face", "tts_enabled": True}
+        assert reloaded.status() == {"display_mode": "face", "tts_enabled": True, "captions": False}
         final = json.loads(settings_path.read_text(encoding="utf-8"))
         assert final["display_mode"] == "face" and final["tts_enabled"] is True
         assert final["startup_policy"] == "face-tts-on"

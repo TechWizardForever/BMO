@@ -111,6 +111,8 @@ def _episode_phrase(said: str) -> str:
     """'the first episode of jimmy neutron' / 'episode 3 of season 2 of jimmy neutron' / 'season 2 of jimmy
     neutron' -> 'jimmy neutron season N episode N' (live 2026-10-20: "play the first episode of Jimmy Neutron")."""
     said = re.sub(r"\bs ?(\d{1,2}) ?e ?(\d{1,3})\b", r"season \1 episode \2", said)  # "s2e3", "s 2 e 3"
+    # "the next episode of jimmy neutron": the show, carried on from the last one watched (2026-11-24)
+    said = re.sub(r"^(?:the )?next episode (?:of|from) ", "", said)
     found = re.match(r"^(?:the )?(\w+) episode (?:of season (\w+) )?(?:of|from) (.+)$", said)
     if found and _number(found.group(1)):
         return f"{found.group(3)} season {found.group(2) or 1} episode {found.group(1)}"
@@ -441,6 +443,18 @@ def play_request(text: str) -> str | None:
         return None
     what = _PLAY_TAIL.sub("", _FROM_START.sub("", found.group("what")))
     return what or None
+
+
+_WHAT_ON = re.compile(r"^(?:what(?: is|s) (?:this|playing|on|this playing|on now)|what am i watching|what are we watching|"
+                      r"what (?:movie|show|episode|film|cartoon) is (?:this|that|on|playing)|"
+                      r"whats this (?:movie|show|episode|film)|what (?:episode|season) (?:is this|am i on|are we on)|"
+                      r"which (?:episode|movie|show) is this|whats the name of this (?:movie|show|episode))$")
+
+
+def what_on_request(text: str) -> bool:
+    """'what am I watching?' / 'what's playing?' / 'what episode is this?' (2026-11-24 command check)."""
+    from systems.media_phrases import first
+    return bool(first(text, _WHAT_ON.match))
 
 
 def from_start(text: str) -> bool:

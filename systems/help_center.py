@@ -18,6 +18,7 @@ SUBJECT_WORDS = {
     "Movies and shows": ("movies and shows", "movies", "movie", "shows", "show", "tv", "tv shows", "films", "film", "videos", "video", "watching"),
     "Games": ("games", "game", "gaming", "video games"),
     "Music": ("music", "songs", "song", "my music", "tunes", "playlist", "mp3"),
+    "Radio": ("radio", "the radio", "radio station", "radio stations", "station", "stations", "internet radio"),
     "Downloads and USB sticks": ("downloads and usb sticks", "downloads", "download", "usb sticks", "usb stick", "usb"),
     "Timers and reminders": ("timers and reminders", "timers", "timer", "reminders", "reminder", "alarms", "alarm"),
     "Remembering things": ("remembering things", "remembering", "remember", "memory", "notes"),

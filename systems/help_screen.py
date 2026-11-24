@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pygame
 
+import config
+
 from systems.weather_screen import HEAD, TEXT, WARM, _box, _frame, _text, _wrapped
 
 
@@ -49,16 +51,41 @@ def _render_subject(renderer, lib, now, fonts):
         _box(screen, rect)
         room = rect.width - 2 * pad
         y = rect.top + pad
-        for row in _wrapped(row_font, tile["data"]["say"], room, 2):
-            y = _text(screen, row_font, row, HEAD, topleft=(rect.left + pad, y)).bottom
+        say_font, size = row_font, row_font.get_height()
+        while len(_wrapped(say_font, tile["data"]["say"], room, 99)) > 2 and size > _floor(renderer):
+            size -= 1  # a long list of ways to say it: smaller letters, not cut words
+            say_font = _smaller_font(renderer, size)
+        for row in _wrapped(say_font, tile["data"]["say"], room, 2):
+            y = _text(screen, say_font, row, HEAD, topleft=(rect.left + pad, y)).bottom
         y += 2
         # The larger text when it all fits, for a CRT; the small one for the long entries.
         font = small_font
         if len(_wrapped(row_font, tile["data"]["does"], room, 99)) * row_font.get_linesize() <= rect.bottom - pad - y:
             font = row_font
+        else:
+            # Still too long in the small letters (bigger lettering, 2026-11-24): smaller ones, never cut words.
+            size = small_font.get_height()
+            while (len(_wrapped(font, tile["data"]["does"], room, 99)) * font.get_linesize() > rect.bottom - pad - y
+                   and size > _floor(renderer)):
+                size -= 1
+                font = _smaller_font(renderer, size)
         lines = max(1, (rect.bottom - pad - y) // font.get_linesize())
         for row in _wrapped(font, tile["data"]["does"], room, lines):
             y = _text(screen, font, row, TEXT, topleft=(rect.left + pad, y)).bottom
+
+
+def _floor(renderer):
+    return max(8, renderer._app.SCREEN_HEIGHT // 60)
+
+
+def _smaller_font(renderer, size):
+    cache = getattr(renderer, "_help_small_fonts", None)
+    if cache is None:
+        cache = renderer._help_small_fonts = {}
+    if size not in cache:
+        from systems.render import ui_font
+        cache[size] = ui_font(size / max(0.1, float(getattr(config, "UI_FONT_SCALE", 1.0))))
+    return cache[size]
 
 
 def render(renderer, lib, now):

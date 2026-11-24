@@ -105,6 +105,15 @@ class State(Enum):
 
 
 
+class _Caption:
+    """Goes down the audio queue just before a sentence's sound, so captions change as that sentence starts playing."""
+
+    __slots__ = ("text",)
+
+    def __init__(self, text):
+        self.text = text
+
+
 class _StreamingSpeechPipeline:
     """Ollama text -> persistent Piper voice -> bounded live PCM audio pipeline.
 
@@ -202,6 +211,7 @@ class _StreamingSpeechPipeline:
                         if self._stop_requested():
                             break
                         if first_pcm:
+                            self._put_audio(_Caption(str(item)))
                             self.chat._tracer().mark("first_audio")
                             logger.info(
                                 "TTS utterance {} first PCM in {:.2f}s ({} words)",
@@ -241,6 +251,9 @@ class _StreamingSpeechPipeline:
                     break
                 if self.cancelled.is_set() or not self.chat.interface_settings.tts_enabled:
                     continue
+                if isinstance(item, _Caption):
+                    self.chat._set_caption(item.text)
+                    continue
 
                 if stream is None:
                     sample_rate = int(item.sample_rate)
@@ -279,6 +292,7 @@ class _StreamingSpeechPipeline:
             logger.exception("Live PCM audio playback failed")
             self.cancelled.set()
         finally:
+            self.chat._set_caption("")
             if stream is not None:
                 try:
                     stream.stop_stream()
@@ -372,6 +386,7 @@ class Chat:
         self._display_log: list[dict[str, str]] = []
         self._live_user_text = ""
         self._live_assistant_text = ""
+        self._caption_text = ""
 
         self.desktop_idle_monitor = DesktopIdleMonitor(query_interval_seconds=0.25)
 
@@ -587,6 +602,10 @@ class Chat:
         status["library"] = library_view.snapshot() if library_view is not None else None
         status["indicator"] = self._indicator()
         status["music"] = self._music_on_screen()
+        status["radio"] = getattr(self, "_music_station", None) if status["music"] else None
+        status["caption"] = (getattr(self, "_caption_text", "") if self.interface_settings.captions else "")
+        status["caption_started"] = getattr(self, "_caption_started", None)
+        status["falling_asleep"] = getattr(self, "_falling_asleep_since", None)
         status["idle_seconds"] = self.desktop_idle_monitor.idle_seconds(internal_idle)
         return status
 
@@ -720,6 +739,12 @@ class Chat:
         with self._visual_lock:
             self._live_user_text = str(text or "").strip()
             self._live_assistant_text = ""
+
+    def _set_caption(self, text):
+        """The sentence BMO is saying now, for captions on his screen (only shown when captions are on)."""
+        with self._visual_lock:
+            self._caption_text = str(text or "").strip()
+            self._caption_started = time.monotonic()
 
     def _set_live_assistant_text(self, text: str) -> None:
         with self._visual_lock:
@@ -1176,6 +1201,7 @@ class Chat:
             return {}
         if isinstance(reply, dict) and "playing" in reply:
             self._music_now = bool(reply["playing"])  # the screen knows straight away
+            self._music_station = reply.get("station") if reply.get("radio") else None  # the radio's screen
         return reply if isinstance(reply, dict) else {}
 
     def _music_playing(self):
@@ -1213,6 +1239,8 @@ class Chat:
                                    else f"Playing your music, starting with {reply.get('song')}.")
         if asked == "what":
             state = self._music("status")
+            if not state.get("song") and self._player().running():
+                return False  # a movie's on: "what's playing" is the movie's (_handle_media_command)
             if not state.get("ok"):
                 return self._say_local(command, self._MUSIC_DOWN)
             return self._say_local(command, f"This is {state['song']}." if state.get("song") else "No music is playing.")
@@ -1229,6 +1257,73 @@ class Chat:
         self.state = State.READY  # the music pausing or carrying on is the answer
         return True
 
+    def _radio_play(self, command, stations, said):
+        """Hand the stations to the music player (the first one plays); `said` is what BMO says, with {name}."""
+        from systems import radio
+        reply = self._music("play", paths=[s["url"] for s in stations], stations=stations)
+        if not reply.get("ok"):
+            return self._say_local(command, self._MUSIC_DOWN)
+        radio.Stations(config.RADIO_STATE_PATH).played(stations)
+        return self._say_local(command, said.format(name=stations[0]["name"]))
+
+    def _handle_radio_command(self, command):
+        """Internet radio (2026-11-24, systems/radio.py): 'play jazz radio', 'put on NPR', 'play the radio' (the last
+        station), 'next station', 'what station is this?', 'save this station', 'play my stations', 'radio off'.
+        The music player plays it, so "Hey BMO" quiets it and going to sleep turns it off, as with music."""
+        if not getattr(config, "ENABLE_RADIO", True):
+            return False
+        from systems import radio
+        asked = radio.request(command)
+        if asked is None:
+            return False
+        what, about = asked
+        stations = radio.Stations(config.RADIO_STATE_PATH)
+        state = self._music("status") if what in ("next", "previous", "what", "save", "off", "pause", "resume") else {}
+        on_radio = bool(state.get("radio"))
+        if what == "play":
+            self._say_local(command, f"Tuning in {about}.")
+            try:
+                found = radio.search(about)
+            except Exception as exc:
+                logger.warning("Radio search failed: {}", type(exc).__name__)
+                return self._say_local(command, "I couldn't reach the station list. Is the internet on?")
+            if not found:
+                return self._say_local(command, f"I couldn't find a {about} station.")
+            return self._radio_play(command, found, "This is {name}.")
+        if what == "last":
+            last = stations.last()
+            if not last:
+                return self._say_local(command, "What kind of radio? Say a style or a station, like play jazz radio, "
+                                                "or play NPR.")
+            return self._radio_play(command, last, "Here's {name}.")
+        if what == "saved":
+            saved = stations.saved()
+            if not saved:
+                return self._say_local(command, "You haven't saved any stations yet. While one plays, say save this "
+                                                "station.")
+            return self._radio_play(command, saved, "Your stations. First, {name}.")
+        if not state:
+            return self._say_local(command, self._MUSIC_DOWN)
+        if not on_radio:
+            return self._say_local(command, "The radio isn't on. Say play the radio, or a style like jazz radio.")
+        if what == "what":
+            station = state.get("station") or {}
+            about_it = f", {station['about'].lower()}" if station.get("about") else ""
+            return self._say_local(command, f"This is {station.get('name', 'a station')}{about_it}.")
+        if what == "save":
+            station = state.get("station") or {}
+            fresh = stations.save(station)
+            return self._say_local(command, f"Saved {station.get('name')}. Say play my stations to hear your saved ones."
+                                   if fresh else f"{station.get('name')} is already saved.")
+        if what == "off":
+            self._music("stop")
+            return self._say_local(command, "Radio off.")
+        reply = self._music(what)
+        if what in ("next", "previous"):
+            return self._say_local(command, f"{reply.get('song')}." if reply.get("ok") else "There's no other station.")
+        self.state = State.READY  # pausing or carrying on is the answer
+        return True
+
     def _handle_media_command(self, command):
         """'play Spirited Away', 'play Jimmy Neutron season 2 episode 3', and while a video plays: 'pause',
         'resume', 'next episode', 'skip ahead 30 seconds', 'stop the movie' (systems/media.py)."""
@@ -1241,6 +1336,10 @@ class Chat:
         if running:
             videos = media.library(config.MEDIA_DIRS)
             titles = {media.short_show(v.show) for v in videos if v.show} | {v.title for v in videos}
+        if running and media.what_on_request(command):
+            now = player.now_playing()
+            spoken = media.describe(now[0]).spoken if now else None
+            return self._say_local(command, f"This is {spoken}." if spoken else "I can't tell what's on right now.")
         control = media.control_command(command, titles) if running else None
         if control:
             method, seconds = control
@@ -3879,6 +3978,9 @@ class Chat:
             prior_state = self.state
             self.state = State.RESPONDING
             self.speak(f"{self._profile_spoken_name(profile_name)} here. I'm loaded and ready.")
+            heads_up = getattr(config, "SLOW_BRAIN_HEADS_UP", {}).get(profile_name)
+            if heads_up:
+                self.speak(heads_up)
             self.state = State.THINKING if prior_state is not State.READY else State.READY
             if getattr(config, "WARM_PROMPT_AFTER_SWITCH", True):
                 try:
@@ -4762,7 +4864,7 @@ class Chat:
                         names = ", ".join(item.get("title", "") for item in candidates[:4])
                         response = f"I found more than one possible match: {names}. Say the more specific game name."
                     else:
-                        response = f"I couldn't find {query} in your movies or games."
+                        response = f"I couldn't find {query} in your movies, music or games."
             except SupervisorError:
                 response = "The supervisor is not responding."
             self.state = State.RESPONDING
@@ -6172,8 +6274,44 @@ class Chat:
 
         return False
 
+    # "Captions" and what Whisper may write for it ("captains", "capsions", "cap shuns"), with or without "closed".
+    _CAPTION_WORD = r"(?:closed )?(?:captions?|captains?|captain s|caption s|capsions?|cap ?shuns?|cap shins?|subtitles?|sub titles?)"
+    _CAPTIONS_ON = re.compile(
+        rf"^(?:(?:turn|switch|put|flip) on (?:the |your |my )?{_CAPTION_WORD}(?: mode)?"
+        rf"|(?:turn|switch|put|flip) (?:the |your |my )?{_CAPTION_WORD}(?: mode)? (?:back )?on"
+        rf"|{_CAPTION_WORD}(?: mode)? (?:back )?on|(?:show|start|enable|use) (?:the |your |my )?{_CAPTION_WORD}(?: mode)?"
+        rf"|{_CAPTION_WORD} mode|caption (?:yourself|what you say)"
+        rf"|show (?:me )?(?:what|the words) you(?: re| are)? say(?:ing)?(?: on (?:the|your) screen)?)$")
+    _CAPTIONS_OFF = re.compile(
+        rf"^(?:(?:turn|switch|put|flip) off (?:the |your |my )?{_CAPTION_WORD}(?: mode)?"
+        rf"|(?:turn|switch|put|flip) (?:the |your |my )?{_CAPTION_WORD}(?: mode)? off"
+        rf"|{_CAPTION_WORD}(?: mode)? off|(?:hide|stop|disable|no|no more|close|clothes) (?:the |your |my )?{_CAPTION_WORD}(?: mode)?"
+        rf"|stop showing (?:what|the words) you(?: re| are)? say(?:ing)?)$")
+
+    def _handle_captions_command(self, normalized):
+        """Captions (2026-11-24): what BMO says, on his screen while he says it. Saved across restarts."""
+        phrase = normalized.strip(" .")
+        if re.search(r"\bsub ?titles?\b", phrase) and self._player().running():
+            return None  # with a movie on, "subtitles" means the movie's own, not BMO's captions
+        if self._CAPTIONS_ON.match(phrase):
+            on = True
+        elif self._CAPTIONS_OFF.match(phrase):
+            on = False
+        else:
+            return None
+        self.interface_settings.set_captions(on)
+        return ("Captions on. What I say will show at the bottom of my screen." if on
+                else "Captions off.")
+
     def _handle_interface_command(self, command):
         normalized = self._normalize_command_text(command)
+
+        response = self._handle_captions_command(normalized)
+        if response:
+            self.state = State.RESPONDING
+            self.speak(response)
+            self._archive_local_exchange(command, response)
+            return True
 
         if normalized in {
             "text mode", "text only mode", "switch to text mode", "switch to text only mode",
@@ -6240,7 +6378,8 @@ class Chat:
             info = self.interface_settings.status()
             response = (
                 f"Display mode is {info['display_mode']}. "
-                f"TTS is {'on' if info['tts_enabled'] else 'off'}."
+                f"TTS is {'on' if info['tts_enabled'] else 'off'}. "
+                f"Captions are {'on' if info.get('captions') else 'off'}."
             )
             self.state = State.RESPONDING
             self.speak(response)
@@ -6478,11 +6617,17 @@ class Chat:
             self._close_voice_session()
             self.state = State.RESPONDING
             self.speak(config.VOICE_SLEEP_ACKNOWLEDGEMENT)
+            # His eyes close slowly and Zzz's float up before the window goes (2026-11-24, systems/render.py).
+            with self._visual_lock:
+                self._falling_asleep_since = time.monotonic()
+            self.stop_event.wait(float(config.SLEEP_ANIMATION_SECONDS))
             try:
                 if self.supervisor is not None:
                     self.supervisor.stop_bemo()
             except SupervisorError:
                 logger.warning("Supervisor unreachable; staying up with the conversation closed")
+                with self._visual_lock:
+                    self._falling_asleep_since = None  # still awake after all: his eyes open again
             return True
 
         # Before the timers, which would take "timer commands" for a timer with no time.
@@ -6555,6 +6700,10 @@ class Chat:
             response = compact_spoken_summary()
             self.speak(response)
             self._archive_local_exchange(command, response)
+            return True
+
+        # The radio (2026-11-24): every radio command says "radio" or "station", so it goes first.
+        if self._handle_radio_command(command):
             return True
 
         # The movie and game libraries (2026-10-28): before the player and the games, which also hear "play".
@@ -7736,6 +7885,9 @@ class Chat:
             if name == "show_project_diff":
                 return pm.git_diff()
             if name == "run_project_check":
+                if not self._project_check_approved(str(arguments.get("kind", ""))):
+                    return ("Not run: the owner didn't approve running the project's code this time. The files are "
+                            "saved; the check runs when they ask for it.")
                 return pm.run_project_check(
                     arguments["kind"], config.PROJECT_TOOL_CHECK_TIMEOUT_SECONDS
                 )
@@ -7743,6 +7895,24 @@ class Chat:
         except Exception as exc:
             logger.exception("Project tool {} failed", name)
             return f"Tool error: {type(exc).__name__}: {exc}"
+
+    def _project_check_approved(self, kind):
+        """Tests and npm scripts run the project's code, including files the brain just wrote without asking
+        (new files are saved freely), so a check asks first, like any other program (review 2026-11-24).
+        One spoken yes covers the project's checks for PROJECT_CHECK_OK_SECONDS; compiling runs no code."""
+        if re.sub(r"[^a-z0-9]+", "-", kind.strip().lower()).strip("-") == "python-compile":
+            return True
+        slug = self.project_manager.active_slug
+        approved = getattr(self, "_project_check_ok", None)
+        if approved and approved["slug"] == slug and time.monotonic() < approved["until"]:
+            return True
+        name = self.project_manager._read_metadata(slug).get("name") or slug
+        question = f"I'd like to run the tests in the {name} project. That runs its code. Say Hey BMO, yes, or just say no."
+        if not self._confirm_by_voice(question, tag="PROJECT_CHECK_APPROVAL", target=f"{slug}:{kind}",
+                                      timeout=float(config.GUI_APPROVAL_TIMEOUT_SECONDS)):
+            return False
+        self._project_check_ok = {"slug": slug, "until": time.monotonic() + float(config.PROJECT_CHECK_OK_SECONDS)}
+        return True
 
     def _save_code_blocks(self, request, response):
         """Save the files Coding wrote as code blocks; return a sentence saying where ('' if none).

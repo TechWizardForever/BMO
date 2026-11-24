@@ -23,6 +23,45 @@ TARGET_DESKTOP = "xfce"
 LIGHTDM_CONFIG_DIR = Path("/etc/lightdm")
 LIGHTDM_BEMO_CONFIG = LIGHTDM_CONFIG_DIR / "lightdm.conf"
 LIGHTDM_BEMO_BACKUP = LIGHTDM_CONFIG_DIR / "lightdm.conf.pre-bemo"
+LIGHTDM_DROPIN_DIR = Path("/etc/systemd/system/lightdm.service.d")
+GRAPHICS_WAIT_DROPIN = LIGHTDM_DROPIN_DIR / "wait-for-graphics.conf"
+GRAPHICS_WAIT_SCRIPT = Path("/usr/local/libexec/bemo-wait-for-graphics")
+
+# The login screen can start on the firmware's stand-in display before the real graphics driver
+# has loaded. When the driver arrives (7 s later on a Ryzen 5700U), Xorg aborts, the autologin
+# session dies with it, and LightDM shows the password screen, because it autologins only once
+# per boot. LightDM therefore waits until each display device's screen is ready. Waiting only for
+# the driver to attach was not enough: on 2026-11-24 LightDM started 0.07 s before the screen.
+# The script is root-owned under /usr/local: code in the user's home must never run as root.
+GRAPHICS_WAIT_SCRIPT_TEXT = """#!/bin/sh
+# Written by BMO's installer (mint_appliance.py). LightDM runs this before it starts.
+# Waits up to 20 s until every PCI display device with an installed driver has its screen device
+# (drm/card*), then lets udev finish handling it: Xorg also aborts on a card added while it starts.
+sys="${BEMO_SYSFS:-/sys}"
+tries="${BEMO_GRAPHICS_WAIT_TRIES:-100}"
+grep -qw nomodeset "${BEMO_CMDLINE:-/proc/cmdline}" 2>/dev/null && exit 0
+i=0
+while [ "$i" -lt "$tries" ]; do
+  waiting=""
+  for dev in "$sys"/bus/pci/devices/*; do
+    case "$(cat "$dev/class" 2>/dev/null)" in
+      0x03*)
+        [ -e "$dev/driver" ] && ls -d "$dev"/drm/card* >/dev/null 2>&1 && continue
+        # No installed driver for it (or blacklisted): nothing will arrive, so don't wait.
+        [ -n "$(${BEMO_MODPROBE:-modprobe} -R "$(cat "$dev/modalias" 2>/dev/null)" 2>/dev/null)" ] && waiting=1 ;;
+    esac
+  done
+  [ -z "$waiting" ] && break
+  i=$((i + 1))
+  sleep 0.2
+done
+${BEMO_UDEVADM:-udevadm} settle --timeout=10 2>/dev/null
+exit 0
+"""
+GRAPHICS_WAIT_DROPIN_TEXT = f"""[Service]
+# Written by BMO's installer: wait for the graphics driver so autologin isn't lost to an Xorg abort.
+ExecStartPre=-{GRAPHICS_WAIT_SCRIPT}
+"""
 
 
 def parse_key_value_file(path: str | Path) -> dict[str, str]:
@@ -199,12 +238,32 @@ def configure_autologin(username: str) -> dict:
     tmp.write_text(text, encoding="utf-8")
     os.chmod(tmp, 0o644)
     os.replace(tmp, LIGHTDM_BEMO_CONFIG)
+    install_graphics_wait()
     return {
         "ok": True,
         "user": username,
         "session": session,
         "path": str(LIGHTDM_BEMO_CONFIG),
+        "graphics_wait": str(GRAPHICS_WAIT_DROPIN),
     }
+
+
+def _write_root_file(path: Path, text: str, mode: int) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.bemo.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    os.chmod(tmp, mode)
+    os.replace(tmp, path)
+
+
+def install_graphics_wait(script: Path = GRAPHICS_WAIT_SCRIPT, dropin: Path = GRAPHICS_WAIT_DROPIN) -> None:
+    _write_root_file(script, GRAPHICS_WAIT_SCRIPT_TEXT, 0o755)
+    _write_root_file(dropin, GRAPHICS_WAIT_DROPIN_TEXT, 0o644)
+    # Only the installer (already root) reloads systemd: as a normal user this pops up a password window,
+    # as the tests did on 2026-11-24. The next boot reads the new files either way.
+    if os.geteuid() == 0 and shutil.which("systemctl"):
+        subprocess.run(["systemctl", "daemon-reload"], check=False,
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def status() -> dict:
@@ -239,6 +298,7 @@ def status() -> dict:
         "autologin_user": configured_user,
         "autologin_session": configured_session,
         "autologin_config": str(LIGHTDM_BEMO_CONFIG),
+        "graphics_wait_installed": GRAPHICS_WAIT_DROPIN.is_file() and GRAPHICS_WAIT_SCRIPT.is_file(),
         "lightdm_service_enabled": active,
         "current_desktop": os.environ.get("XDG_CURRENT_DESKTOP", ""),
         "session_type": os.environ.get("XDG_SESSION_TYPE", ""),

@@ -58,7 +58,7 @@ PERSONAL_NOTES_PATH = DATA_ROOT / "memory" / "notes.json"
 BMO_CREATOR = "Tech Wizard"  # who made him: every brain is told, and he says it himself when asked
 PROJECTS_ROOT = DATA_ROOT / "projects"
 TASKS_ROOT = DATA_ROOT / "tasks"
-APP_VERSION = "supervisor-v1.35.0-music-and-a-new-game-look"
+APP_VERSION = "supervisor-v1.36.0-radio-captions-and-bigger-letters"
 
 # Raw messages stay indefinitely on disk. New sessions start with an empty
 # live prompt. Historical summary and archive hits are retrieved on recall.
@@ -207,6 +207,7 @@ FULL_BACKUP_CREATE_ZIP = True
 ENABLE_PROJECT_TOOLS = True
 PROJECT_TOOL_MAX_ROUNDS = 8
 PROJECT_TOOL_CHECK_TIMEOUT_SECONDS = 90
+PROJECT_CHECK_OK_SECONDS = 600.0  # one spoken yes lets the coding brain re-run a project's tests this long
 CODING_SPOKEN_MAX_WORDS = 24  # whole sentences only; never cut mid-sentence
 # Conversational questions to a specialist (no tools needed) are answered
 # briefly and streamed like Main. Real work turns keep their full budgets.
@@ -215,6 +216,12 @@ CODING_SPOKEN_MAX_WORDS = 24  # whole sentences only; never cut mid-sentence
 THINKING_NOTICE_SECONDS = 20.0
 THINKING_NOTICE_REPEAT_SECONDS = 150.0
 THINKING_NOTICES = ("Let me think about that one. It might take a few minutes.", "Still thinking.")
+# Said once when a brain that thinks before it talks takes over, so a two-minute silence isn't a surprise
+# (2026-11-10: the engineering brain took 2 to 13 minutes on long design questions).
+SLOW_BRAIN_HEADS_UP = {
+    "engineering": "Heads up: I think before I talk, so my answers can take a few minutes. "
+                   "For quick questions, Main is faster. Just say, switch to main.",
+}
 SPECIALIST_CHAT_NUM_PREDICT = int(os.environ.get("BEMO_SPECIALIST_CHAT_TOKENS", "320"))
 SPECIALIST_CHAT_MAX_WORDS = 35  # ~10 s of speech, ended at a sentence/line boundary
 SPECIALIST_CHAT_INSTRUCTION = (
@@ -364,6 +371,8 @@ MUSIC_DIRS = [Path(p).expanduser() for p in os.environ.get("BEMO_MUSIC_DIRS", st
 MEDIA_DIRS = [Path(p).expanduser() for p in os.environ.get("BEMO_MEDIA_DIRS", str(Path.home() / "Videos")).split(":")]
 LOG_TOOL_ARGUMENTS = False  # True logs what tools are given in full (typed text, file contents): debugging only
 MEDIA_STATE_PATH = DATA_ROOT / "media.json"
+ENABLE_RADIO = True  # internet radio by voice (systems/radio.py, 2026-11-24)
+RADIO_STATE_PATH = DATA_ROOT / "radio.json"  # the last station and the saved ones
 MEDIA_WATCH_LATER_DIR = DATA_ROOT / "watch-later"  # where the player saves its place (systems/media.py)
 LIBRARY_STILLS_DIR = DATA_ROOT / "library-stills"  # stills for the movie library (systems/library.py)
 # Vision fallback (milestone 4): MAI-UI-2B 8-bit in llama.cpp, started on first
@@ -466,9 +475,14 @@ MODEL_SWITCH_RETRO_PROGRESS_LIT_BLOCKS = 5
 MODEL_SWITCH_RETRO_PROGRESS_STEP_SECONDS = 0.11
 ENABLE_MODEL_SWITCH_MINIGAME = True  # the runner game (systems/runner_game.py)
 # BMO's own screens' lettering (systems/render.py ui_font): Silkscreen, a pixel font that ships in assets/fonts
-# (SIL Open Font License, 2026-10-27). It runs a little large, hence the scale.
-UI_FONT = "assets/fonts/Silkscreen-Regular.ttf"
-UI_FONT_SCALE = 0.85
+# (SIL Open Font License, 2026-10-27), in its bold cut since 2026-11-24.
+UI_FONT = "assets/fonts/Silkscreen-Bold.ttf"
+UI_FONT_SCALE = 1.1  # was 0.85 in thin letters; 2026-11-24: too hard to read on the CRT
+UI_TEXT_OUTLINE = (6, 18, 14)  # a dark edge around every letter on BMO's screens; None for plain letters
+UI_TEXT_OUTLINE_SHARE = 1 / 16  # its width, as a share of the letter size (at least 1 pixel)
+CAPTION_COLOR = (0, 0, 0)  # captions: black letters, no background (2026-11-24)
+CAPTION_EDGE = FACE_BACKGROUND_COLOR  # ...edged in the face's own green: unseen on the face, readable on dark screens
+CAPTION_WORDS_PER_SECOND = 2.6  # BMO's Piper voice, for turning a long caption's pages as he talks
 RUNNER_SCORES_PATH = DATA_ROOT / "runner-game.json"  # its best score and level
 
 # Lip-sync sampling. The original sprite-driven animation structure is preserved.
@@ -583,6 +597,8 @@ VOICE_WAKE_ALIASES = (
     "he'd be most", "it'd be most",
     # Parakeet tdt-0.6b-v2: "Hibimo switched to deep vision.", "Hibino mute." (tools/compare_stt_models.py 2026-10-31)
     "hibimo", "heibimo", "hebemo", "hibino",
+    # Whisper's spellings of "Hey BMO" (2026-11-24 command check; "Hibemo, stop the show." live 2026-10-20)
+    "hibemo", "heybemo", "hey bimo", "hey nemo",  # not "he be my" ("he'd be my friend") or "hey demo" ("hey, demo time")
     # The robot's name itself is now an explicit wake trigger too. Keep this
     # list narrow: do not add ordinary phrases such as bare "be more".
     "bemo", "beemo", "bmo", "be mo",
@@ -603,9 +619,16 @@ VOICE_STARTUP_READY_ANNOUNCEMENT = "Hi friend I am all ready to talk to! All don
 VOICE_QUICK_WAKE_ANNOUNCEMENT = "One sec!"
 VOICE_QUICK_WAKE_READY_ANNOUNCEMENT = "I'm ready!"
 VOICE_SLEEP_ACKNOWLEDGEMENT = "Going to sleep."
+SLEEP_ANIMATION_SECONDS = 3.0  # eyes closing and Zzz's before the window goes to standby (2026-11-24)
 # Whisper's versions too: live 2026-11-01 "go to sleep" came back "good asleep", went to the brain, and got a joke.
 VOICE_SLEEP_PHRASES = (CANONICAL_SLEEP_PHRASE, "go back to sleep", "good asleep", "go asleep", "go to asleep",
-                       "got to sleep", "good to sleep", "good sleep")
+                       "got to sleep", "good to sleep", "good sleep",
+                       # More ways to say it (2026-11-24 command check); all mean back to standby
+                       "go to bed", "time for bed", "time to sleep", "bedtime", "bed time", "nap time", "take a nap",
+                       "sleep", "sleep mode", "go to sleep now", "you can go to sleep", "you can go to sleep now",
+                       "goodnight bmo", "good night bmo", "goodnight bemo",  # not plain "good night": said to people
+                       "good night bemo", "night night", "go night night", "go to sleep bmo", "go to sleep bemo",
+                       "go to slip", "go to sheep", "go to sleeps", "go too sleep", "go two sleep")
 
 # Standby wake listener.  When the full Bemo process is stopped, the permanent
 # Supervisor loads one small speech model and waits for "Hey Bemo".  Hearing it

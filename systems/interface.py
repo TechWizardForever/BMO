@@ -3,7 +3,8 @@
 Every process start begins in Face mode with TTS enabled. Runtime voice commands
 may switch to Text mode and may disable TTS only while Text mode is active.
 The JSON file is a diagnostic snapshot of the current session, not a source of
-startup state.
+startup state, except captions (BMO's words on his screen while he talks,
+2026-11-24): someone who needs them needs them after a restart too.
 """
 from __future__ import annotations
 
@@ -21,6 +22,7 @@ class InterfaceSettings:
         self._lock = threading.RLock()
         self._display_mode = self._normalize_mode(default_display_mode)
         self._tts_enabled = bool(default_tts_enabled)
+        self._captions = self._saved_captions()
         # Face mode is never allowed to be silent. Startup defaults are written
         # immediately so stale state from a previous session cannot be restored.
         if self._display_mode == "face":
@@ -32,6 +34,12 @@ class InterfaceSettings:
         mode = str(value or "").strip().lower()
         return mode if mode in cls.VALID_DISPLAY_MODES else "face"
 
+    def _saved_captions(self) -> bool:
+        try:
+            return json.loads(self.path.read_text(encoding="utf-8")).get("captions") is True
+        except (OSError, ValueError, AttributeError):
+            return False
+
     def _save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         temp = self.path.with_suffix(self.path.suffix + ".tmp")
@@ -40,6 +48,7 @@ class InterfaceSettings:
                 "version": 2,
                 "display_mode": self._display_mode,
                 "tts_enabled": bool(self._tts_enabled),
+                "captions": bool(self._captions),
                 "startup_policy": "face-tts-on",
             }
         temp.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -59,11 +68,23 @@ class InterfaceSettings:
         with self._lock:
             return bool(self._tts_enabled)
 
+    @property
+    def captions(self) -> bool:
+        with self._lock:
+            return bool(self._captions)
+
+    def set_captions(self, enabled: bool) -> bool:
+        with self._lock:
+            self._captions = bool(enabled)
+        self._save()
+        return self.captions
+
     def status(self) -> dict:
         with self._lock:
             return {
                 "display_mode": self._display_mode,
                 "tts_enabled": bool(self._tts_enabled),
+                "captions": bool(self._captions),
             }
 
     def set_display_mode(self, mode: str) -> str:

@@ -179,10 +179,18 @@ def _frame(renderer, heading, note, hint, now, fonts):
     renderer._green_grid(now, speed=0.25)
     dx, dy = int(math.sin(now / 37.0) * 3), int(math.cos(now / 53.0) * 2)
     area = pygame.Rect(int(w * MARGIN) + dx, int(h * MARGIN) + dy, int(w * (1 - 2 * MARGIN)), int(h * (1 - 2 * MARGIN)))
-    title = _text(screen, title_font, _fitted(title_font, heading, area.width * 0.62), HEAD, topleft=area.topleft)
+    # The title wins: the note on the right gets what the title leaves, or goes when that's too little.
+    spare = area.width - title_font.size(heading)[0] - area.width // 40
+    words = str(note or "").split()
+    while words and small_font.size(" ".join(words))[0] > min(spare, area.width * 0.36):
+        words.pop()  # whole words only: "OPEN-METEO", not "OPEN-METEO 3:0"
+    note = " ".join(words)
+    if note and small_font.size(note)[0] < area.width * 0.12:
+        note = ""
+    room = area.width - (small_font.size(note)[0] + area.width // 40 if note else 0)
+    title = _text(screen, title_font, _fitted(title_font, heading, room), HEAD, topleft=area.topleft)
     if note:
-        _text(screen, small_font, _fitted(small_font, note, area.width * 0.36), DIM,
-              bottomright=(area.right, title.bottom))
+        _text(screen, small_font, note, DIM, bottomright=(area.right, title.bottom))
     line = _text(screen, small_font, hint, WARM, midbottom=(area.centerx, area.bottom))
     return pygame.Rect(area.left, title.bottom + int(h * 0.015), area.width, line.top - title.bottom - int(h * 0.03))
 
@@ -198,7 +206,9 @@ def _day_box(screen, rect, day, now, seed, span, fonts):
     top = rect.top + pad + row_font.get_linesize()
     _text(screen, small_font, day["date"], DIM, midtop=(rect.centerx, top))
     top += line
-    numbers = 3 * line + row_font.get_linesize() + 2 * pad
+    # Exactly what the numbers below use, so the picture gets the rest (bigger letters, 2026-11-24).
+    track_h, bar_h = max(2, line // 4), max(3, line // 3)
+    numbers = pad // 2 + row_font.get_linesize() + 1 + track_h + 2 + line + bar_h + 2 + line + pad // 2
     room = pygame.Rect(rect.left + pad, top, rect.width - 2 * pad, rect.bottom - top - numbers)
     draw_icon(screen, day["kind"], room, now, seed)
     y = room.bottom + pad // 2
@@ -207,16 +217,16 @@ def _day_box(screen, rect, day, now, seed, span, fonts):
     y = high.bottom + 1
     low_all, high_all = span
     if day["high"] is not None and day["low"] is not None and high_all > low_all:  # this day against the others
-        track = pygame.Rect(rect.left + pad, y, rect.width - 2 * pad, max(2, line // 4))
+        track = pygame.Rect(rect.left + pad, y, rect.width - 2 * pad, track_h)
         pygame.draw.rect(screen, (3, 16, 8), track)
         left = track.left + (day["low"] - low_all) / (high_all - low_all) * track.width
         right = track.left + (day["high"] - low_all) / (high_all - low_all) * track.width
         pygame.draw.rect(screen, WARM, (int(left), track.top, max(2, int(right - left)), track.height))
-    y += max(2, line // 4) + 2
+    y += track_h + 2
     _text(screen, small_font, _fitted(small_font, f"RAIN {dash(day['rain'], '%')}", rect.width - 2 * pad), TEXT,
           midtop=(rect.centerx, y))
     y += line
-    bar = pygame.Rect(rect.left + pad, y, rect.width - 2 * pad, max(3, line // 3))
+    bar = pygame.Rect(rect.left + pad, y, rect.width - 2 * pad, bar_h)
     _bar(screen, bar, (day["rain"] or 0) / 100.0, RAIN_BAR)
     wind = f"{dash(day['wind'])} {day['wind_from']}".strip()
     _text(screen, small_font, _fitted(small_font, f"WIND {wind}", rect.width - 2 * pad), DIM,
@@ -293,7 +303,11 @@ def _render_station(renderer, lib, now, fonts):
     left = pygame.Rect(area.left, area.top, int(area.width * 0.36), top_height)
     _box(screen, left)
     big = _big_font(renderer, h)
-    icon_height = int(top_height * 0.46)
+    # The lines under the picture come first; the picture gets what's left (the bigger letters pushed
+    # "RAIN" past the box, 2026-11-24).
+    small_line, row_line = small_font.get_linesize(), row_font.get_linesize()
+    lines_height = big.get_height() + small_line + 2 + row_line + 2 + small_line + small_line // 2 + 8
+    icon_height = max(0, min(int(top_height * 0.5), top_height - 6 - lines_height))
     icon = pygame.Rect(left.left + 4, left.top + 4, left.width - 8, icon_height)
     kind = current["kind"] if current else day.get("kind")
     draw_icon(screen, kind, icon, now, 0, night=bool(current and current.get("night")))

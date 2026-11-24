@@ -107,5 +107,21 @@ class TurnTraceTests(unittest.TestCase):
             self.assertIn(hook, chat)
 
 
+class PowerCutTests(unittest.TestCase):
+    def test_a_half_written_line_does_not_swallow_the_next_turn(self):
+        # 2026-11: two lines of the real log were runs of zero bytes left by power cuts.
+        path = Path(tempfile.mkdtemp()) / "turn-trace.jsonl"
+        clock = Clock()
+        trace = TurnTrace(path, clock=clock, wall=lambda: 1.0)
+        a_turn(trace, clock)
+        with path.open("ab") as handle:
+            handle.write(b"\x00" * 40)  # the cut: no newline at the end
+        a_turn(trace, clock)
+        lines = path.read_bytes().split(b"\n")
+        self.assertEqual(lines[-1], b"")
+        self.assertEqual(lines[1], b"\x00" * 40)
+        self.assertEqual(len([json.loads(line) for line in (lines[0], lines[2])]), 2)
+
+
 if __name__ == "__main__":
     unittest.main()

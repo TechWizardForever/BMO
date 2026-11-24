@@ -17,7 +17,11 @@ _WEATHER_QUESTION = re.compile(
     r"\b(weather|forecast)\b.*\b(today|tonight|tomorrow|now|right now|outside|this (?:week|weekend|morning|afternoon|evening)|like|going to|gonna)\b"
     r"|\b(?:is it|will it|gonna|going to)\s+(?:rain|snow|storm)\b"
     r"|\b(?:how (?:hot|cold|warm)|what(?:'s| is) the temperature)\b.*\b(outside|out there)\b"
-    r"|^\W*(?:(?:the|what(?:'s| is) the|today's|tomorrow's) )?(?:weather|forecast|radar|weather report|weather station)\W*$"
+    # Without "outside" too (2026-11-24 command check), but only as the whole question: "how hot is the sun" isn't
+    r"|^\W*how (?:hot|cold|warm|chilly) is it(?: (?:today|tonight|right now|now|going to get|gonna get|out))?\W*$"
+    r"|^\W*how (?:hot|cold|warm) (?:will|is) it (?:get|going to get|gonna get)(?: today| tomorrow)?\W*$"
+    r"|^\W*what(?:'s| is) the temp(?:erature)?(?: (?:today|tonight|right now|now|tomorrow))?\W*$"
+    r"|^\W*(?:(?:the|what(?:'s|s| is) the|today's|tomorrow's) )?(?:weather|forecast|radar|weather report|weather station)\W*$"
     r"|\bhow(?:'s| is) the weather\b|\bweather (?:report|forecast|update)\b"
     r"|\b(?:what(?:'s| is)|how(?:'s| is)) the (?:weather|forecast) (?:in|for|at) [a-z]"
     r"|^\W*(?:the )?(?:weather|forecast) (?:in|for|at) [a-z]"

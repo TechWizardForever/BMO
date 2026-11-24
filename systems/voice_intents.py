@@ -64,6 +64,12 @@ def canonical(text: str, *, mishearings: bool = True) -> str:
     for heard, meant in (MISHEARINGS if mishearings else ()):
         words = re.sub(rf"\b{re.escape(heard)}\b", meant, words)
     words = re.sub(r"\s+(?:please|now|thanks|thank you)$", "", words)
+    # Whisper's "of" for "off" (2026-11-24 command check: "radio of", "turn the music of")
+    words = re.sub(r"\b(turn|switch|shut|turned|switched) of\b", r"\1 off", words)
+    words = re.sub(r"\b(radio|captions?|subtitles?|music|it|that|this|them|tv|sound|lights?|alerts?|timer) of$", r"\1 off",
+                   words)
+    # ...and "set a time for 5 minutes", the r gone, only with a length of time after it
+    words = re.sub(r"^set (a|the) time (for \w+ (?:seconds?|minutes?|hours?)\b)", r"set \1 timer \2", words)
     return words.strip(" .")
 
 

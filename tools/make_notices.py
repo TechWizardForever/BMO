@@ -39,9 +39,9 @@ name and look belong to them.
 
 | Part | Where it comes from | Licence |
 |---|---|---|
-| Silkscreen pixel font (`assets/fonts/Silkscreen-Regular.ttf`), on BMO's setup, brain-swap and calibration screens | The Silkscreen Project Authors, via Google Fonts | SIL Open Font License 1.1 (`assets/fonts/Silkscreen-OFL.txt`) |
+| Silkscreen pixel font (`assets/fonts/Silkscreen-Regular.ttf`, `assets/fonts/Silkscreen-Bold.ttf`), on BMO's screens | The Silkscreen Project Authors, via Google Fonts | SIL Open Font License 1.1 (`assets/fonts/Silkscreen-OFL.txt`) |
 
-## Weather and sky information (fetched when asked, or while alerts are on)
+## Weather, sky and radio information (fetched when asked, or while alerts are on)
 
 | What | Where it comes from | Terms | What it's told |
 |---|---|---|---|
@@ -51,6 +51,7 @@ name and look belong to them.
 | Map under the radar | OpenStreetMap contributors | ODbL; credited on the radar screen | The same map squares |
 | Space station orbit | CelesTrak | Free to use | Nothing about you |
 | Solar storm forecast | NOAA Space Weather Prediction Center | Public domain | Nothing about you |
+| Radio stations | Radio Browser (radio-browser.info), a free and open station directory | Free to use | The style or station name you ask for; the stream then comes from the station itself |
 
 The moon, planets, space station passes, eclipses and meteor showers are worked out on your own computer.
 

@@ -84,8 +84,12 @@ class TurnTrace:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             if self.path.exists() and self.path.stat().st_size > MAX_BYTES:
                 self.path.replace(self.path.with_suffix(self.path.suffix + ".1"))
-            with self.path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps(turn, sort_keys=True) + "\n")
+            with self.path.open("a+b") as handle:
+                # A power cut can leave a half-written line (seen as runs of zero bytes, 2026-11):
+                # start a new line so this turn isn't glued onto it and lost as well.
+                if handle.tell() and (handle.seek(handle.tell() - 1), handle.read(1))[1] != b"\n":
+                    handle.write(b"\n")
+                handle.write((json.dumps(turn, sort_keys=True) + "\n").encode("utf-8"))
         except OSError:
             pass
         return turn

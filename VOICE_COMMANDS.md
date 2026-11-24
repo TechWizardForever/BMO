@@ -12,7 +12,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 |---|---|
 | **Hey BMO / BMO** | Wakes BMO. You can say just his name, wait for him, and then say the command. |
 | **yes / no** | Answers BMO when he asks before doing something. No works on its own; yes needs Hey BMO. |
-| **go to sleep / shutdown yourself** | BMO closes and lets go of his brain. He still hears Hey BMO, which starts him again. |
+| **go to sleep / shutdown yourself** | His eyes close, Zzz's float up, and he goes to standby. He still hears Hey BMO, which starts him again. "Go to bed", "time for bed", "nap time" and "good night, BMO" work too. |
 | **help / what can you do? / list commands** | The help center on BMO's screen: every subject, numbered. Say a subject or a number to see its commands and what each does, then scroll down, back, or close. These work without Hey BMO while it's up. "What can I say?", "what else can you do?", "show me the commands" and "help center" work too. Right after he's answered you, "what can you do?" without Hey BMO is just part of the conversation. If a movie or game has the screen, he says a summary instead. |
 | **weather commands / help with the weather** | Goes straight to one subject's commands. Any subject works: "movie commands", "timer commands", "commands for the sky", "what can I say about my projects?" |
 | **what time is it? / what's the date?** | From this computer's clock. |
@@ -24,6 +24,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 
 | Say | What it does |
 |---|---|
+| **what am I watching?** | The movie or episode that's on. "What's playing?" and "what episode is this?" work too. |
 | **show my movies** | Your movies and shows on BMO's screen, each with a picture and its name. A show has one tile. |
 | **scroll down / scroll up** | Next or previous page of the movies or games on the screen; "next", "more" and "back" work too. No need for Hey BMO while they're showing. |
 | **play number [n]** | Plays that number from the movies or games on the screen; "the third one" or just "three" works too. No need for Hey BMO while they're showing. |
@@ -59,6 +60,19 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | **pause the music / resume the music / stop the music** | "Turn the music off", "music off", "close the music" and "that's enough music" stop it too. With music on and no video, a plain "pause", "stop", "turn it off" or "next" works too. |
 | **what song is this?** | The name of the song that's playing. |
 | **turn the music up / down** | The computer's volume, as for a movie. "Louder", "crank it up", "the music's too loud" and "turn it down a notch" work too. While a song plays, say Hey BMO first every time, so the song's own words can't set anything off. |
+
+## Radio
+
+| Say | What it does |
+|---|---|
+| **play [style] radio** | The best-liked stations of that style, like jazz, 80s, classic rock, news or country. "Play some jazz", "put on jazz music" and "play the news" work too. Needs the internet. |
+| **put on NPR / play [station] radio** | A station by its name, like NPR, KEXP or BBC Radio 1. |
+| **play the radio** | The last station you listened to. |
+| **next station** | Another station of the same kind. "Change the station" works too; while the radio plays, a plain "next" does it. |
+| **previous station** | Back to the station before. "Last station" and "go back a station" work too; while the radio plays, a plain "previous" does it. |
+| **what station is this?** | The station's name and what it plays. |
+| **save this station / play my stations** | Keeps the station that's playing, and plays your saved ones. |
+| **pause the radio / radio off** | Pauses it, or turns it off. Going to sleep turns it off too. |
 
 ## Downloads and USB sticks
 
@@ -223,6 +237,7 @@ These are the set phrases BMO always handles the same way. The movie, game and l
 | **show your face / come back** | Brings BMO's face to the front, on top of other windows. Nothing gets closed. |
 | **face mode** | BMO's face again, with his voice on. |
 | **TTS off / TTS on** | In text mode, turns his spoken answers off or back on. |
+| **captions on / off** | What BMO says shows at the bottom of his screen while he says it. "Turn on captions", "subtitles on" (with no movie on) and "show what you're saying" work too. Stays on after a restart. |
 | **interface status** | Whether he's showing his face or text, and if his voice is on. |
 | **system status** | What's running and which brain is on. |
 | **backup BMO to USB** | Saves a backup of BMO on a USB stick, and checks it. |

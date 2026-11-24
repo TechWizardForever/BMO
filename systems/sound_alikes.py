@@ -27,6 +27,9 @@ _TABLE = tuple((re.compile(heard, re.IGNORECASE), meant) for heard, meant in (
     (r"\blong[- ]?(?:turn|tern|terms?|time)(?= (?:forecast|weather|outlook)\b)", "long term"),
     (r"\blonger (?:forecast|outlook)\b", "long term forecast"),
     (r"\b(weather|extended|long term|long range|two[- ]week|2[- ]week|weekly|week'?s|\w+[- ]day) outlook\b", r"\1 forecast"),
+    # The movies and shows (2026-11-24 command check)
+    (r"^\W*shoe (?=(?:me )?(?:my|the|our) )", "show "),
+    (r"\b((?:show|see|open|list)(?: me)? (?:my|the|our|all my)) (?:moves|moovies|moo vies|moovys)\b(?=\W*$)", r"\1 movies"),
     # The radar
     (rf"\b({_SHOW}) {_FAKE_RADAR}(?=\W*$)", r"\1 radar"),
     (rf"\b((?:close|clothes|hide)(?: the)?) {_FAKE_RADAR}(?=\W*$)", r"\1 radar"),

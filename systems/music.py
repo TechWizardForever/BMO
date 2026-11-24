@@ -217,7 +217,7 @@ def cover(path: Path) -> Path | None:
 _MUSIC = r"(?:music|songs?|tunes?|tracks?|playlist)"
 _SONG = r"(?:song|son|track|tune)"
 _PLAY_ALL = re.compile(rf"^(?:play|put on|start|turn on|throw on)(?: (?:some|my|the|all my|all the|all of my))? {_MUSIC}$|"
-                       rf"^(?:play|put on)(?: (?:some|my|the))? {_MUSIC} (?:please|for me)$|^(?:music|some music) please$")
+                       rf"^(?:play|put on)(?: (?:some|my|the))? {_MUSIC} (?:please|for me)$|^(?:music|some music)(?: please)?$")
 _SHUFFLE = re.compile(rf"^(?:shuffle|play shuffled|shuffle play|mix up)(?: (?:some|my|the|all my|all the))? {_MUSIC}$|"
                       rf"^(?:play|put on)(?: (?:some|my|the))? {_MUSIC} (?:on )?shuffle(?:d)?$|^shuffle$|"
                       # More ways (2026-11-17)
@@ -254,7 +254,10 @@ _PLAIN = {"pause": "pause", "stop": "stop", "resume": "resume", "unpause": "resu
           # 2026-11-17
           "stop it": "stop", "stop playing": "stop", "turn it off": "stop", "turn that off": "stop", "shut it off": "stop",
           "switch it off": "stop", "kill it": "stop", "enough": "stop", "thats enough": "stop", "that is enough": "stop",
-          "stop that": "stop", "turn this off": "stop"}
+          "stop that": "stop", "turn this off": "stop",
+          # 2026-11-24 command check: as on the movie and library screens
+          "close": "stop", "close it": "stop", "close that": "stop", "go back": "previous", "back": "previous",
+          "go back one": "previous", "skip this": "next", "skip that": "next", "next one": "next"}
 
 
 def request(text: str, *, playing: bool = False) -> str | None:
@@ -280,9 +283,13 @@ def request(text: str, *, playing: bool = False) -> str | None:
 class MusicPlayer:
     """One song at a time through ffplay, then the next. Thread-safe; tick() moves it on."""
 
+    RADIO_RETRIES = 3  # a station that drops is reconnected this many times before "next" is tried
+
     def __init__(self, *, start=None, signal_to=os.kill, clock=time.monotonic):
         self._start = start or (lambda path: subprocess.Popen(
-            ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", str(path)],
+            ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet",
+             *(["-reconnect", "1", "-reconnect_streamed", "1", "-reconnect_delay_max", "5"]
+               if str(path).startswith(("http://", "https://")) else []), str(path)],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         self._signal, self._clock = signal_to, clock
         self._lock = threading.Lock()
@@ -292,6 +299,8 @@ class MusicPlayer:
         self.paused = False         # the user's own pause
         self._held_until = 0.0      # paused for "Hey BMO"
         self._stop = threading.Event()
+        self.stations: list[dict] = []  # the radio (2026-11-24): each queued stream's name and what it plays
+        self._retries = 0
 
     def _kill(self):
         if self._proc is not None and self._proc.poll() is None:
@@ -309,6 +318,7 @@ class MusicPlayer:
         self._kill()
         if 0 <= self.index < len(self.queue):
             self._proc = self._start(self.queue[self.index])
+            self._started_at = self._clock()
             if self.paused or self._held_until > self._clock():
                 self._pause_proc()
 
@@ -330,9 +340,11 @@ class MusicPlayer:
         with self._lock:
             on = self._proc is not None and self._proc.poll() is None
             song = self.queue[self.index] if on and 0 <= self.index < len(self.queue) else None
+            station = self.stations[self.index] if song and self.index < len(self.stations) else None
             return {"ok": True, "playing": bool(on and not self.paused), "paused": bool(on and self.paused),
-                    "song": title(Path(song)) if song else None, "number": self.index + 1 if song else None,
-                    "of": len(self.queue) if song else 0}
+                    "song": (station["name"] if station else title(Path(song))) if song else None,
+                    "number": self.index + 1 if song else None, "of": len(self.queue) if song else 0,
+                    "radio": station is not None, "station": dict(station) if station else None}
 
     def handle(self, request_: dict) -> dict:
         op = request_.get("op")
@@ -341,9 +353,13 @@ class MusicPlayer:
                 paths = [str(p) for p in request_.get("paths") or []]
                 if not paths:
                     return {"ok": False}
+                stations = [dict(s) for s in request_.get("stations") or []]
                 if request_.get("shuffle"):
                     random.shuffle(paths)
+                    stations = []
                 self.queue, self.index, self.paused, self._held_until = paths, int(request_.get("start") or 0), False, 0.0
+                self.stations = stations if len(stations) == len(paths) else []
+                self._retries = 0
                 self._play_index()
             elif op == "pause":
                 self.paused = True
@@ -353,12 +369,13 @@ class MusicPlayer:
                 if self._held_until <= self._clock():
                     self._resume_proc()
             elif op == "stop":
-                self.queue, self.paused, self._held_until = [], False, 0.0
+                self.queue, self.stations, self.paused, self._held_until = [], [], False, 0.0
                 self._kill()
             elif op in ("next", "previous"):
                 if not self.queue:
                     return {"ok": False}
                 self.index = (self.index + (1 if op == "next" else -1)) % len(self.queue)
+                self._retries = 0
                 self._play_index()
             elif op == "hold":  # "Hey BMO": quiet while he listens and answers
                 self._held_until = self._clock() + float(request_.get("seconds") or HOLD_SECONDS)
@@ -375,8 +392,17 @@ class MusicPlayer:
                 self._held_until = 0.0
                 if not self.paused:
                     self._resume_proc()
+            if self._retries and self._proc is not None and self._proc.poll() is None \
+                    and self._clock() - getattr(self, "_started_at", 0.0) > 60:
+                self._retries = 0  # it's been playing a minute: a later drop gets its retries again
             if self._proc is not None and self._proc.poll() is not None and self.queue:
-                if self.index + 1 < len(self.queue):
+                if self.stations and self._retries < self.RADIO_RETRIES:
+                    self._retries += 1  # a stream that dropped: the same station again
+                    self._play_index()
+                elif self.stations and len(self.queue) > 1:
+                    self.index, self._retries = (self.index + 1) % len(self.queue), 0  # it won't come back: the next
+                    self._play_index()
+                elif self.index + 1 < len(self.queue) and not self.stations:
                     self.index += 1
                     self._play_index()
                 else:

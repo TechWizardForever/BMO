@@ -310,7 +310,7 @@ _OPEN = re.compile(
     r"(?:list|open|open up) (?:my|all my|all the|our|all of my) " + _WHAT.replace("<what>", "<what2>") + r"|"
     r"open(?: up)?(?: (?:the|our))?\s*(?P<opened>movies|films|shows|tv shows|movie library|movie list|video library|"
     r"projects|project list)|"
-    r"what (?P<asked>movies|games|shows|films|cartoons|videos|projects) (?:do (?:i|we) have|are there|have (?:i|we) got|"
+    r"what (?P<asked>movies|games|shows|films|cartoons|videos|projects|music|songs) (?:do (?:i|we) have|are there|have (?:i|we) got|"
     r"can (?:i|we) (?:watch|play)|are on here|have you got|do you have)|"
     r"what (?:can|could|should) (?:i|we) (?P<listen>listen to)|"
     r"what (?:can|could|should) (?:i|we) (?P<verb>watch|play)|whats there to (?P<verb2>watch|play)|"
@@ -367,6 +367,17 @@ def _one_word_number(word: str) -> int | None:
         if word in table:
             return table.index(word)
     return _TENS.get(word) or _TENTHS.get(word) or {"to": 2, "too": 2, "for": 4}.get(word)
+
+
+# What Whisper writes for a number said after "number" (2026-11-24 command check: "play number tree" launched a game)
+_NUMBER_SOUNDS = {"won": "one", "wan": "one", "tree": "three", "free": "three", "tea": "three", "fore": "four",
+                  "fur": "four", "fife": "five", "sick": "six", "sex": "six", "seben": "seven", "ate": "eight",
+                  "nein": "nine", "tin": "ten"}
+
+
+def _number_sounds(text: str) -> str:
+    return re.sub(r"\b(number|numero) (" + "|".join(_NUMBER_SOUNDS) + r")\b",
+                  lambda m: f"{m.group(1)} {_NUMBER_SOUNDS[m.group(2)]}", text, flags=re.IGNORECASE)
 
 
 def spoken_number(text: str) -> int | None:
@@ -472,7 +483,7 @@ def command(text: str) -> tuple[str, int] | None:
     for the one in the middle of the carousel, or ('shuffle', 0) for the music."""
     from systems.media_phrases import first
     from systems.sound_alikes import put_right
-    return first(put_right(text), _command)
+    return first(_number_sounds(put_right(text)), _command)
 
 
 def _command(said: str) -> tuple[str, int] | None:
